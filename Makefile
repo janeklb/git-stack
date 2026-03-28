@@ -1,4 +1,5 @@
 GO ?= go
+BIN_DIR ?= bin
 
 .PHONY: test build build-stack build-git-stack fmt
 
@@ -8,10 +9,11 @@ test:
 build: build-stack build-git-stack
 
 build-stack:
-	$(GO) build -o stack ./cmd/stack
+	mkdir -p $(BIN_DIR)
+	$(GO) build -o $(BIN_DIR)/stack ./cmd/stack
 
 build-git-stack: build-stack
-	ln -sf stack git-stack
+	ln -sf stack $(BIN_DIR)/git-stack
 
 fmt:
 	gofmt -w ./cmd ./internal
