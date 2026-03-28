@@ -5,6 +5,14 @@ import (
 	"strings"
 )
 
+type StackPRLine struct {
+	Branch string
+	Number int
+	Title  string
+	URL    string
+	State  string
+}
+
 func branchSummary(parent, branch string) (string, []string, error) {
 	latestTitle, err := gitOutput("log", "-1", "--format=%s", branch)
 	if err != nil {
@@ -39,30 +47,74 @@ func composeBody(summary []string, managed string) string {
 		b.WriteString(item)
 		b.WriteString("\n")
 	}
-	b.WriteString("\n")
-	b.WriteString(managed)
-	b.WriteString("\n")
+	if strings.TrimSpace(managed) != "" {
+		b.WriteString("\n")
+		b.WriteString(managed)
+		b.WriteString("\n")
+	}
 	return b.String()
 }
 
-func managedBlock(branch, parent string) string {
-	return strings.Join([]string{
-		managedBlockStart,
-		fmt.Sprintf("branch: %s", branch),
-		fmt.Sprintf("parent: %s", parent),
-		"managed-by: stack",
-		managedBlockEnd,
-	}, "\n")
+func managedStackBlock(currentBranch string, lines []StackPRLine) string {
+	var b strings.Builder
+	b.WriteString("## Current Stack\n")
+	b.WriteString(managedBlockStart)
+	b.WriteString("\n")
+	for _, line := range lines {
+		if line.Number <= 0 || strings.TrimSpace(line.URL) == "" {
+			continue
+		}
+		marker := stackPRMarker(currentBranch, line.Branch, line.State)
+		title := strings.TrimSpace(line.Title)
+		if title == "" {
+			title = line.Branch
+		}
+		b.WriteString(fmt.Sprintf("- %s [#%d %s](%s)\n", marker, line.Number, title, line.URL))
+	}
+	b.WriteString("\n<sub>Legend: 👉 current PR, ⚪ open, ☑️ merged</sub>\n")
+	b.WriteString(managedBlockEnd)
+	return b.String()
 }
 
 func upsertManagedBlock(body, managed string) string {
 	start := strings.Index(body, managedBlockStart)
 	if start >= 0 {
-		return strings.TrimSpace(body[:start]) + "\n\n" + managed + "\n"
+		relEnd := strings.Index(body[start:], managedBlockEnd)
+		if relEnd >= 0 {
+			end := start + relEnd + len(managedBlockEnd)
+			before := strings.TrimSpace(body[:start])
+			after := strings.TrimSpace(body[end:])
+			return stitchBody(before, managed, after)
+		}
+		before := strings.TrimSpace(body[:start])
+		return stitchBody(before, managed, "")
 	}
 	body = strings.TrimSpace(body)
 	if body == "" {
 		return managed + "\n"
 	}
 	return body + "\n\n" + managed + "\n"
+}
+
+func stackPRMarker(currentBranch, branch, state string) string {
+	if currentBranch == branch {
+		return "👉"
+	}
+	if strings.EqualFold(state, "merged") {
+		return "☑️"
+	}
+	return "⚪"
+}
+
+func stitchBody(before, managed, after string) string {
+	if before == "" && after == "" {
+		return managed + "\n"
+	}
+	if before == "" {
+		return managed + "\n\n" + after + "\n"
+	}
+	if after == "" {
+		return before + "\n\n" + managed + "\n"
+	}
+	return before + "\n\n" + managed + "\n\n" + after + "\n"
 }

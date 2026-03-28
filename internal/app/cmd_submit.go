@@ -45,6 +45,9 @@ func (a *App) cmdSubmit(all bool, branch string) error {
 		meta.PR = pr
 		fmt.Printf("%s -> PR #%d %s\n", branch, pr.Number, pr.URL)
 	}
+	if err := syncCurrentStackBodies(state, all, branch); err != nil {
+		return err
+	}
 
 	if persisted {
 		if err := saveState(repoRoot, state); err != nil {

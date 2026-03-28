@@ -81,16 +81,18 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 
 	var statusAll bool
 	var statusDrift bool
+	var statusNoColor bool
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show stack graph and state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdStatus(statusAll, statusDrift)
+			return a.cmdStatus(statusAll, statusDrift, statusNoColor)
 		},
 	}
 	statusCmd.Flags().BoolVar(&statusAll, "all", false, "show all stacks")
 	statusCmd.Flags().BoolVar(&statusDrift, "drift", false, "include drift markers")
+	statusCmd.Flags().BoolVar(&statusNoColor, "no-color", false, "disable ANSI colors")
 	root.AddCommand(statusCmd)
 
 	var restackMode string

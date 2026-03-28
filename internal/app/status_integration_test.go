@@ -53,11 +53,14 @@ func TestStatusWorksWithoutInitializedState(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("status failed: exit=%d\n%s", code, out)
 		}
-		if !strings.Contains(out, "- main") {
+		if !strings.Contains(out, "main (trunk)") {
 			t.Fatalf("expected trunk in status output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "feat-one") {
 			t.Fatalf("expected inferred branch in status output, got:\n%s", out)
+		}
+		if strings.Contains(out, "\x1b[") {
+			t.Fatalf("expected plain output without ANSI escapes in non-TTY, got:\n%s", out)
 		}
 	})
 }
@@ -128,6 +131,9 @@ func TestStatusDefaultsToCurrentStackOnly(t *testing.T) {
 		}
 		if !strings.Contains(outAll, "stack-b-1") {
 			t.Fatalf("expected unrelated stack branch with --all, got:\n%s", outAll)
+		}
+		if !strings.Contains(outAll, "└─") && !strings.Contains(outAll, "├─") {
+			t.Fatalf("expected tree connectors in status output, got:\n%s", outAll)
 		}
 	})
 }
