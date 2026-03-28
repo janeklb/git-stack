@@ -1,0 +1,56 @@
+package app
+
+import (
+	"flag"
+	"fmt"
+	"os"
+)
+
+func (a *App) cmdRepair(args []string) error {
+	fs := flag.NewFlagSet("repair", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := ensureCleanWorktree(); err != nil {
+		return err
+	}
+	repoRoot, oldState, err := loadStateFromRepo()
+	if err != nil {
+		return err
+	}
+
+	branches, err := listLocalBranches()
+	if err != nil {
+		return err
+	}
+
+	newState := &State{
+		Version:     stateVersion,
+		Trunk:       oldState.Trunk,
+		RestackMode: oldState.RestackMode,
+		Naming:      oldState.Naming,
+		Branches:    map[string]*BranchRef{},
+	}
+
+	for _, branch := range branches {
+		if branch == newState.Trunk {
+			continue
+		}
+		parent, err := inferParent(branch, branches, newState.Trunk)
+		if err != nil {
+			return err
+		}
+		entry := &BranchRef{Parent: parent}
+		if oldMeta, ok := oldState.Branches[branch]; ok && oldMeta.PR != nil {
+			entry.PR = oldMeta.PR
+		}
+		newState.Branches[branch] = entry
+	}
+
+	if err := saveState(repoRoot, newState); err != nil {
+		return err
+	}
+	fmt.Println("rebuilt stack metadata from git ancestry")
+	return nil
+}
