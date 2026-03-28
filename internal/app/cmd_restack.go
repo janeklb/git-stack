@@ -20,7 +20,7 @@ func (a *App) cmdRestack(args []string) error {
 	if *cont && *abort {
 		return errors.New("--continue and --abort are mutually exclusive")
 	}
-	repoRoot, state, err := loadStateFromRepo()
+	repoRoot, state, _, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}

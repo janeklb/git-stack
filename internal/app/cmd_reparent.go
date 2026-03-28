@@ -28,7 +28,7 @@ func (a *App) cmdReparent(args []string) error {
 
 	target := fs.Arg(0)
 	newParent := strings.TrimSpace(*parent)
-	repoRoot, state, err := loadStateFromRepo()
+	repoRoot, state, _, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}

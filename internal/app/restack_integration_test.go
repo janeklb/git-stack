@@ -50,3 +50,32 @@ func TestRestackContinueAndAbortWithoutOperationFail(t *testing.T) {
 		}
 	})
 }
+
+func TestRestackWithoutInitializedStateUsesInferredStack(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustGit(t, repo, "switch", "-c", "feat-one")
+		mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+		mustGit(t, repo, "add", "feature1.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+
+		mustGit(t, repo, "switch", "-c", "feat-two")
+		mustWriteFile(t, filepath.Join(repo, "feature2.txt"), "two\n")
+		mustGit(t, repo, "add", "feature2.txt")
+		mustGit(t, repo, "commit", "-m", "feat two")
+
+		mustGit(t, repo, "switch", "main")
+		mustWriteFile(t, filepath.Join(repo, "base.txt"), "base\n")
+		mustGit(t, repo, "add", "base.txt")
+		mustGit(t, repo, "commit", "-m", "base update")
+
+		mustGit(t, repo, "switch", "feat-two")
+		mustRunCLI(t, cli, []string{"restack"})
+
+		mustGit(t, repo, "merge-base", "--is-ancestor", "main", "feat-one")
+		mustGit(t, repo, "merge-base", "--is-ancestor", "feat-one", "feat-two")
+	})
+}

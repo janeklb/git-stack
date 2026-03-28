@@ -21,7 +21,7 @@ func (a *App) cmdNew(args []string) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
-	repoRoot, state, err := loadStateFromRepo()
+	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
@@ -70,8 +70,10 @@ func (a *App) cmdNew(args []string) error {
 
 	state.Branches[branchName] = &BranchRef{Parent: parentBranch}
 	state.Naming.NextIndex++
-	if err := saveState(repoRoot, state); err != nil {
-		return err
+	if persisted {
+		if err := saveState(repoRoot, state); err != nil {
+			return err
+		}
 	}
 	fmt.Printf("created %s (parent=%s)\n", branchName, parentBranch)
 	return nil

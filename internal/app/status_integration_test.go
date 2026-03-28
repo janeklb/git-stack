@@ -37,3 +37,27 @@ func TestStatusShowsDriftWhenParentIsNotAncestor(t *testing.T) {
 		}
 	})
 }
+
+func TestStatusWorksWithoutInitializedState(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustGit(t, repo, "switch", "-c", "feat-one")
+		mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+		mustGit(t, repo, "add", "feature1.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+
+		out, code := runCLIAndCapture(t, cli, []string{"status"})
+		if code != 0 {
+			t.Fatalf("status failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "trunk: main") {
+			t.Fatalf("expected inferred trunk in status output, got:\n%s", out)
+		}
+		if !strings.Contains(out, "feat-one") {
+			t.Fatalf("expected inferred branch in status output, got:\n%s", out)
+		}
+	})
+}

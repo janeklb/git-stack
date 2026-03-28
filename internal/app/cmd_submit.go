@@ -16,7 +16,7 @@ func (a *App) cmdSubmit(args []string) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
-	repoRoot, state, err := loadStateFromRepo()
+	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
@@ -50,8 +50,10 @@ func (a *App) cmdSubmit(args []string) error {
 		fmt.Printf("%s -> PR #%d %s\n", branch, pr.Number, pr.URL)
 	}
 
-	if err := saveState(repoRoot, state); err != nil {
-		return err
+	if persisted {
+		if err := saveState(repoRoot, state); err != nil {
+			return err
+		}
 	}
 	return nil
 }

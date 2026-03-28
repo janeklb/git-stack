@@ -61,6 +61,7 @@ State is local-only and stored in:
 - Stack unit is branch -> PR
 - Parent is inferred initially and persisted in local state
 - Trunk defaults from `origin/HEAD` when available
+- Stack operations infer graph from git when state is missing (stateless-first)
 - `restack` defaults to rebase, supports merge mode
 - On restack conflicts, it stops and resumes with `stack restack --continue`
 - PR submit uses parent branch as PR base

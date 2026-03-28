@@ -13,7 +13,7 @@ func (a *App) cmdStatus(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	repoRoot, state, err := loadStateFromRepo()
+	repoRoot, state, _, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}

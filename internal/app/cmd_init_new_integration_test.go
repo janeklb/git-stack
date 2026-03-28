@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -30,5 +31,22 @@ func TestInitAndNewBuildsStack(t *testing.T) {
 		if got := state.Branches["feat-two"].Parent; got != "feat-one" {
 			t.Fatalf("expected feat-two parent feat-one, got %q", got)
 		}
+	})
+}
+
+func TestNewWithoutInitIsStatelessByDefault(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		out, code := runCLIAndCapture(t, cli, []string{"new", "doing-something"})
+		if code != 0 {
+			t.Fatalf("expected stack new to succeed without init, got code=%d output=%s", code, out)
+		}
+		if _, err := os.Stat(filepath.Join(repo, ".git", "stack", "state.json")); !os.IsNotExist(err) {
+			t.Fatalf("expected no persisted stack state, got err=%v", err)
+		}
+		mustGit(t, repo, "show-ref", "--verify", "--quiet", "refs/heads/doing-something")
 	})
 }

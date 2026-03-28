@@ -15,7 +15,7 @@ func (a *App) cmdRepair(args []string) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
-	repoRoot, oldState, err := loadStateFromRepo()
+	repoRoot, oldState, _, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}

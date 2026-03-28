@@ -5,20 +5,89 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
+var errStateNotInitialized = errors.New("stack state not initialized; run stack init")
+
 func loadStateFromRepo() (string, *State, error) {
-	repoRoot, err := gitOutput("rev-parse", "--show-toplevel")
+	repoRoot, err := repoRoot()
 	if err != nil {
-		return "", nil, errors.New("not a git repository")
+		return "", nil, err
 	}
-	repoRoot = strings.TrimSpace(repoRoot)
 	state, err := loadState(repoRoot)
 	if err != nil {
 		return "", nil, err
 	}
 	return repoRoot, state, nil
+}
+
+func loadStateFromRepoOrInfer() (string, *State, bool, error) {
+	repoRoot, err := repoRoot()
+	if err != nil {
+		return "", nil, false, err
+	}
+	state, err := loadState(repoRoot)
+	if err == nil {
+		return repoRoot, state, true, nil
+	}
+	if !errors.Is(err, errStateNotInitialized) {
+		return "", nil, false, err
+	}
+	state, err = inferState(repoRoot)
+	if err != nil {
+		return "", nil, false, err
+	}
+	return repoRoot, state, false, nil
+}
+
+func repoRoot() (string, error) {
+	repoRoot, err := gitOutput("rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", errors.New("not a git repository")
+	}
+	return strings.TrimSpace(repoRoot), nil
+}
+
+func inferState(repoRoot string) (*State, error) {
+	trunk, err := detectTrunk()
+	if err != nil {
+		return nil, err
+	}
+	branches, err := listLocalBranches()
+	if err != nil {
+		return nil, err
+	}
+	state := &State{
+		Version:     stateVersion,
+		Trunk:       trunk,
+		RestackMode: defaultRestackMode,
+		Naming: NamingConfig{
+			Template:  "{slug}",
+			NextIndex: 1,
+		},
+		Branches: map[string]*BranchRef{},
+	}
+
+	maxIndex := 0
+	for _, branch := range branches {
+		if branch == trunk {
+			continue
+		}
+		parent, err := inferParent(branch, branches, trunk)
+		if err != nil {
+			return nil, err
+		}
+		state.Branches[branch] = &BranchRef{Parent: parent}
+		if idx := parseLeadingIndex(branch); idx > maxIndex {
+			maxIndex = idx
+		}
+	}
+	if maxIndex > 0 {
+		state.Naming.NextIndex = maxIndex + 1
+	}
+	return state, nil
 }
 
 func statePath(repoRoot string) string {
@@ -34,7 +103,7 @@ func loadState(repoRoot string) (*State, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, errors.New("stack state not initialized; run stack init")
+			return nil, errStateNotInitialized
 		}
 		return nil, err
 	}
@@ -104,4 +173,16 @@ func removeOperation(repoRoot string) error {
 		return err
 	}
 	return nil
+}
+
+func parseLeadingIndex(branch string) int {
+	parts := strings.SplitN(branch, "-", 2)
+	if len(parts) == 0 || parts[0] == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(parts[0])
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }
