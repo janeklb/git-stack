@@ -10,6 +10,8 @@ import (
 func (a *App) cmdStatus(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
+	all := fs.Bool("all", false, "show all stacks")
+	showDrift := fs.Bool("drift", false, "include drift markers")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -18,11 +20,17 @@ func (a *App) cmdStatus(args []string) error {
 		return err
 	}
 
-	fmt.Printf("trunk: %s\n", state.Trunk)
-	fmt.Printf("restack mode: %s\n", state.RestackMode)
-	if len(state.Branches) == 0 {
-		fmt.Println("(no stacked branches)")
-		return nil
+	current, err := currentBranch()
+	if err != nil {
+		return err
+	}
+	selected := map[string]bool{}
+	if *all || current == state.Trunk {
+		for branch := range state.Branches {
+			selected[branch] = true
+		}
+	} else {
+		selected = branchesInCurrentStack(state, current)
 	}
 
 	children := map[string][]string{}
@@ -37,6 +45,9 @@ func (a *App) cmdStatus(args []string) error {
 	var walk func(parent, indent string)
 	walk = func(parent, indent string) {
 		for _, branch := range children[parent] {
+			if !selected[branch] {
+				continue
+			}
 			if printed[branch] {
 				continue
 			}
@@ -46,8 +57,10 @@ func (a *App) cmdStatus(args []string) error {
 			if meta.PR != nil {
 				line += fmt.Sprintf(" (PR #%d %s)", meta.PR.Number, meta.PR.URL)
 			}
-			if drift, reason := detectDrift(branch, meta.Parent); drift {
-				line += fmt.Sprintf(" [drift: %s]", reason)
+			if *showDrift {
+				if drift, reason := detectDrift(branch, meta.Parent); drift {
+					line += fmt.Sprintf(" [drift: %s]", reason)
+				}
 			}
 			fmt.Println(line)
 			walk(branch, indent+"  ")
@@ -59,7 +72,7 @@ func (a *App) cmdStatus(args []string) error {
 
 	unrooted := []string{}
 	for branch := range state.Branches {
-		if !printed[branch] {
+		if selected[branch] && !printed[branch] {
 			unrooted = append(unrooted, branch)
 		}
 	}

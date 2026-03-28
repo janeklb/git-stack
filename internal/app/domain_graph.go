@@ -158,3 +158,56 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].ts > candidates[j].ts })
 	return candidates[0].name, nil
 }
+
+func branchesInCurrentStack(state *State, current string) map[string]bool {
+	selected := map[string]bool{}
+	if current == "" || current == state.Trunk {
+		for branch := range state.Branches {
+			selected[branch] = true
+		}
+		return selected
+	}
+	if _, ok := state.Branches[current]; !ok {
+		return selected
+	}
+
+	children := map[string][]string{}
+	for branch, meta := range state.Branches {
+		children[meta.Parent] = append(children[meta.Parent], branch)
+	}
+
+	root := current
+	seen := map[string]bool{}
+	for {
+		if seen[root] {
+			break
+		}
+		seen[root] = true
+		meta := state.Branches[root]
+		if meta == nil {
+			break
+		}
+		parent := meta.Parent
+		if parent == "" || parent == state.Trunk {
+			break
+		}
+		if _, ok := state.Branches[parent]; !ok {
+			break
+		}
+		root = parent
+	}
+
+	stack := []string{root}
+	for len(stack) > 0 {
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if selected[node] {
+			continue
+		}
+		selected[node] = true
+		for _, child := range children[node] {
+			stack = append(stack, child)
+		}
+	}
+	return selected
+}

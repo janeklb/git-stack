@@ -34,7 +34,7 @@ func TestInitAndNewBuildsStack(t *testing.T) {
 	})
 }
 
-func TestNewWithoutInitIsStatelessByDefault(t *testing.T) {
+func TestNewWithoutInitBootstrapsState(t *testing.T) {
 	repo := newTestRepo(t)
 
 	withRepoCwd(t, repo, func() {
@@ -44,8 +44,8 @@ func TestNewWithoutInitIsStatelessByDefault(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("expected stack new to succeed without init, got code=%d output=%s", code, out)
 		}
-		if _, err := os.Stat(filepath.Join(repo, ".git", "stack", "state.json")); !os.IsNotExist(err) {
-			t.Fatalf("expected no persisted stack state, got err=%v", err)
+		if _, err := os.Stat(filepath.Join(repo, ".git", "stack", "state.json")); err != nil {
+			t.Fatalf("expected persisted stack state, got err=%v", err)
 		}
 		mustGit(t, repo, "show-ref", "--verify", "--quiet", "refs/heads/doing-something")
 	})
@@ -67,8 +67,8 @@ func TestInitAfterStatelessWorkPreservesInferredBranches(t *testing.T) {
 		mustGit(t, repo, "add", "feature2.txt")
 		mustGit(t, repo, "commit", "-m", "feat two")
 
-		if _, err := os.Stat(filepath.Join(repo, ".git", "stack", "state.json")); !os.IsNotExist(err) {
-			t.Fatalf("expected no persisted stack state before init, got err=%v", err)
+		if _, err := os.Stat(filepath.Join(repo, ".git", "stack", "state.json")); err != nil {
+			t.Fatalf("expected persisted stack state before init, got err=%v", err)
 		}
 
 		mustRunCLI(t, cli, []string{"init"})

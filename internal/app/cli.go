@@ -52,7 +52,7 @@ func (a *App) printHelp(invocation string) {
 Usage:
   %s init [--trunk <branch>] [--mode rebase|merge]
   %s new <name> [--parent <branch>] [--template <template>] [--prefix-index]
-  %s status
+  %s status [--all] [--drift]
   %s restack [--mode rebase|merge] [--continue] [--abort]
   %s submit [--all] [branch]
   %s reparent <branch> --parent <new-parent>

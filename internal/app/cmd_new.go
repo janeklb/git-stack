@@ -70,10 +70,11 @@ func (a *App) cmdNew(args []string) error {
 
 	state.Branches[branchName] = &BranchRef{Parent: parentBranch}
 	state.Naming.NextIndex++
-	if persisted {
-		if err := saveState(repoRoot, state); err != nil {
-			return err
-		}
+	if !persisted {
+		fmt.Printf("initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode)
+	}
+	if err := saveState(repoRoot, state); err != nil {
+		return err
 	}
 	fmt.Printf("created %s (parent=%s)\n", branchName, parentBranch)
 	return nil
