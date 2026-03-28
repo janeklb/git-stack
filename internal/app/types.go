@@ -29,9 +29,10 @@ type BranchRef struct {
 }
 
 type PRMeta struct {
-	Number int    `json:"number"`
-	URL    string `json:"url"`
-	Base   string `json:"base"`
+	Number  int    `json:"number"`
+	URL     string `json:"url"`
+	Base    string `json:"base"`
+	Updated bool   `json:"updated,omitempty"`
 }
 
 type RestackOperation struct {

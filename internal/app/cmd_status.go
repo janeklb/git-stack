@@ -54,6 +54,7 @@ func (a *App) cmdStatus(args []string) error {
 			printed[branch] = true
 			meta := state.Branches[branch]
 			line := indent + "- " + branch
+			line += fmt.Sprintf(" [%s]", branchPRState(meta.PR))
 			if meta.PR != nil {
 				line += fmt.Sprintf(" (PR #%d %s)", meta.PR.Number, meta.PR.URL)
 			}
@@ -83,7 +84,7 @@ func (a *App) cmdStatus(args []string) error {
 		if meta.Parent != "" {
 			line += fmt.Sprintf(" parent=%s", meta.Parent)
 		}
-		line += "]"
+		line += fmt.Sprintf(" state=%s]", branchPRState(meta.PR))
 		fmt.Println(line)
 		walk(branch, "  ")
 	}
@@ -93,4 +94,14 @@ func (a *App) cmdStatus(args []string) error {
 		fmt.Printf("restack in progress: mode=%s index=%d/%d\n", op.Mode, op.Index, len(op.Queue))
 	}
 	return nil
+}
+
+func branchPRState(pr *PRMeta) string {
+	if pr == nil || pr.Number <= 0 {
+		return "local-only"
+	}
+	if pr.Updated {
+		return "updated"
+	}
+	return "submitted"
 }

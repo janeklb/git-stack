@@ -21,6 +21,9 @@ func (a *App) cmdNew(args []string) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
+	if !hasHeadCommit() {
+		return errors.New("repository has no commits yet; create an initial commit first (for example: git commit --allow-empty -m \"initial commit\")")
+	}
 	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
@@ -78,8 +81,10 @@ func (a *App) cmdNew(args []string) error {
 		return fmt.Errorf("branch already exists: %s", branchName)
 	}
 
-	if err := gitRun("switch", parentBranch); err != nil {
-		return err
+	if cur != parentBranch {
+		if err := gitRun("switch", parentBranch); err != nil {
+			return err
+		}
 	}
 	if err := gitRun("switch", "-c", branchName); err != nil {
 		return err

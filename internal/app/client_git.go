@@ -67,6 +67,11 @@ func currentBranch() (string, error) {
 	return branch, nil
 }
 
+func hasHeadCommit() bool {
+	_, err := gitOutput("rev-parse", "--verify", "--quiet", "HEAD")
+	return err == nil
+}
+
 func listLocalBranches() ([]string, error) {
 	out, err := gitOutput("for-each-ref", "--format=%(refname:short)", "refs/heads")
 	if err != nil {

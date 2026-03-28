@@ -17,7 +17,7 @@ func ensurePR(branch, parent string, existing *PRMeta) (*PRMeta, error) {
 			if err := ghEdit(existing.Number, parent, body); err != nil {
 				return nil, err
 			}
-			return &PRMeta{Number: existing.Number, URL: pr.URL, Base: parent}, nil
+			return &PRMeta{Number: existing.Number, URL: pr.URL, Base: parent, Updated: true}, nil
 		}
 	}
 
@@ -26,12 +26,12 @@ func ensurePR(branch, parent string, existing *PRMeta) (*PRMeta, error) {
 		if err := ghEdit(open.Number, parent, body); err != nil {
 			return nil, err
 		}
-		return &PRMeta{Number: open.Number, URL: open.URL, Base: parent}, nil
+		return &PRMeta{Number: open.Number, URL: open.URL, Base: parent, Updated: true}, nil
 	}
 
 	number, url, err := ghCreate(branch, parent, latestTitle, defaultBody)
 	if err != nil {
 		return nil, err
 	}
-	return &PRMeta{Number: number, URL: url, Base: parent}, nil
+	return &PRMeta{Number: number, URL: url, Base: parent, Updated: false}, nil
 }

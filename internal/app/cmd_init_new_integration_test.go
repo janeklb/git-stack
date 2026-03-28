@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -105,6 +106,25 @@ func TestNewOnUntrackedCurrentBranchAutoTracksAndStacksFromIt(t *testing.T) {
 		}
 		if _, ok := state.Branches["manual-child"]; !ok {
 			t.Fatalf("expected manual-child to be auto-tracked")
+		}
+	})
+}
+
+func TestNewInEmptyRepositoryShowsGuidance(t *testing.T) {
+	repo := t.TempDir()
+	mustGit(t, repo, "init", "-b", "main")
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+		out, code := runCLIAndCapture(t, cli, []string{"new", "first-change"})
+		if code == 0 {
+			t.Fatalf("expected stack new to fail in empty repository")
+		}
+		if !strings.Contains(out, "repository has no commits yet") {
+			t.Fatalf("expected no-commit guidance, got:\n%s", out)
+		}
+		if !strings.Contains(out, "git commit --allow-empty") {
+			t.Fatalf("expected allow-empty suggestion, got:\n%s", out)
 		}
 	})
 }

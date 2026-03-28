@@ -82,6 +82,9 @@ func TestStatusShowsStatelessStackCreatedByStackNew(t *testing.T) {
 		if !strings.Contains(out, "feat-one") || !strings.Contains(out, "feat-two") {
 			t.Fatalf("expected both inferred branches in status output, got:\n%s", out)
 		}
+		if !strings.Contains(out, "[local-only]") {
+			t.Fatalf("expected local-only state marker in status output, got:\n%s", out)
+		}
 	})
 }
 
