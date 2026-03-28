@@ -2,32 +2,24 @@ package app
 
 import (
 	"errors"
-	"flag"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 )
 
-func (a *App) cmdReparent(args []string) error {
-	fs := flag.NewFlagSet("reparent", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	parent := fs.String("parent", "", "new parent branch")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if fs.NArg() < 1 {
+func (a *App) cmdReparent(target, newParent string) error {
+	if strings.TrimSpace(target) == "" {
 		return errors.New("usage: stack reparent <branch> --parent <new-parent>")
 	}
-	if strings.TrimSpace(*parent) == "" {
+	if strings.TrimSpace(newParent) == "" {
 		return errors.New("--parent is required")
 	}
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
 
-	target := fs.Arg(0)
-	newParent := strings.TrimSpace(*parent)
+	target = strings.TrimSpace(target)
+	newParent = strings.TrimSpace(newParent)
 	repoRoot, state, _, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err

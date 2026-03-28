@@ -2,33 +2,22 @@ package app
 
 import (
 	"errors"
-	"flag"
 	"fmt"
-	"os"
 	"strings"
 )
 
-func (a *App) cmdInit(args []string) error {
-	fs := flag.NewFlagSet("init", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	trunk := fs.String("trunk", "", "trunk branch")
-	mode := fs.String("mode", defaultRestackMode, "restack mode: rebase or merge")
-	template := fs.String("template", "{slug}", "branch naming template")
-	prefixIndex := fs.Bool("prefix-index", false, "prefix generated name with incrementing index")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
+func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
-	if *mode != "rebase" && *mode != "merge" {
+	if mode != "rebase" && mode != "merge" {
 		return errors.New("--mode must be rebase or merge")
 	}
 	repoRoot, err := repoRoot()
 	if err != nil {
 		return err
 	}
-	detectedTrunk := strings.TrimSpace(*trunk)
+	detectedTrunk := strings.TrimSpace(trunk)
 	if detectedTrunk == "" {
 		detectedTrunk, err = detectTrunk()
 		if err != nil {
@@ -47,10 +36,10 @@ func (a *App) cmdInit(args []string) error {
 	state := &State{
 		Version:     stateVersion,
 		Trunk:       detectedTrunk,
-		RestackMode: *mode,
+		RestackMode: mode,
 		Naming: NamingConfig{
-			Template:    *template,
-			PrefixIndex: *prefixIndex,
+			Template:    template,
+			PrefixIndex: prefixIndex,
 			NextIndex:   1,
 		},
 		Branches: branches,
@@ -58,6 +47,6 @@ func (a *App) cmdInit(args []string) error {
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
-	fmt.Printf("initialized stack state (trunk=%s, mode=%s)\n", detectedTrunk, *mode)
+	fmt.Printf("initialized stack state (trunk=%s, mode=%s)\n", detectedTrunk, mode)
 	return nil
 }

@@ -3,38 +3,15 @@ package app
 import (
 	"fmt"
 	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 func (a *App) Run(args []string, invocation string) int {
-	if len(args) == 0 {
-		a.printHelp(invocation)
-		return 0
-	}
-
-	cmd := args[0]
-	var err error
-	switch cmd {
-	case "help", "-h", "--help":
-		a.printHelp(invocation)
-		return 0
-	case "init":
-		err = a.cmdInit(args[1:])
-	case "new":
-		err = a.cmdNew(args[1:])
-	case "status":
-		err = a.cmdStatus(args[1:])
-	case "restack":
-		err = a.cmdRestack(args[1:])
-	case "submit":
-		err = a.cmdSubmit(args[1:])
-	case "reparent":
-		err = a.cmdReparent(args[1:])
-	case "repair":
-		err = a.cmdRepair(args[1:])
-	default:
-		err = fmt.Errorf("unknown command: %s", cmd)
-	}
-
+	root := a.newRootCmd(invocation)
+	root.SetArgs(args)
+	err := root.Execute()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
@@ -42,23 +19,136 @@ func (a *App) Run(args []string, invocation string) int {
 	return 0
 }
 
-func (a *App) printHelp(invocation string) {
+func (a *App) newRootCmd(invocation string) *cobra.Command {
 	bin := invocation
 	if bin == "" {
 		bin = "stack"
 	}
-	fmt.Printf(`%s - stacked PR tool
+	use := strings.TrimSpace(bin)
+	if use == "" {
+		use = "stack"
+	}
 
-Usage:
-  %s init [--trunk <branch>] [--mode rebase|merge]
-  %s new <name> [--parent <branch>] [--template <template>] [--prefix-index]
-  %s status [--all] [--drift]
-  %s restack [--mode rebase|merge] [--continue] [--abort]
-  %s submit [--all] [branch]
-  %s reparent <branch> --parent <new-parent>
-  %s repair
+	root := &cobra.Command{
+		Use:           use,
+		Short:         "stacked PR tool",
+		Long:          "stack is a stacked PR tool. Equivalent git extension form: git stack <command>",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
+	}
+	root.CompletionOptions.DisableDefaultCmd = false
 
-Equivalent git extension form:
-  git stack <command>
-`, bin, bin, bin, bin, bin, bin, bin, bin)
+	var initTrunk string
+	var initMode string
+	var initTemplate string
+	var initPrefixIndex bool
+	initCmd := &cobra.Command{
+		Use:   "init",
+		Short: "Initialize stack state",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdInit(initTrunk, initMode, initTemplate, initPrefixIndex)
+		},
+	}
+	initCmd.Flags().StringVar(&initTrunk, "trunk", "", "trunk branch")
+	initCmd.Flags().StringVar(&initMode, "mode", defaultRestackMode, "restack mode: rebase or merge")
+	initCmd.Flags().StringVar(&initTemplate, "template", "{slug}", "branch naming template")
+	initCmd.Flags().BoolVar(&initPrefixIndex, "prefix-index", false, "prefix generated name with incrementing index")
+	root.AddCommand(initCmd)
+
+	var newParent string
+	var newTemplate string
+	var newPrefixIndex bool
+	newCmd := &cobra.Command{
+		Use:   "new [name]",
+		Short: "Create a new branch in stack",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := ""
+			if len(args) > 0 {
+				name = args[0]
+			}
+			return a.cmdNew(name, newParent, newTemplate, newPrefixIndex)
+		},
+	}
+	newCmd.Flags().StringVar(&newParent, "parent", "", "parent branch")
+	newCmd.Flags().StringVar(&newTemplate, "template", "", "override naming template")
+	newCmd.Flags().BoolVar(&newPrefixIndex, "prefix-index", false, "prefix generated name with incrementing index")
+	root.AddCommand(newCmd)
+
+	var statusAll bool
+	var statusDrift bool
+	var statusNoColor bool
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show stack graph and state",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdStatus(statusAll, statusDrift, statusNoColor)
+		},
+	}
+	statusCmd.Flags().BoolVar(&statusAll, "all", false, "show all stacks")
+	statusCmd.Flags().BoolVar(&statusDrift, "drift", false, "include drift markers")
+	statusCmd.Flags().BoolVar(&statusNoColor, "no-color", false, "disable ANSI colors")
+	root.AddCommand(statusCmd)
+
+	var restackMode string
+	var restackContinue bool
+	var restackAbort bool
+	restackCmd := &cobra.Command{
+		Use:   "restack",
+		Short: "Restack branches onto their parents",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdRestack(restackMode, restackContinue, restackAbort)
+		},
+	}
+	restackCmd.Flags().StringVar(&restackMode, "mode", "", "restack mode override")
+	restackCmd.Flags().BoolVar(&restackContinue, "continue", false, "continue restack after conflicts")
+	restackCmd.Flags().BoolVar(&restackAbort, "abort", false, "abort in-progress restack")
+	root.AddCommand(restackCmd)
+
+	var submitAll bool
+	submitCmd := &cobra.Command{
+		Use:   "submit [branch]",
+		Short: "Push branches and create/update PRs",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			branch := ""
+			if len(args) > 0 {
+				branch = args[0]
+			}
+			return a.cmdSubmit(submitAll, branch)
+		},
+	}
+	submitCmd.Flags().BoolVar(&submitAll, "all", false, "submit all stack branches")
+	root.AddCommand(submitCmd)
+
+	var reparentParent string
+	reparentCmd := &cobra.Command{
+		Use:   "reparent <branch>",
+		Short: "Change the parent branch for a stack branch",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdReparent(args[0], reparentParent)
+		},
+	}
+	reparentCmd.Flags().StringVar(&reparentParent, "parent", "", "new parent branch")
+	_ = reparentCmd.MarkFlagRequired("parent")
+	root.AddCommand(reparentCmd)
+
+	repairCmd := &cobra.Command{
+		Use:   "repair",
+		Short: "Rebuild local stack metadata from git ancestry",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdRepair()
+		},
+	}
+	root.AddCommand(repairCmd)
+
+	return root
 }

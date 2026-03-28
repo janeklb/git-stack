@@ -2,22 +2,12 @@ package app
 
 import (
 	"errors"
-	"flag"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 )
 
-func (a *App) cmdNew(args []string) error {
-	fs := flag.NewFlagSet("new", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	parent := fs.String("parent", "", "parent branch")
-	template := fs.String("template", "", "override naming template")
-	prefixIndex := fs.Bool("prefix-index", false, "prefix generated name with incrementing index")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
+func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
@@ -29,14 +19,12 @@ func (a *App) cmdNew(args []string) error {
 		return err
 	}
 
-	name := ""
-	if fs.NArg() > 0 {
-		name = fs.Arg(0)
-	} else {
+	name = strings.TrimSpace(name)
+	if name == "" {
 		name = fmt.Sprintf("change-%d", time.Now().Unix())
 	}
 
-	parentBranch := strings.TrimSpace(*parent)
+	parentBranch := strings.TrimSpace(parent)
 	if parentBranch == "" {
 		parentBranch, err = currentBranch()
 		if err != nil {
@@ -71,10 +59,10 @@ func (a *App) cmdNew(args []string) error {
 	}
 
 	chosenTemplate := state.Naming.Template
-	if *template != "" {
-		chosenTemplate = *template
+	if template != "" {
+		chosenTemplate = template
 	}
-	usePrefixIndex := state.Naming.PrefixIndex || *prefixIndex
+	usePrefixIndex := state.Naming.PrefixIndex || prefixIndex
 	branchName := applyTemplate(chosenTemplate, slug, state.Naming.NextIndex, usePrefixIndex)
 
 	if branchExists(branchName) {

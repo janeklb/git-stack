@@ -2,22 +2,12 @@ package app
 
 import (
 	"errors"
-	"flag"
 	"fmt"
-	"os"
 	"strings"
 )
 
-func (a *App) cmdRestack(args []string) error {
-	fs := flag.NewFlagSet("restack", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	mode := fs.String("mode", "", "restack mode override")
-	cont := fs.Bool("continue", false, "continue restack after conflicts")
-	abort := fs.Bool("abort", false, "abort in-progress restack")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *cont && *abort {
+func (a *App) cmdRestack(mode string, cont, abort bool) error {
+	if cont && abort {
 		return errors.New("--continue and --abort are mutually exclusive")
 	}
 	repoRoot, state, _, err := loadStateFromRepoOrInfer()
@@ -25,10 +15,10 @@ func (a *App) cmdRestack(args []string) error {
 		return err
 	}
 
-	if *abort {
+	if abort {
 		return abortRestack(repoRoot)
 	}
-	if *cont {
+	if cont {
 		return continueRestack(repoRoot, state)
 	}
 
@@ -41,8 +31,8 @@ func (a *App) cmdRestack(args []string) error {
 	}
 
 	chosenMode := state.RestackMode
-	if strings.TrimSpace(*mode) != "" {
-		chosenMode = strings.TrimSpace(*mode)
+	if strings.TrimSpace(mode) != "" {
+		chosenMode = strings.TrimSpace(mode)
 	}
 	if chosenMode != "rebase" && chosenMode != "merge" {
 		return errors.New("restack mode must be rebase or merge")
