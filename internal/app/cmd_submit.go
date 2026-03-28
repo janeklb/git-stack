@@ -1,18 +1,10 @@
 package app
 
 import (
-	"flag"
 	"fmt"
-	"os"
 )
 
-func (a *App) cmdSubmit(args []string) error {
-	fs := flag.NewFlagSet("submit", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	all := fs.Bool("all", false, "submit all stack branches")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
+func (a *App) cmdSubmit(all bool, branch string) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
@@ -21,7 +13,11 @@ func (a *App) cmdSubmit(args []string) error {
 		return err
 	}
 
-	queue, err := submitQueue(state, *all, fs.Args())
+	args := []string{}
+	if branch != "" {
+		args = append(args, branch)
+	}
+	queue, err := submitQueue(state, all, args)
 	if err != nil {
 		return err
 	}

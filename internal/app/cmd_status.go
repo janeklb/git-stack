@@ -1,20 +1,11 @@
 package app
 
 import (
-	"flag"
 	"fmt"
-	"os"
 	"sort"
 )
 
-func (a *App) cmdStatus(args []string) error {
-	fs := flag.NewFlagSet("status", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	all := fs.Bool("all", false, "show all stacks")
-	showDrift := fs.Bool("drift", false, "include drift markers")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
+func (a *App) cmdStatus(all bool, showDrift bool) error {
 	repoRoot, state, _, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
@@ -25,7 +16,7 @@ func (a *App) cmdStatus(args []string) error {
 		return err
 	}
 	selected := map[string]bool{}
-	if *all || current == state.Trunk {
+	if all || current == state.Trunk {
 		for branch := range state.Branches {
 			selected[branch] = true
 		}
@@ -58,7 +49,7 @@ func (a *App) cmdStatus(args []string) error {
 			if meta.PR != nil {
 				line += fmt.Sprintf(" (PR #%d %s)", meta.PR.Number, meta.PR.URL)
 			}
-			if *showDrift {
+			if showDrift {
 				if drift, reason := detectDrift(branch, meta.Parent); drift {
 					line += fmt.Sprintf(" [drift: %s]", reason)
 				}

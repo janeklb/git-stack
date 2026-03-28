@@ -1,17 +1,10 @@
 package app
 
 import (
-	"flag"
 	"fmt"
-	"os"
 )
 
-func (a *App) cmdRepair(args []string) error {
-	fs := flag.NewFlagSet("repair", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
+func (a *App) cmdRepair() error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
