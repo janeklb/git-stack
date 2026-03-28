@@ -24,11 +24,10 @@ func (a *App) cmdInit(args []string) error {
 	if *mode != "rebase" && *mode != "merge" {
 		return errors.New("--mode must be rebase or merge")
 	}
-	repoRoot, err := gitOutput("rev-parse", "--show-toplevel")
+	repoRoot, err := repoRoot()
 	if err != nil {
-		return errors.New("not a git repository")
+		return err
 	}
-	repoRoot = strings.TrimSpace(repoRoot)
 	detectedTrunk := strings.TrimSpace(*trunk)
 	if detectedTrunk == "" {
 		detectedTrunk, err = detectTrunk()
@@ -36,6 +35,15 @@ func (a *App) cmdInit(args []string) error {
 			return err
 		}
 	}
+
+	branches := map[string]*BranchRef{}
+	if inferred, inferErr := inferState(repoRoot); inferErr == nil {
+		branches = inferred.Branches
+	}
+	if existing, loadErr := loadState(repoRoot); loadErr == nil {
+		branches = existing.Branches
+	}
+
 	state := &State{
 		Version:     stateVersion,
 		Trunk:       detectedTrunk,
@@ -45,7 +53,7 @@ func (a *App) cmdInit(args []string) error {
 			PrefixIndex: *prefixIndex,
 			NextIndex:   1,
 		},
-		Branches: map[string]*BranchRef{},
+		Branches: branches,
 	}
 	if err := saveState(repoRoot, state); err != nil {
 		return err

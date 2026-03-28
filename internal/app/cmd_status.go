@@ -32,10 +32,15 @@ func (a *App) cmdStatus(args []string) error {
 	for k := range children {
 		sort.Strings(children[k])
 	}
+	printed := map[string]bool{}
 
 	var walk func(parent, indent string)
 	walk = func(parent, indent string) {
 		for _, branch := range children[parent] {
+			if printed[branch] {
+				continue
+			}
+			printed[branch] = true
 			meta := state.Branches[branch]
 			line := indent + "- " + branch
 			if meta.PR != nil {
@@ -51,6 +56,24 @@ func (a *App) cmdStatus(args []string) error {
 
 	fmt.Printf("- %s\n", state.Trunk)
 	walk(state.Trunk, "  ")
+
+	unrooted := []string{}
+	for branch := range state.Branches {
+		if !printed[branch] {
+			unrooted = append(unrooted, branch)
+		}
+	}
+	sort.Strings(unrooted)
+	for _, branch := range unrooted {
+		meta := state.Branches[branch]
+		line := "- " + branch + " [unrooted"
+		if meta.Parent != "" {
+			line += fmt.Sprintf(" parent=%s", meta.Parent)
+		}
+		line += "]"
+		fmt.Println(line)
+		walk(branch, "  ")
+	}
 
 	op, _ := loadOperation(repoRoot)
 	if op != nil {

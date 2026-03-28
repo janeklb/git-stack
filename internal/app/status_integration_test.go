@@ -61,3 +61,26 @@ func TestStatusWorksWithoutInitializedState(t *testing.T) {
 		}
 	})
 }
+
+func TestStatusShowsStatelessStackCreatedByStackNew(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustRunCLI(t, cli, []string{"new", "feat-one"})
+		mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+		mustGit(t, repo, "add", "feature1.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+
+		mustRunCLI(t, cli, []string{"new", "feat-two"})
+
+		out, code := runCLIAndCapture(t, cli, []string{"status"})
+		if code != 0 {
+			t.Fatalf("status failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "feat-one") || !strings.Contains(out, "feat-two") {
+			t.Fatalf("expected both inferred branches in status output, got:\n%s", out)
+		}
+	})
+}

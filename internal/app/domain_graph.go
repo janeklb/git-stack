@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 func defaultParent(state *State) (string, error) {
@@ -110,9 +111,22 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 		name string
 		ts   int64
 	}
+	branchHead, err := gitOutput("rev-parse", branch)
+	if err != nil {
+		return "", err
+	}
+	branchHead = strings.TrimSpace(branchHead)
+
 	candidates := []candidate{}
 	for _, b := range allBranches {
 		if b == branch {
+			continue
+		}
+		candidateHead, err := gitOutput("rev-parse", b)
+		if err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(candidateHead) == branchHead {
 			continue
 		}
 		if err := gitRun("merge-base", "--is-ancestor", b, branch); err == nil {
@@ -124,12 +138,18 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 		}
 	}
 	if branchExists(trunk) {
-		if err := gitRun("merge-base", "--is-ancestor", trunk, branch); err == nil {
-			ts, err := branchTimestamp(trunk)
-			if err != nil {
-				return "", err
+		trunkHead, err := gitOutput("rev-parse", trunk)
+		if err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(trunkHead) != branchHead {
+			if err := gitRun("merge-base", "--is-ancestor", trunk, branch); err == nil {
+				ts, err := branchTimestamp(trunk)
+				if err != nil {
+					return "", err
+				}
+				candidates = append(candidates, candidate{name: trunk, ts: ts})
 			}
-			candidates = append(candidates, candidate{name: trunk, ts: ts})
 		}
 	}
 	if len(candidates) == 0 {
