@@ -23,21 +23,19 @@ Build the CLI binary:
 go build -o bin/stack ./cmd/stack
 ```
 
-Create the git extension name as a symlink:
-
-```bash
-ln -sf stack bin/git-stack
-```
-
-To make both forms work, ensure `bin` is on your `PATH` so both `stack` and `git-stack`
-are discoverable (`git-stack` can be a symlink to `stack`).
+This produces `bin/stack`.
 
 Or use Make targets:
 
 ```bash
 make test
 make build
+make install
 ```
+
+`make install` installs `stack` with `go install ./cmd/stack` into your Go bin directory
+(`GOBIN` if set, otherwise `$(go env GOPATH)/bin`) and creates `git-stack` as a symlink
+in the same location so both `stack ...` and `git stack ...` work.
 
 ## Commands
 
