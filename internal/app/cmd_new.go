@@ -35,7 +35,7 @@ func (a *App) cmdNew(args []string) error {
 
 	parentBranch := strings.TrimSpace(*parent)
 	if parentBranch == "" {
-		parentBranch, err = defaultParent(state)
+		parentBranch, err = currentBranch()
 		if err != nil {
 			return err
 		}
@@ -43,6 +43,23 @@ func (a *App) cmdNew(args []string) error {
 
 	if !branchExists(parentBranch) {
 		return fmt.Errorf("parent branch does not exist: %s", parentBranch)
+	}
+	cur, err := currentBranch()
+	if err != nil {
+		return err
+	}
+	if parentBranch == cur && cur != state.Trunk {
+		if _, tracked := state.Branches[cur]; !tracked {
+			branches, err := listLocalBranches()
+			if err != nil {
+				return err
+			}
+			inferredParent, err := inferParent(cur, branches, state.Trunk)
+			if err != nil {
+				return err
+			}
+			state.Branches[cur] = &BranchRef{Parent: inferredParent}
+		}
 	}
 
 	slug := slugify(name)

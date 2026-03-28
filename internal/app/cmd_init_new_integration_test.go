@@ -82,3 +82,29 @@ func TestInitAfterStatelessWorkPreservesInferredBranches(t *testing.T) {
 		}
 	})
 }
+
+func TestNewOnUntrackedCurrentBranchAutoTracksAndStacksFromIt(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+		mustRunCLI(t, cli, []string{"new", "feat-one"})
+
+		mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+		mustGit(t, repo, "add", "feature1.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+
+		mustGit(t, repo, "switch", "-c", "manual-child")
+		mustRunCLI(t, cli, []string{"new", "auto-child"})
+
+		state := readStateFile(t, repo)
+		if got := state.Branches["auto-child"].Parent; got != "manual-child" {
+			t.Fatalf("expected auto-child parent manual-child, got %q", got)
+		}
+		if _, ok := state.Branches["manual-child"]; !ok {
+			t.Fatalf("expected manual-child to be auto-tracked")
+		}
+	})
+}

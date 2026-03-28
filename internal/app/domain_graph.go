@@ -6,17 +6,6 @@ import (
 	"strings"
 )
 
-func defaultParent(state *State) (string, error) {
-	cur, err := currentBranch()
-	if err != nil {
-		return "", err
-	}
-	if _, ok := state.Branches[cur]; ok {
-		return cur, nil
-	}
-	return state.Trunk, nil
-}
-
 func submitQueue(state *State, all bool, args []string) ([]string, error) {
 	if all {
 		return topoOrder(state), nil
