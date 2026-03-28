@@ -17,19 +17,20 @@ The CLI intentionally uses shelling out to `git`/`gh` rather than API SDKs to ke
 
 ## Build
 
-Build standalone binary:
+Build the CLI binary:
 
 ```bash
 go build -o stack ./cmd/stack
 ```
 
-Build git extension binary:
+Create the git extension name as a symlink:
 
 ```bash
-go build -o git-stack ./cmd/git-stack
+ln -sf stack git-stack
 ```
 
-To make `git stack ...` work, ensure `git-stack` is in a directory on your `PATH`.
+To make both forms work, ensure both `stack` and `git-stack` are available on your `PATH`
+(`git-stack` can be a symlink to `stack`).
 
 Or use Make targets:
 
