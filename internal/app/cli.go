@@ -3,38 +3,15 @@ package app
 import (
 	"fmt"
 	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 func (a *App) Run(args []string, invocation string) int {
-	if len(args) == 0 {
-		a.printHelp(invocation)
-		return 0
-	}
-
-	cmd := args[0]
-	var err error
-	switch cmd {
-	case "help", "-h", "--help":
-		a.printHelp(invocation)
-		return 0
-	case "init":
-		err = a.cmdInit(args[1:])
-	case "new":
-		err = a.cmdNew(args[1:])
-	case "status":
-		err = a.cmdStatus(args[1:])
-	case "restack":
-		err = a.cmdRestack(args[1:])
-	case "submit":
-		err = a.cmdSubmit(args[1:])
-	case "reparent":
-		err = a.cmdReparent(args[1:])
-	case "repair":
-		err = a.cmdRepair(args[1:])
-	default:
-		err = fmt.Errorf("unknown command: %s", cmd)
-	}
-
+	root := a.newRootCmd(invocation)
+	root.SetArgs(args)
+	err := root.Execute()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
@@ -42,23 +19,83 @@ func (a *App) Run(args []string, invocation string) int {
 	return 0
 }
 
-func (a *App) printHelp(invocation string) {
+func (a *App) newRootCmd(invocation string) *cobra.Command {
 	bin := invocation
 	if bin == "" {
 		bin = "stack"
 	}
-	fmt.Printf(`%s - stacked PR tool
+	use := strings.TrimSpace(bin)
+	if use == "" {
+		use = "stack"
+	}
 
-Usage:
-  %s init [--trunk <branch>] [--mode rebase|merge]
-  %s new <name> [--parent <branch>] [--template <template>] [--prefix-index]
-  %s status [--all] [--drift]
-  %s restack [--mode rebase|merge] [--continue] [--abort]
-  %s submit [--all] [branch]
-  %s reparent <branch> --parent <new-parent>
-  %s repair
+	root := &cobra.Command{
+		Use:           use,
+		Short:         "stacked PR tool",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
+	}
+	root.CompletionOptions.DisableDefaultCmd = false
 
-Equivalent git extension form:
-  git stack <command>
-`, bin, bin, bin, bin, bin, bin, bin, bin)
+	root.AddCommand(&cobra.Command{
+		Use:                "init [--trunk <branch>] [--mode rebase|merge]",
+		Short:              "Initialize stack state",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdInit(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:                "new <name> [--parent <branch>] [--template <template>] [--prefix-index]",
+		Short:              "Create a new branch in stack",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdNew(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:                "status [--all] [--drift]",
+		Short:              "Show stack graph and state",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdStatus(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:                "restack [--mode rebase|merge] [--continue] [--abort]",
+		Short:              "Restack branches onto their parents",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdRestack(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:                "submit [--all] [branch]",
+		Short:              "Push branches and create/update PRs",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdSubmit(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:                "reparent <branch> --parent <new-parent>",
+		Short:              "Change the parent branch for a stack branch",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdReparent(args)
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:                "repair",
+		Short:              "Rebuild local stack metadata from git ancestry",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdRepair(args)
+		},
+	})
+
+	return root
 }
