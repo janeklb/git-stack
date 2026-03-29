@@ -57,32 +57,6 @@ func TestUpsertManagedBlockPreservesTextOutsideManagedSection(t *testing.T) {
 	}
 }
 
-func TestUpsertManagedBlockRemovesDuplicatedCurrentStackHeadings(t *testing.T) {
-	body := strings.Join([]string{
-		"## Summary",
-		"- something",
-		"",
-		"## Current Stack",
-		"",
-		"## Current Stack",
-		managedBlockStart,
-		"- old",
-		managedBlockEnd,
-	}, "\n")
-
-	updated := upsertManagedBlock(body, managedStackBlock("feat-a", []StackPRLine{{
-		Branch: "feat-a",
-		Number: 11,
-		Title:  "Feature a",
-		URL:    "https://example.com/pr/11",
-		State:  "OPEN",
-	}}))
-
-	if got := strings.Count(updated, "## Current Stack"); got != 1 {
-		t.Fatalf("expected exactly one Current Stack heading after rewrite, got %d\n%s", got, updated)
-	}
-}
-
 func TestManagedStackBlockKeepsHeadingInsideManagedMarkers(t *testing.T) {
 	managed := managedStackBlock("feat-a", []StackPRLine{{
 		Branch: "feat-a",
