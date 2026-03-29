@@ -46,6 +46,20 @@ func mustConfigureOriginTracking(t *testing.T, repo, trunk string) {
 	mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/"+trunk)
 }
 
+func newBareOrigin(t *testing.T) string {
+	t.Helper()
+	base := t.TempDir()
+	origin := filepath.Join(base, "origin.git")
+	mustGit(t, base, "init", "--bare", "--initial-branch=main", origin)
+	return origin
+}
+
+func mustPointRepoOriginAndTrack(t *testing.T, repo, origin, trunk string) {
+	t.Helper()
+	mustGit(t, repo, "remote", "set-url", "origin", origin)
+	mustConfigureOriginTracking(t, repo, trunk)
+}
+
 func withRepoCwd(t *testing.T, repo string, fn func()) {
 	t.Helper()
 	orig, err := os.Getwd()
