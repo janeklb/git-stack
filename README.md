@@ -1,5 +1,7 @@
 # stack
 
+Project direction: see `MANIFEST.md`.
+
 `stack` is a simple Git stacked-PR CLI focused on local branch stacks and GitHub PR automation.
 
 It supports both forms:
