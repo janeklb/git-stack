@@ -128,3 +128,21 @@ func TestNewInEmptyRepositoryShowsGuidance(t *testing.T) {
 		}
 	})
 }
+
+func TestInitPreservesInferredNextIndexForPrefixNaming(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustGit(t, repo, "switch", "-c", "001-feature")
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main", "--prefix-index"})
+
+		out, code := runCLIAndCapture(t, cli, []string{"new", "feature"})
+		if code != 0 {
+			t.Fatalf("expected stack new to succeed after init with inferred index, got code=%d output=%s", code, out)
+		}
+
+		mustGit(t, repo, "show-ref", "--verify", "--quiet", "refs/heads/002-feature")
+	})
+}
