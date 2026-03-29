@@ -57,6 +57,14 @@ func branchExists(name string) bool {
 	return err == nil
 }
 
+func localBranchExists(name string) bool {
+	if strings.TrimSpace(name) == "" {
+		return false
+	}
+	err := gitRun("show-ref", "--verify", "--quiet", "refs/heads/"+name)
+	return err == nil
+}
+
 func detectTrunk() (string, error) {
 	out, err := gitOutput("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 	if err != nil {
