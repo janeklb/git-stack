@@ -57,9 +57,9 @@ func composeBody(summary []string, managed string) string {
 
 func managedStackBlock(currentBranch string, lines []StackPRLine) string {
 	var b strings.Builder
-	b.WriteString("## Current Stack\n")
 	b.WriteString(managedBlockStart)
 	b.WriteString("\n")
+	b.WriteString("## Current Stack\n")
 	for _, line := range lines {
 		if line.Number <= 0 || strings.TrimSpace(line.URL) == "" {
 			continue
