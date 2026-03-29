@@ -35,10 +35,15 @@ func newTestRepo(t *testing.T) string {
 
 	mustGit(t, repo, "init", "--bare", "--initial-branch=main", origin)
 	mustGit(t, repo, "remote", "add", "origin", origin)
-	mustGit(t, repo, "push", "-u", "origin", "main")
-	mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	mustConfigureOriginTracking(t, repo, "main")
 
 	return repo
+}
+
+func mustConfigureOriginTracking(t *testing.T, repo, trunk string) {
+	t.Helper()
+	mustGit(t, repo, "push", "-u", "origin", trunk)
+	mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/"+trunk)
 }
 
 func withRepoCwd(t *testing.T, repo string, fn func()) {
