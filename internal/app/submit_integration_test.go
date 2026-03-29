@@ -137,7 +137,7 @@ func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *tes
 	})
 }
 
-func TestSubmitKeepsBranchWithUnmergedChangesEvenWithYes(t *testing.T) {
+func TestSubmitKeepsBranchWithUnmergedChanges(t *testing.T) {
 	repo := newTestRepo(t)
 	origin := newBareOrigin(t)
 
@@ -172,7 +172,7 @@ func TestSubmitKeepsBranchWithUnmergedChangesEvenWithYes(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"submit", "--yes", "feat-one"})
+		out, code := runCLIAndCapture(t, cli, []string{"submit", "feat-one"})
 		if code != 0 {
 			t.Fatalf("submit failed: exit=%d\n%s", code, out)
 		}
