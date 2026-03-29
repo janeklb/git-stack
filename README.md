@@ -68,3 +68,4 @@ State is local-only and stored in:
 - PR submit uses parent branch as PR base
 - Existing PRs are updated safely with a managed body block
 - Mutating commands require a clean worktree
+- Single-branch clones are not supported (reclone without `--single-branch` or fetch all branches)

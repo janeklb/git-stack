@@ -146,3 +146,39 @@ func TestInitPreservesInferredNextIndexForPrefixNaming(t *testing.T) {
 		mustGit(t, repo, "show-ref", "--verify", "--quiet", "refs/heads/002-feature")
 	})
 }
+
+func TestInitFailsInSingleBranchClone(t *testing.T) {
+	base := t.TempDir()
+	seed := filepath.Join(base, "seed")
+	origin := filepath.Join(base, "origin.git")
+	clone := filepath.Join(base, "clone")
+
+	mustGit(t, base, "init", "-b", "main", seed)
+	mustGit(t, seed, "config", "user.name", "Stack Test")
+	mustGit(t, seed, "config", "user.email", "stack-test@example.com")
+	mustWriteFile(t, filepath.Join(seed, "README.md"), "# seed\n")
+	mustGit(t, seed, "add", "README.md")
+	mustGit(t, seed, "commit", "-m", "initial")
+	mustGit(t, seed, "switch", "-c", "feature")
+	mustWriteFile(t, filepath.Join(seed, "feature.txt"), "feature\n")
+	mustGit(t, seed, "add", "feature.txt")
+	mustGit(t, seed, "commit", "-m", "feature")
+
+	mustGit(t, base, "init", "--bare", origin)
+	mustGit(t, seed, "remote", "add", "origin", origin)
+	mustGit(t, seed, "push", "-u", "origin", "main")
+	mustGit(t, seed, "push", "-u", "origin", "feature")
+	mustGit(t, base, "clone", "--single-branch", "--branch", "feature", origin, clone)
+
+	withRepoCwd(t, clone, func() {
+		cli := New()
+
+		out, code := runCLIAndCapture(t, cli, []string{"init"})
+		if code == 0 {
+			t.Fatalf("expected init to fail in single-branch clone, output:\n%s", out)
+		}
+		if !strings.Contains(out, "single-branch clones are not supported") {
+			t.Fatalf("expected unsupported single-branch message, got:\n%s", out)
+		}
+	})
+}

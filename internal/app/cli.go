@@ -29,12 +29,22 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 		use = "stack"
 	}
 
-	root := &cobra.Command{
+	var root *cobra.Command
+	root = &cobra.Command{
 		Use:           use,
 		Short:         "stacked PR tool",
 		Long:          "stack is a stacked PR tool. Equivalent git extension form: git stack <command>",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if cmd == root {
+				return nil
+			}
+			if cmd.Name() == "help" || cmd.Name() == "completion" || strings.HasPrefix(cmd.Name(), "__complete") {
+				return nil
+			}
+			return ensureSupportedCloneLayout()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
