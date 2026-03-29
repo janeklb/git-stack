@@ -85,8 +85,9 @@ func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *tes
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
+		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -149,8 +150,9 @@ func TestSubmitKeepsBranchWithUnmergedChangesEvenWithYes(t *testing.T) {
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
+		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -207,8 +209,9 @@ func TestSubmitPromptsToSwitchAndDeleteWhenMergedBranchIsCheckedOut(t *testing.T
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
+		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -274,8 +277,9 @@ func TestSubmitSwitchesToTrunkAndDeletesWhenCheckedOutMergedBranchHasNoChildren(
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
+		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -340,8 +344,9 @@ func TestSubmitOffersChildChoiceWhenCheckedOutMergedBranchHasMultipleChildren(t 
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
+		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})

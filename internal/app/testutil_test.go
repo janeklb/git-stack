@@ -22,6 +22,7 @@ type testBranchReference struct {
 func newTestRepo(t *testing.T) string {
 	t.Helper()
 	repo := t.TempDir()
+	origin := filepath.Join(t.TempDir(), "origin.git")
 
 	mustGit(t, repo, "init", "-b", "main")
 	mustGit(t, repo, "config", "user.name", "Stack Test")
@@ -30,6 +31,11 @@ func newTestRepo(t *testing.T) string {
 	mustWriteFile(t, filepath.Join(repo, "README.md"), "# test\n")
 	mustGit(t, repo, "add", "README.md")
 	mustGit(t, repo, "commit", "-m", "initial")
+
+	mustGit(t, repo, "init", "--bare", "--initial-branch=main", origin)
+	mustGit(t, repo, "remote", "add", "origin", origin)
+	mustGit(t, repo, "push", "-u", "origin", "main")
+	mustGit(t, repo, "remote", "set-head", "origin", "--auto")
 
 	return repo
 }

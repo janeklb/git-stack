@@ -111,8 +111,14 @@ func TestNewOnUntrackedCurrentBranchAutoTracksAndStacksFromIt(t *testing.T) {
 }
 
 func TestNewInEmptyRepositoryShowsGuidance(t *testing.T) {
+	base := t.TempDir()
 	repo := t.TempDir()
+	origin := filepath.Join(base, "origin.git")
 	mustGit(t, repo, "init", "-b", "main")
+	mustGit(t, base, "init", "--bare", "--initial-branch=main", origin)
+	mustGit(t, repo, "remote", "add", "origin", origin)
+	mustGit(t, repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 	withRepoCwd(t, repo, func() {
 		cli := New()
@@ -179,6 +185,28 @@ func TestInitFailsInSingleBranchClone(t *testing.T) {
 		}
 		if !strings.Contains(out, "single-branch clones are not supported") {
 			t.Fatalf("expected unsupported single-branch message, got:\n%s", out)
+		}
+	})
+}
+
+func TestInitFailsWithoutOriginRemote(t *testing.T) {
+	repo := t.TempDir()
+	mustGit(t, repo, "init", "-b", "main")
+	mustGit(t, repo, "config", "user.name", "Stack Test")
+	mustGit(t, repo, "config", "user.email", "stack-test@example.com")
+	mustWriteFile(t, filepath.Join(repo, "README.md"), "# test\n")
+	mustGit(t, repo, "add", "README.md")
+	mustGit(t, repo, "commit", "-m", "initial")
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		out, code := runCLIAndCapture(t, cli, []string{"init"})
+		if code == 0 {
+			t.Fatalf("expected init to fail without origin remote, output:\n%s", out)
+		}
+		if !strings.Contains(out, "missing required remote 'origin'") {
+			t.Fatalf("expected missing origin message, got:\n%s", out)
 		}
 	})
 }
