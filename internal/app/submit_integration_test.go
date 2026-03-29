@@ -78,15 +78,12 @@ func TestSubmitSkipsMergedTrackedPR(t *testing.T) {
 
 func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *testing.T) {
 	repo := newTestRepo(t)
-	originParent := t.TempDir()
-	origin := filepath.Join(originParent, "origin.git")
-	mustGit(t, originParent, "init", "--bare", origin)
+	origin := newBareOrigin(t)
 
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
-		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -142,15 +139,12 @@ func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *tes
 
 func TestSubmitKeepsBranchWithUnmergedChangesEvenWithYes(t *testing.T) {
 	repo := newTestRepo(t)
-	originParent := t.TempDir()
-	origin := filepath.Join(originParent, "origin.git")
-	mustGit(t, originParent, "init", "--bare", origin)
+	origin := newBareOrigin(t)
 
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
-		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -200,15 +194,12 @@ func TestSubmitKeepsBranchWithUnmergedChangesEvenWithYes(t *testing.T) {
 
 func TestSubmitPromptsToSwitchAndDeleteWhenMergedBranchIsCheckedOut(t *testing.T) {
 	repo := newTestRepo(t)
-	originParent := t.TempDir()
-	origin := filepath.Join(originParent, "origin.git")
-	mustGit(t, originParent, "init", "--bare", origin)
+	origin := newBareOrigin(t)
 
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
-		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -267,15 +258,12 @@ func TestSubmitPromptsToSwitchAndDeleteWhenMergedBranchIsCheckedOut(t *testing.T
 
 func TestSubmitSwitchesToTrunkAndDeletesWhenCheckedOutMergedBranchHasNoChildren(t *testing.T) {
 	repo := newTestRepo(t)
-	originParent := t.TempDir()
-	origin := filepath.Join(originParent, "origin.git")
-	mustGit(t, originParent, "init", "--bare", origin)
+	origin := newBareOrigin(t)
 
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
-		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -333,15 +321,12 @@ func TestSubmitSwitchesToTrunkAndDeletesWhenCheckedOutMergedBranchHasNoChildren(
 
 func TestSubmitOffersChildChoiceWhenCheckedOutMergedBranchHasMultipleChildren(t *testing.T) {
 	repo := newTestRepo(t)
-	originParent := t.TempDir()
-	origin := filepath.Join(originParent, "origin.git")
-	mustGit(t, originParent, "init", "--bare", origin)
+	origin := newBareOrigin(t)
 
 	withRepoCwd(t, repo, func() {
 		cli := New()
 
-		mustGit(t, repo, "remote", "add", "origin", origin)
-		mustGit(t, repo, "push", "-u", "origin", "main")
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})

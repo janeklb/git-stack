@@ -40,8 +40,13 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 			if cmd == root {
 				return nil
 			}
-			if cmd.Name() == "help" || cmd.Name() == "completion" || strings.HasPrefix(cmd.Name(), "__complete") {
+			if cmd.Name() == "help" || strings.HasPrefix(cmd.Name(), "__complete") {
 				return nil
+			}
+			for current := cmd; current != nil; current = current.Parent() {
+				if current.Name() == "completion" {
+					return nil
+				}
 			}
 			return ensureSupportedCloneLayout()
 		},

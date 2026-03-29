@@ -69,3 +69,4 @@ State is local-only and stored in:
 - Existing PRs are updated safely with a managed body block
 - Mutating commands require a clean worktree
 - Single-branch clones are not supported (reclone without `--single-branch` or fetch all branches)
+- `origin` remote is required and must expose `refs/remotes/origin/HEAD`

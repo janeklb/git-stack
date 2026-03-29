@@ -13,7 +13,7 @@ import (
 func ensureSupportedCloneLayout() error {
 	originURL, err := gitOutput("config", "--get", "remote.origin.url")
 	if err != nil || strings.TrimSpace(originURL) == "" {
-		return nil
+		return errors.New("missing required remote 'origin'; this tool expects a full clone with origin configured")
 	}
 
 	fetchSpecs, err := gitOutput("config", "--get-all", "remote.origin.fetch")
@@ -24,6 +24,9 @@ func ensureSupportedCloneLayout() error {
 	for _, line := range strings.Split(strings.TrimSpace(fetchSpecs), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.Contains(line, "refs/heads/*:refs/remotes/origin/*") {
+			if _, err := gitOutput("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err != nil {
+				return errors.New("missing refs/remotes/origin/HEAD; run 'git remote set-head origin --auto' after fetching all branches")
+			}
 			return nil
 		}
 	}
@@ -56,24 +59,15 @@ func branchExists(name string) bool {
 
 func detectTrunk() (string, error) {
 	out, err := gitOutput("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
-	if err == nil {
-		out = strings.TrimSpace(out)
-		out = strings.TrimPrefix(out, "origin/")
-		if out != "" {
-			return out, nil
-		}
-	}
-	if branchExists("main") {
-		return "main", nil
-	}
-	if branchExists("master") {
-		return "master", nil
-	}
-	cur, err := currentBranch()
 	if err != nil {
-		return "", errors.New("failed to detect trunk; pass --trunk explicitly")
+		return "", errors.New("failed to detect trunk from refs/remotes/origin/HEAD")
 	}
-	return cur, nil
+	out = strings.TrimSpace(out)
+	out = strings.TrimPrefix(out, "origin/")
+	if out == "" {
+		return "", errors.New("failed to detect trunk from refs/remotes/origin/HEAD")
+	}
+	return out, nil
 }
 
 func currentBranch() (string, error) {

@@ -21,9 +21,11 @@ type testBranchReference struct {
 
 func newTestRepo(t *testing.T) string {
 	t.Helper()
-	repo := t.TempDir()
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	origin := filepath.Join(base, "origin.git")
 
-	mustGit(t, repo, "init", "-b", "main")
+	mustGit(t, base, "init", "-b", "main", repo)
 	mustGit(t, repo, "config", "user.name", "Stack Test")
 	mustGit(t, repo, "config", "user.email", "stack-test@example.com")
 
@@ -31,7 +33,31 @@ func newTestRepo(t *testing.T) string {
 	mustGit(t, repo, "add", "README.md")
 	mustGit(t, repo, "commit", "-m", "initial")
 
+	mustGit(t, repo, "init", "--bare", "--initial-branch=main", origin)
+	mustGit(t, repo, "remote", "add", "origin", origin)
+	mustConfigureOriginTracking(t, repo, "main")
+
 	return repo
+}
+
+func mustConfigureOriginTracking(t *testing.T, repo, trunk string) {
+	t.Helper()
+	mustGit(t, repo, "push", "-u", "origin", trunk)
+	mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/"+trunk)
+}
+
+func newBareOrigin(t *testing.T) string {
+	t.Helper()
+	base := t.TempDir()
+	origin := filepath.Join(base, "origin.git")
+	mustGit(t, base, "init", "--bare", "--initial-branch=main", origin)
+	return origin
+}
+
+func mustPointRepoOriginAndTrack(t *testing.T, repo, origin, trunk string) {
+	t.Helper()
+	mustGit(t, repo, "remote", "set-url", "origin", origin)
+	mustConfigureOriginTracking(t, repo, trunk)
 }
 
 func withRepoCwd(t *testing.T, repo string, fn func()) {
