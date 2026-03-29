@@ -5,6 +5,13 @@ import (
 	"fmt"
 )
 
+func restackGitOperationInProgress(mode string) (bool, error) {
+	if mode == "merge" {
+		return mergeInProgress()
+	}
+	return rebaseInProgress()
+}
+
 func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinue bool) error {
 	if fromContinue {
 		contArgs := []string{op.Mode, "--continue"}
@@ -67,6 +74,22 @@ func continueRestack(repoRoot string, state *State) error {
 	}
 	if op == nil {
 		return errors.New("no restack operation in progress")
+	}
+	active, err := restackGitOperationInProgress(op.Mode)
+	if err != nil {
+		return err
+	}
+	if !active {
+		if op.Index < len(op.Queue) {
+			current, curErr := currentBranch()
+			if curErr == nil && current == op.Queue[op.Index] {
+				op.Index++
+				if err := saveOperation(repoRoot, op); err != nil {
+					return err
+				}
+			}
+		}
+		return runRestack(repoRoot, state, op, false)
 	}
 	return runRestack(repoRoot, state, op, true)
 }
