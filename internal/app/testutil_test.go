@@ -130,3 +130,25 @@ func runCLIAndCapture(t *testing.T, cli *App, args []string) (string, int) {
 
 	return buf.String(), code
 }
+
+func runCLIWithInputAndCapture(t *testing.T, cli *App, args []string, input string) (string, int) {
+	t.Helper()
+
+	stdinReader, stdinWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("stdin pipe: %v", err)
+	}
+	if _, err := stdinWriter.WriteString(input); err != nil {
+		t.Fatalf("write stdin input: %v", err)
+	}
+	_ = stdinWriter.Close()
+
+	origStdin := os.Stdin
+	os.Stdin = stdinReader
+	defer func() {
+		os.Stdin = origStdin
+		_ = stdinReader.Close()
+	}()
+
+	return runCLIAndCapture(t, cli, args)
+}

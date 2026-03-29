@@ -113,6 +113,59 @@ func pushBranch(branch string) error {
 	return nil
 }
 
+func remoteBranchExists(branch string) (bool, error) {
+	if strings.TrimSpace(branch) == "" {
+		return false, nil
+	}
+	out, err := gitOutput("ls-remote", "--heads", "origin", branch)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
+func deleteLocalBranch(branch string) error {
+	if err := gitRun("branch", "-d", branch); err != nil {
+		return gitRun("branch", "-D", branch)
+	}
+	return nil
+}
+
+func branchFullyIntegrated(branch, base string) (bool, error) {
+	baseRef, err := resolveComparisonBase(base)
+	if err != nil {
+		return false, err
+	}
+	out, err := gitOutput("cherry", baseRef, branch)
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "+") {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func resolveComparisonBase(base string) (string, error) {
+	if strings.TrimSpace(base) == "" {
+		return "", errors.New("empty comparison base")
+	}
+	if gitRun("show-ref", "--verify", "--quiet", "refs/heads/"+base) == nil {
+		return base, nil
+	}
+	remoteRef := "refs/remotes/origin/" + base
+	if gitRun("show-ref", "--verify", "--quiet", remoteRef) == nil {
+		return "origin/" + base, nil
+	}
+	return "", fmt.Errorf("comparison base not found: %s", base)
+}
+
 func gitRun(args ...string) error {
 	cmd := exec.Command("git", args...)
 	cmd.Stdout = os.Stdout
