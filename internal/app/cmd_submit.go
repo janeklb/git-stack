@@ -121,6 +121,7 @@ func (a *App) cleanupMergedBranch(state *State, branch string) {
 		return
 	}
 	archiveMergedBranch(state, branch)
+	reparentChildrenAfterMergedDeletion(state, branch, base)
 	delete(state.Branches, branch)
 	pruneArchivedLineage(state)
 	fmt.Printf("%s -> deleted local merged branch\n", branch)
@@ -171,6 +172,25 @@ func pruneArchivedLineage(state *State) {
 			continue
 		}
 		delete(state.Archived, branch)
+	}
+}
+
+func reparentChildrenAfterMergedDeletion(state *State, deletedBranch, replacementParent string) {
+	if strings.TrimSpace(replacementParent) == "" {
+		replacementParent = state.Trunk
+	}
+	for name, meta := range state.Branches {
+		if name == deletedBranch || meta == nil {
+			continue
+		}
+		if meta.Parent != deletedBranch {
+			continue
+		}
+		meta.Parent = replacementParent
+		if meta.PR != nil {
+			meta.PR.Base = replacementParent
+		}
+		fmt.Printf("%s -> reparented to %s after merged parent cleanup\n", name, replacementParent)
 	}
 }
 
