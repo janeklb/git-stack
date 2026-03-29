@@ -49,7 +49,7 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
 			if err != nil {
 				return err
 			}
-			state.Branches[cur] = &BranchRef{Parent: inferredParent}
+			state.Branches[cur] = &BranchRef{Parent: inferredParent, LineageParent: inferredParent}
 		}
 	}
 
@@ -78,7 +78,7 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
 		return err
 	}
 
-	state.Branches[branchName] = &BranchRef{Parent: parentBranch}
+	state.Branches[branchName] = &BranchRef{Parent: parentBranch, LineageParent: parentBranch}
 	state.Naming.NextIndex++
 	if !persisted {
 		fmt.Printf("initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode)

@@ -68,6 +68,7 @@ func inferState(repoRoot string) (*State, error) {
 			NextIndex: 1,
 		},
 		Branches: map[string]*BranchRef{},
+		Archived: map[string]*ArchivedRef{},
 	}
 
 	maxIndex := 0
@@ -79,7 +80,7 @@ func inferState(repoRoot string) (*State, error) {
 		if err != nil {
 			return nil, err
 		}
-		state.Branches[branch] = &BranchRef{Parent: parent}
+		state.Branches[branch] = &BranchRef{Parent: parent, LineageParent: parent}
 		if idx := parseLeadingIndex(branch); idx > maxIndex {
 			maxIndex = idx
 		}
@@ -113,6 +114,17 @@ func loadState(repoRoot string) (*State, error) {
 	}
 	if state.Branches == nil {
 		state.Branches = map[string]*BranchRef{}
+	}
+	if state.Archived == nil {
+		state.Archived = map[string]*ArchivedRef{}
+	}
+	for _, branch := range state.Branches {
+		if branch == nil {
+			continue
+		}
+		if strings.TrimSpace(branch.LineageParent) == "" {
+			branch.LineageParent = branch.Parent
+		}
 	}
 	if state.Naming.Template == "" {
 		state.Naming.Template = "{slug}"
