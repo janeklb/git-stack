@@ -166,19 +166,20 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	root.AddCommand(repairCmd)
 
 	var refreshRestack bool
-	var refreshPublish bool
-	var refreshPublishAll bool
+	var refreshPublish string
 	refreshCmd := &cobra.Command{
 		Use:   "refresh",
 		Short: "Fetch, clean merged branches, and reconcile stack state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdRefresh(refreshRestack, refreshPublish, refreshPublishAll)
+			return a.cmdRefresh(refreshRestack, refreshPublish)
 		},
 	}
 	refreshCmd.Flags().BoolVar(&refreshRestack, "restack", false, "run restack after cleanup")
-	refreshCmd.Flags().BoolVar(&refreshPublish, "publish", false, "refresh PR metadata for current stack")
-	refreshCmd.Flags().BoolVar(&refreshPublishAll, "publish-all", false, "refresh PR metadata for all tracked branches")
+	refreshCmd.Flags().StringVar(&refreshPublish, "publish", "", "refresh PR metadata scope: current or all")
+	if publishFlag := refreshCmd.Flags().Lookup("publish"); publishFlag != nil {
+		publishFlag.NoOptDefVal = "current"
+	}
 	root.AddCommand(refreshCmd)
 
 	return root

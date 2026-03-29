@@ -20,9 +20,10 @@ type refreshPlan struct {
 	Cleanup []refreshCleanupCandidate
 }
 
-func (a *App) cmdRefresh(restack, publish, publishAll bool) error {
-	if publish && publishAll {
-		return errors.New("--publish and --publish-all are mutually exclusive")
+func (a *App) cmdRefresh(restack bool, publish string) error {
+	publish = strings.TrimSpace(strings.ToLower(publish))
+	if publish != "" && publish != "current" && publish != "all" {
+		return errors.New("--publish must be one of: current, all")
 	}
 	if err := gitRun("fetch", "--prune", "origin"); err != nil {
 		return fmt.Errorf("refresh fetch failed: %w", err)
@@ -42,7 +43,7 @@ func (a *App) cmdRefresh(restack, publish, publishAll bool) error {
 	}
 
 	current, _ := currentBranch()
-	printRefreshPlan(plan, restack, publish, publishAll, current)
+	printRefreshPlan(plan, restack, publish, current)
 	if !confirmRefreshApply() {
 		fmt.Println("refresh cancelled")
 		return nil
@@ -64,11 +65,11 @@ func (a *App) cmdRefresh(restack, publish, publishAll bool) error {
 		}
 	}
 
-	if publishAll {
+	if publish == "all" {
 		if err := syncCurrentStackBodies(state, true, ""); err != nil {
 			return err
 		}
-	} else if publish {
+	} else if publish == "current" {
 		if _, ok := state.Branches[current]; !ok {
 			current = ""
 		}
@@ -128,7 +129,7 @@ func buildRefreshPlan(state *State) (*refreshPlan, error) {
 	return plan, nil
 }
 
-func printRefreshPlan(plan *refreshPlan, restack, publish, publishAll bool, current string) {
+func printRefreshPlan(plan *refreshPlan, restack bool, publish, current string) {
 	fmt.Println("refresh plan:")
 	if len(plan.Cleanup) == 0 {
 		fmt.Println("- cleanup: none")
@@ -149,9 +150,9 @@ func printRefreshPlan(plan *refreshPlan, restack, publish, publishAll bool, curr
 	} else {
 		fmt.Println("- restack: disabled")
 	}
-	if publishAll {
+	if publish == "all" {
 		fmt.Println("- publish: all tracked branches")
-	} else if publish {
+	} else if publish == "current" {
 		if strings.TrimSpace(current) == "" {
 			fmt.Println("- publish: current stack (auto) ")
 		} else {
@@ -192,10 +193,8 @@ func cleanupMergedBranchForRefresh(state *State, candidate refreshCleanupCandida
 		}
 	}
 
-	archiveMergedBranch(state, candidate.Branch)
 	reparentChildrenAfterCleanup(state, candidate.Branch, candidate.Base)
 	delete(state.Branches, candidate.Branch)
-	pruneArchivedLineage(state)
 	fmt.Printf("%s -> cleaned merged branch from local stack state\n", candidate.Branch)
 }
 
