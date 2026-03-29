@@ -82,14 +82,14 @@ func upsertManagedBlock(body, managed string) string {
 		relEnd := strings.Index(body[start:], managedBlockEnd)
 		if relEnd >= 0 {
 			end := start + relEnd + len(managedBlockEnd)
-			before := strings.TrimSpace(body[:start])
+			before := stripTrailingManagedHeading(body[:start])
 			after := strings.TrimSpace(body[end:])
 			return stitchBody(before, managed, after)
 		}
-		before := strings.TrimSpace(body[:start])
+		before := stripTrailingManagedHeading(body[:start])
 		return stitchBody(before, managed, "")
 	}
-	body = strings.TrimSpace(body)
+	body = stripTrailingManagedHeading(body)
 	if body == "" {
 		return managed + "\n"
 	}
@@ -100,10 +100,20 @@ func stackPRMarker(currentBranch, branch, state string) string {
 	if currentBranch == branch {
 		return "👉"
 	}
-	if strings.EqualFold(state, "merged") {
+	if strings.EqualFold(strings.TrimSpace(state), "merged") {
 		return "☑️"
 	}
 	return "⚪"
+}
+
+func stripTrailingManagedHeading(s string) string {
+	s = strings.TrimSpace(s)
+	for {
+		if !strings.HasSuffix(s, "## Current Stack") {
+			return s
+		}
+		s = strings.TrimSpace(strings.TrimSuffix(s, "## Current Stack"))
+	}
 }
 
 func stitchBody(before, managed, after string) string {

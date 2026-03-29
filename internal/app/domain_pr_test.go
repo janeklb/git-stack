@@ -57,6 +57,32 @@ func TestUpsertManagedBlockPreservesTextOutsideManagedSection(t *testing.T) {
 	}
 }
 
+func TestUpsertManagedBlockRemovesDuplicatedCurrentStackHeadings(t *testing.T) {
+	body := strings.Join([]string{
+		"## Summary",
+		"- something",
+		"",
+		"## Current Stack",
+		"",
+		"## Current Stack",
+		managedBlockStart,
+		"- old",
+		managedBlockEnd,
+	}, "\n")
+
+	updated := upsertManagedBlock(body, managedStackBlock("feat-a", []StackPRLine{{
+		Branch: "feat-a",
+		Number: 11,
+		Title:  "Feature a",
+		URL:    "https://example.com/pr/11",
+		State:  "OPEN",
+	}}))
+
+	if got := strings.Count(updated, "## Current Stack"); got != 1 {
+		t.Fatalf("expected exactly one Current Stack heading after rewrite, got %d\n%s", got, updated)
+	}
+}
+
 func TestStackPRMarker(t *testing.T) {
 	if got := stackPRMarker("feat-b", "feat-b", "OPEN"); got != "👉" {
 		t.Fatalf("expected current marker, got %q", got)
@@ -66,5 +92,8 @@ func TestStackPRMarker(t *testing.T) {
 	}
 	if got := stackPRMarker("feat-b", "feat-a", "OPEN"); got != "⚪" {
 		t.Fatalf("expected open marker, got %q", got)
+	}
+	if got := stackPRMarker("feat-b", "feat-a", " merged "); got != "☑️" {
+		t.Fatalf("expected merged marker with surrounding spaces, got %q", got)
 	}
 }
