@@ -21,10 +21,11 @@ type testBranchReference struct {
 
 func newTestRepo(t *testing.T) string {
 	t.Helper()
-	repo := t.TempDir()
-	origin := filepath.Join(t.TempDir(), "origin.git")
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	origin := filepath.Join(base, "origin.git")
 
-	mustGit(t, repo, "init", "-b", "main")
+	mustGit(t, base, "init", "-b", "main", repo)
 	mustGit(t, repo, "config", "user.name", "Stack Test")
 	mustGit(t, repo, "config", "user.email", "stack-test@example.com")
 
@@ -35,7 +36,7 @@ func newTestRepo(t *testing.T) string {
 	mustGit(t, repo, "init", "--bare", "--initial-branch=main", origin)
 	mustGit(t, repo, "remote", "add", "origin", origin)
 	mustGit(t, repo, "push", "-u", "origin", "main")
-	mustGit(t, repo, "remote", "set-head", "origin", "--auto")
+	mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 	return repo
 }

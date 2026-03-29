@@ -87,7 +87,7 @@ func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *tes
 
 		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
-		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
+		mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -152,7 +152,7 @@ func TestSubmitKeepsBranchWithUnmergedChangesEvenWithYes(t *testing.T) {
 
 		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
-		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
+		mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -211,7 +211,7 @@ func TestSubmitPromptsToSwitchAndDeleteWhenMergedBranchIsCheckedOut(t *testing.T
 
 		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
-		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
+		mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -279,7 +279,7 @@ func TestSubmitSwitchesToTrunkAndDeletesWhenCheckedOutMergedBranchHasNoChildren(
 
 		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
-		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
+		mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
@@ -346,7 +346,7 @@ func TestSubmitOffersChildChoiceWhenCheckedOutMergedBranchHasMultipleChildren(t 
 
 		mustGit(t, repo, "remote", "set-url", "origin", origin)
 		mustGit(t, repo, "push", "-u", "origin", "main")
-		mustGit(t, repo, "remote", "set-head", "origin", "--auto")
+		mustGit(t, repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
