@@ -26,11 +26,18 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 	}
 
 	branches := map[string]*BranchRef{}
+	nextIndex := 1
 	if inferred, inferErr := inferState(repoRoot); inferErr == nil {
 		branches = inferred.Branches
+		if inferred.Naming.NextIndex > nextIndex {
+			nextIndex = inferred.Naming.NextIndex
+		}
 	}
 	if existing, loadErr := loadState(repoRoot); loadErr == nil {
 		branches = existing.Branches
+		if existing.Naming.NextIndex > nextIndex {
+			nextIndex = existing.Naming.NextIndex
+		}
 	}
 
 	state := &State{
@@ -40,7 +47,7 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 		Naming: NamingConfig{
 			Template:    template,
 			PrefixIndex: prefixIndex,
-			NextIndex:   1,
+			NextIndex:   nextIndex,
 		},
 		Branches: branches,
 	}

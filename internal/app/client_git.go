@@ -10,6 +10,27 @@ import (
 	"strings"
 )
 
+func ensureSupportedCloneLayout() error {
+	originURL, err := gitOutput("config", "--get", "remote.origin.url")
+	if err != nil || strings.TrimSpace(originURL) == "" {
+		return nil
+	}
+
+	fetchSpecs, err := gitOutput("config", "--get-all", "remote.origin.fetch")
+	if err != nil {
+		return errors.New("single-branch clones are not supported; fetch all branches or reclone without --single-branch")
+	}
+
+	for _, line := range strings.Split(strings.TrimSpace(fetchSpecs), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "refs/heads/*:refs/remotes/origin/*") {
+			return nil
+		}
+	}
+
+	return errors.New("single-branch clones are not supported; fetch all branches or reclone without --single-branch")
+}
+
 func ensureCleanWorktree() error {
 	out, err := gitOutput("status", "--porcelain")
 	if err != nil {
