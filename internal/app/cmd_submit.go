@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func (a *App) cmdSubmit(all bool, yes bool, branch string) error {
+func (a *App) cmdSubmit(all bool, branch string) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (a *App) cmdSubmit(all bool, yes bool, branch string) error {
 					meta.PR.Base = existing.BaseRefName
 				}
 				fmt.Printf("%s -> PR #%d already merged, skipping\n", branch, existing.Number)
-				a.cleanupMergedBranch(state, branch, yes)
+				a.cleanupMergedBranch(state, branch)
 				continue
 			}
 		}
@@ -75,7 +75,7 @@ func (a *App) cmdSubmit(all bool, yes bool, branch string) error {
 	return nil
 }
 
-func (a *App) cleanupMergedBranch(state *State, branch string, yes bool) {
+func (a *App) cleanupMergedBranch(state *State, branch string) {
 	remoteExists, remoteErr := remoteBranchExists(branch)
 	if remoteErr != nil {
 		return
@@ -100,11 +100,7 @@ func (a *App) cleanupMergedBranch(state *State, branch string, yes bool) {
 		return
 	}
 	if !integrated {
-		if yes {
-			fmt.Printf("%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch (ignoring --yes)\n", branch)
-		} else {
-			fmt.Printf("%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch\n", branch)
-		}
+		fmt.Printf("%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch\n", branch)
 		return
 	}
 
