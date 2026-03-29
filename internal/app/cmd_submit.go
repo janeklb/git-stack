@@ -120,8 +120,58 @@ func (a *App) cleanupMergedBranch(state *State, branch string) {
 		fmt.Printf("%s -> failed to delete local merged branch: %v\n", branch, err)
 		return
 	}
+	archiveMergedBranch(state, branch)
 	delete(state.Branches, branch)
+	pruneArchivedLineage(state)
 	fmt.Printf("%s -> deleted local merged branch\n", branch)
+}
+
+func archiveMergedBranch(state *State, branch string) {
+	meta := state.Branches[branch]
+	if meta == nil {
+		return
+	}
+	if state.Archived == nil {
+		state.Archived = map[string]*ArchivedRef{}
+	}
+	parent := strings.TrimSpace(meta.LineageParent)
+	if parent == "" {
+		parent = strings.TrimSpace(meta.Parent)
+	}
+	state.Archived[branch] = &ArchivedRef{Parent: parent, PR: meta.PR}
+}
+
+func pruneArchivedLineage(state *State) {
+	if len(state.Archived) == 0 {
+		return
+	}
+	keep := map[string]bool{}
+	for _, meta := range state.Branches {
+		lineageParent := strings.TrimSpace(meta.LineageParent)
+		if lineageParent == "" {
+			lineageParent = strings.TrimSpace(meta.Parent)
+		}
+		cur := lineageParent
+		seen := map[string]bool{}
+		for cur != "" && cur != state.Trunk {
+			if seen[cur] {
+				break
+			}
+			seen[cur] = true
+			archived, ok := state.Archived[cur]
+			if !ok || archived == nil {
+				break
+			}
+			keep[cur] = true
+			cur = strings.TrimSpace(archived.Parent)
+		}
+	}
+	for branch := range state.Archived {
+		if keep[branch] {
+			continue
+		}
+		delete(state.Archived, branch)
+	}
 }
 
 func promptSwitchTargetForMergedBranchDeletion(state *State, branch string) (string, bool) {

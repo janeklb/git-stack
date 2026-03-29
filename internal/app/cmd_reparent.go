@@ -51,6 +51,7 @@ func (a *App) cmdReparent(target, newParent string) error {
 	}
 
 	meta.Parent = newParent
+	meta.LineageParent = newParent
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}

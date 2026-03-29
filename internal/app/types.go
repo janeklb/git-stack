@@ -10,11 +10,12 @@ const (
 type App struct{}
 
 type State struct {
-	Version     int                   `json:"version"`
-	Trunk       string                `json:"trunk"`
-	RestackMode string                `json:"restackMode"`
-	Naming      NamingConfig          `json:"naming"`
-	Branches    map[string]*BranchRef `json:"branches"`
+	Version     int                     `json:"version"`
+	Trunk       string                  `json:"trunk"`
+	RestackMode string                  `json:"restackMode"`
+	Naming      NamingConfig            `json:"naming"`
+	Branches    map[string]*BranchRef   `json:"branches"`
+	Archived    map[string]*ArchivedRef `json:"archived,omitempty"`
 }
 
 type NamingConfig struct {
@@ -24,6 +25,12 @@ type NamingConfig struct {
 }
 
 type BranchRef struct {
+	Parent        string  `json:"parent"`
+	LineageParent string  `json:"lineageParent,omitempty"`
+	PR            *PRMeta `json:"pr,omitempty"`
+}
+
+type ArchivedRef struct {
 	Parent string  `json:"parent"`
 	PR     *PRMeta `json:"pr,omitempty"`
 }

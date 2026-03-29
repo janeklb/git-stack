@@ -24,6 +24,7 @@ func (a *App) cmdRepair() error {
 		RestackMode: oldState.RestackMode,
 		Naming:      oldState.Naming,
 		Branches:    map[string]*BranchRef{},
+		Archived:    map[string]*ArchivedRef{},
 	}
 
 	for _, branch := range branches {
@@ -34,7 +35,7 @@ func (a *App) cmdRepair() error {
 		if err != nil {
 			return err
 		}
-		entry := &BranchRef{Parent: parent}
+		entry := &BranchRef{Parent: parent, LineageParent: parent}
 		if oldMeta, ok := oldState.Branches[branch]; ok && oldMeta.PR != nil {
 			entry.PR = oldMeta.PR
 		}

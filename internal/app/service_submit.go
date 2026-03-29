@@ -41,7 +41,7 @@ func syncCurrentStackBodies(state *State, all bool, target string) error {
 	if err != nil {
 		return err
 	}
-	ordered := orderedSelectedBranches(state, selected)
+	ordered := orderedSelectedLineageBranches(state, selected)
 
 	lines := []StackPRLine{}
 	type editablePR struct {
@@ -53,11 +53,11 @@ func syncCurrentStackBodies(state *State, all bool, target string) error {
 	editable := []editablePR{}
 
 	for _, branch := range ordered {
-		meta := state.Branches[branch]
-		if meta == nil || meta.PR == nil || meta.PR.Number <= 0 {
+		prMeta := lineagePRMeta(state, branch)
+		if prMeta == nil || prMeta.Number <= 0 {
 			continue
 		}
-		pr, err := ghView(meta.PR.Number)
+		pr, err := ghView(prMeta.Number)
 		if err != nil {
 			continue
 		}
@@ -69,6 +69,10 @@ func syncCurrentStackBodies(state *State, all bool, target string) error {
 			State:  pr.State,
 		})
 		if strings.EqualFold(pr.State, "OPEN") {
+			meta := state.Branches[branch]
+			if meta == nil {
+				continue
+			}
 			base := meta.Parent
 			if base == "" {
 				base = state.Trunk
@@ -110,12 +114,36 @@ func stackSelection(state *State, all bool, target string) (map[string]bool, err
 }
 
 func orderedSelectedBranches(state *State, selected map[string]bool) []string {
+	return orderedSelectedLineageBranches(state, selected)
+}
+
+func orderedSelectedLineageBranches(state *State, selected map[string]bool) []string {
+	if len(selected) == 0 {
+		return nil
+	}
+
+	included := map[string]bool{}
+	for branch := range selected {
+		included[branch] = true
+		collectLineageAncestors(state, branch, included)
+	}
+
 	children := map[string][]string{}
-	for branch, meta := range state.Branches {
-		if !selected[branch] {
+	for branch := range state.Branches {
+		if !included[branch] {
 			continue
 		}
-		parent := meta.Parent
+		parent := lineageParent(state, branch)
+		if parent == "" {
+			parent = state.Trunk
+		}
+		children[parent] = append(children[parent], branch)
+	}
+	for branch, meta := range state.Archived {
+		if !included[branch] || meta == nil {
+			continue
+		}
+		parent := strings.TrimSpace(meta.Parent)
 		if parent == "" {
 			parent = state.Trunk
 		}
@@ -140,11 +168,47 @@ func orderedSelectedBranches(state *State, selected map[string]bool) []string {
 	}
 
 	visit(state.Trunk)
-	for branch := range selected {
+	for branch := range included {
 		if seen[branch] {
 			continue
 		}
 		ordered = append(ordered, branch)
 	}
 	return ordered
+}
+
+func collectLineageAncestors(state *State, branch string, included map[string]bool) {
+	cur := lineageParent(state, branch)
+	seen := map[string]bool{}
+	for cur != "" && cur != state.Trunk {
+		if seen[cur] {
+			break
+		}
+		seen[cur] = true
+		included[cur] = true
+		cur = lineageParent(state, cur)
+	}
+}
+
+func lineageParent(state *State, branch string) string {
+	if meta := state.Branches[branch]; meta != nil {
+		if strings.TrimSpace(meta.LineageParent) != "" {
+			return strings.TrimSpace(meta.LineageParent)
+		}
+		return strings.TrimSpace(meta.Parent)
+	}
+	if meta := state.Archived[branch]; meta != nil {
+		return strings.TrimSpace(meta.Parent)
+	}
+	return ""
+}
+
+func lineagePRMeta(state *State, branch string) *PRMeta {
+	if meta := state.Branches[branch]; meta != nil {
+		return meta.PR
+	}
+	if meta := state.Archived[branch]; meta != nil {
+		return meta.PR
+	}
+	return nil
 }
