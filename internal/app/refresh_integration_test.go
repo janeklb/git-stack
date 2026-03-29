@@ -80,8 +80,14 @@ func TestRefreshCleansMergedBranchAndReparentsChildren(t *testing.T) {
 		if _, ok := stateAfter.Branches["feat-one"]; ok {
 			t.Fatalf("expected feat-one removed from active branches")
 		}
+		if stateAfter.Archived["feat-one"] == nil {
+			t.Fatalf("expected feat-one archived lineage to persist")
+		}
 		if got := stateAfter.Branches["feat-two"].Parent; got != "main" {
 			t.Fatalf("expected feat-two parent reparented to main, got %q", got)
+		}
+		if got := stateAfter.Branches["feat-two"].LineageParent; got != "feat-one" {
+			t.Fatalf("expected feat-two lineage parent to remain feat-one, got %q", got)
 		}
 	})
 }

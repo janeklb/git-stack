@@ -193,8 +193,10 @@ func cleanupMergedBranchForRefresh(state *State, candidate refreshCleanupCandida
 		}
 	}
 
+	archiveMergedBranch(state, candidate.Branch)
 	reparentChildrenAfterCleanup(state, candidate.Branch, candidate.Base)
 	delete(state.Branches, candidate.Branch)
+	pruneArchivedLineage(state)
 	fmt.Printf("%s -> cleaned merged branch from local stack state\n", candidate.Branch)
 }
 
