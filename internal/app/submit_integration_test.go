@@ -455,3 +455,64 @@ func TestSubmitAllReparentsChildrenWhenMergedParentBranchIsDeleted(t *testing.T)
 		}
 	})
 }
+
+func TestSubmitForcePushesWithLeaseAfterHistoryRewrite(t *testing.T) {
+	repo := newTestRepo(t)
+	origin := newBareOrigin(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
+
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+		mustRunCLI(t, cli, []string{"new", "feat-one"})
+		mustWriteFile(t, filepath.Join(repo, "feature.txt"), "first\n")
+		mustGit(t, repo, "add", "feature.txt")
+		mustGit(t, repo, "commit", "-m", "feat one initial")
+		mustGit(t, repo, "push", "-u", "origin", "feat-one")
+
+		mustGit(t, repo, "reset", "--hard", "HEAD~1")
+		mustWriteFile(t, filepath.Join(repo, "feature.txt"), "rewritten\n")
+		mustGit(t, repo, "add", "feature.txt")
+		mustGit(t, repo, "commit", "-m", "feat one rewritten")
+
+		state, err := loadState(repo)
+		if err != nil {
+			t.Fatalf("load state: %v", err)
+		}
+		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
+		if err := saveState(repo, state); err != nil {
+			t.Fatalf("save state with PR metadata: %v", err)
+		}
+
+		fakeBin := t.TempDir()
+		ghPath := filepath.Join(fakeBin, "gh")
+		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"open\",\"state\":\"OPEN\"}\nEOF\n  exit 0\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
+		if err := os.Chmod(ghPath, 0o755); err != nil {
+			t.Fatalf("chmod fake gh: %v", err)
+		}
+		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		out, code := runCLIAndCapture(t, cli, []string{"submit", "feat-one"})
+		if code != 0 {
+			t.Fatalf("submit failed: exit=%d\n%s", code, out)
+		}
+
+		localHead, err := gitOutput("rev-parse", "feat-one")
+		if err != nil {
+			t.Fatalf("local rev-parse feat-one: %v", err)
+		}
+		remoteHead, err := gitOutput("ls-remote", "--heads", "origin", "feat-one")
+		if err != nil {
+			t.Fatalf("ls-remote feat-one: %v", err)
+		}
+		fields := strings.Fields(strings.TrimSpace(remoteHead))
+		if len(fields) == 0 {
+			t.Fatalf("expected remote feat-one ref after submit")
+		}
+		if strings.TrimSpace(localHead) != fields[0] {
+			t.Fatalf("expected remote head to match local rewritten commit; local=%s remote=%s", strings.TrimSpace(localHead), fields[0])
+		}
+	})
+}

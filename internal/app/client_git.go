@@ -124,16 +124,49 @@ func branchTimestamp(branch string) (int64, error) {
 }
 
 func pushBranch(branch string) error {
-	if err := gitRun("push", "-u", "origin", fmt.Sprintf("%s:%s", branch, branch)); err != nil {
-		if strings.Contains(err.Error(), "upstream") || strings.Contains(err.Error(), "set-upstream") {
-			return gitRun("push", "-u", "origin", branch)
-		}
-		if strings.Contains(err.Error(), "already exists") {
-			return gitRun("push", "origin", fmt.Sprintf("%s:%s", branch, branch))
-		}
-		return err
+	refspec := fmt.Sprintf("%s:%s", branch, branch)
+	out, err := gitCombined("push", "-u", "origin", refspec)
+	if err == nil {
+		printGitOutput(out)
+		return nil
 	}
-	return nil
+	if shouldRetryPushWithLease(out) {
+		out, forceErr := gitCombined("push", "--force-with-lease", "-u", "origin", refspec)
+		printGitOutput(out)
+		if forceErr == nil {
+			return nil
+		}
+		return forceErr
+	}
+	return err
+}
+
+func shouldRetryPushWithLease(output string) bool {
+	msg := strings.ToLower(output)
+	return strings.Contains(msg, "non-fast-forward") ||
+		strings.Contains(msg, "behind its remote") ||
+		strings.Contains(msg, "behind its remote counterpart")
+}
+
+func printGitOutput(out string) {
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return
+	}
+	fmt.Println(out)
+}
+
+func gitCombined(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	combined, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(combined))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return msg, errors.New(msg)
+	}
+	return string(combined), nil
 }
 
 func remoteBranchExists(branch string) (bool, error) {
