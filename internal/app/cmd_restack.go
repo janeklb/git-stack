@@ -27,7 +27,14 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	}
 	op, _ := loadOperation(repoRoot)
 	if op != nil {
-		return errors.New("a restack operation is already in progress; use stack restack --continue or --abort")
+		active, err := restackGitOperationInProgress(op.Mode)
+		if err != nil {
+			return err
+		}
+		if active {
+			return errors.New("a restack operation is already in progress; use stack restack --continue or --abort")
+		}
+		return runRestack(repoRoot, state, op, false)
 	}
 
 	chosenMode := state.RestackMode

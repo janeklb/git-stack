@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -220,6 +221,40 @@ func resolveComparisonBase(base string) (string, error) {
 		return "origin/" + base, nil
 	}
 	return "", fmt.Errorf("comparison base not found: %s", base)
+}
+
+func rebaseInProgress() (bool, error) {
+	apply, err := gitOutput("rev-parse", "--git-path", "rebase-apply")
+	if err != nil {
+		return false, err
+	}
+	merge, err := gitOutput("rev-parse", "--git-path", "rebase-merge")
+	if err != nil {
+		return false, err
+	}
+	if pathExists(strings.TrimSpace(apply)) || pathExists(strings.TrimSpace(merge)) {
+		return true, nil
+	}
+	return false, nil
+}
+
+func mergeInProgress() (bool, error) {
+	mergeHead, err := gitOutput("rev-parse", "--git-path", "MERGE_HEAD")
+	if err != nil {
+		return false, err
+	}
+	return pathExists(strings.TrimSpace(mergeHead)), nil
+}
+
+func pathExists(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	if !filepath.IsAbs(path) {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func gitRun(args ...string) error {
