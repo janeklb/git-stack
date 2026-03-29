@@ -57,9 +57,9 @@ func composeBody(summary []string, managed string) string {
 
 func managedStackBlock(currentBranch string, lines []StackPRLine) string {
 	var b strings.Builder
-	b.WriteString("## Current Stack\n")
 	b.WriteString(managedBlockStart)
 	b.WriteString("\n")
+	b.WriteString("## Current Stack\n")
 	for _, line := range lines {
 		if line.Number <= 0 || strings.TrimSpace(line.URL) == "" {
 			continue
@@ -100,7 +100,7 @@ func stackPRMarker(currentBranch, branch, state string) string {
 	if currentBranch == branch {
 		return "👉"
 	}
-	if strings.EqualFold(state, "merged") {
+	if strings.EqualFold(strings.TrimSpace(state), "merged") {
 		return "☑️"
 	}
 	return "⚪"
