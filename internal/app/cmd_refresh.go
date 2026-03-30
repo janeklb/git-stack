@@ -109,7 +109,7 @@ func buildRefreshPlan(state *State) (*refreshPlan, error) {
 
 		hasLocal := localBranchExists(branch)
 		if hasLocal {
-			integrated, err := branchFullyIntegrated(branch, base)
+			integrated, err := mergedCleanupIntegrated(branch, base, pr)
 			if err != nil || !integrated {
 				continue
 			}
@@ -217,4 +217,37 @@ func reparentChildrenAfterCleanup(state *State, removedBranch, replacementParent
 		}
 		fmt.Printf("%s -> reparented to %s after merged parent cleanup\n", name, replacementParent)
 	}
+}
+
+func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {
+	integrated, err := branchFullyIntegrated(branch, base)
+	if err == nil && integrated {
+		return true, nil
+	}
+
+	mergeCommit := ""
+	if pr != nil && pr.MergeCommit != nil {
+		mergeCommit = strings.TrimSpace(pr.MergeCommit.OID)
+	}
+	if mergeCommit == "" {
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	contains, containsErr := baseContainsCommit(base, mergeCommit)
+	if containsErr != nil {
+		if err != nil {
+			return false, err
+		}
+		return false, containsErr
+	}
+	if contains {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return false, nil
 }

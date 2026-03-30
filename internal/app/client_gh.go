@@ -12,7 +12,7 @@ import (
 
 func ghFindByHead(branch string) (*GhPR, error) {
 	var prs []GhPR
-	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "open", "--json", "number,url,body,baseRefName,title,state", "--limit", "1"); err != nil {
+	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "open", "--json", "number,url,body,baseRefName,title,state,mergeCommit", "--limit", "1"); err != nil {
 		return nil, err
 	}
 	if len(prs) == 0 {
@@ -23,7 +23,7 @@ func ghFindByHead(branch string) (*GhPR, error) {
 
 func ghView(number int) (*GhPR, error) {
 	var pr GhPR
-	if err := ghJSON(&pr, "pr", "view", strconv.Itoa(number), "--json", "number,url,body,baseRefName,title,state"); err != nil {
+	if err := ghJSON(&pr, "pr", "view", strconv.Itoa(number), "--json", "number,url,body,baseRefName,title,state,mergeCommit"); err != nil {
 		return nil, err
 	}
 	return &pr, nil
