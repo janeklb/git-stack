@@ -209,6 +209,48 @@ func branchFullyIntegrated(branch, base string) (bool, error) {
 	return true, nil
 }
 
+func baseContainsCommit(base, commit string) (bool, error) {
+	baseRef, err := resolveComparisonBase(base)
+	if err != nil {
+		return false, err
+	}
+	return commitIsAncestor(strings.TrimSpace(commit), baseRef)
+}
+
+func branchAtOrBehindCommit(branch, commit string) (bool, error) {
+	branchRef, err := resolveBranchRef(branch)
+	if err != nil {
+		return false, err
+	}
+	return commitIsAncestor(branchRef, strings.TrimSpace(commit))
+}
+
+func resolveBranchRef(branch string) (string, error) {
+	if strings.TrimSpace(branch) == "" {
+		return "", errors.New("empty branch")
+	}
+	out, err := gitOutput("rev-parse", strings.TrimSpace(branch))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+func commitIsAncestor(ancestor, descendant string) (bool, error) {
+	if strings.TrimSpace(ancestor) == "" || strings.TrimSpace(descendant) == "" {
+		return false, errors.New("empty commit for ancestry check")
+	}
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", strings.TrimSpace(ancestor), strings.TrimSpace(descendant))
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func resolveComparisonBase(base string) (string, error) {
 	if strings.TrimSpace(base) == "" {
 		return "", errors.New("empty comparison base")
