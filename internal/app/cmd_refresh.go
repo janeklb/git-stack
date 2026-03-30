@@ -221,57 +221,39 @@ func reparentChildrenAfterCleanup(state *State, removedBranch, replacementParent
 
 func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {
 	integrated, err := branchFullyIntegrated(branch, base)
-	if err == nil && integrated {
-		return true, nil
-	}
-
-	mergeCommit := ""
-	if pr != nil && pr.MergeCommit != nil {
-		mergeCommit = strings.TrimSpace(pr.MergeCommit.OID)
-	}
-	headCommit := ""
-	if pr != nil {
-		headCommit = strings.TrimSpace(pr.HeadRefOID)
-	}
-	if mergeCommit == "" {
-		if err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-	if headCommit == "" {
-		if err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-
-	localAtOrBehindHead, headErr := branchAtOrBehindCommit(branch, headCommit)
-	if headErr != nil {
-		if err != nil {
-			return false, err
-		}
-		return false, headErr
-	}
-	if !localAtOrBehindHead {
-		if err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-
-	contains, containsErr := baseContainsCommit(base, mergeCommit)
-	if containsErr != nil {
-		if err != nil {
-			return false, err
-		}
-		return false, containsErr
-	}
-	if contains {
-		return true, nil
-	}
 	if err != nil {
 		return false, err
 	}
-	return false, nil
+	if integrated {
+		return true, nil
+	}
+	if pr == nil {
+		return false, nil
+	}
+
+	mergeCommit := ""
+	if pr.MergeCommit != nil {
+		mergeCommit = strings.TrimSpace(pr.MergeCommit.OID)
+	}
+	headCommit := strings.TrimSpace(pr.HeadRefOID)
+	if mergeCommit == "" {
+		return false, nil
+	}
+	if headCommit == "" {
+		return false, nil
+	}
+
+	localAtOrBehindHead, err := branchAtOrBehindCommit(branch, headCommit)
+	if err != nil {
+		return false, err
+	}
+	if !localAtOrBehindHead {
+		return false, nil
+	}
+
+	contains, err := baseContainsCommit(base, mergeCommit)
+	if err != nil {
+		return false, err
+	}
+	return contains, nil
 }
