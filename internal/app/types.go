@@ -55,6 +55,7 @@ type GhPR struct {
 	URL         string    `json:"url"`
 	Body        string    `json:"body"`
 	BaseRefName string    `json:"baseRefName"`
+	HeadRefOID  string    `json:"headRefOid"`
 	Title       string    `json:"title"`
 	State       string    `json:"state"`
 	MergeCommit *GhCommit `json:"mergeCommit"`
