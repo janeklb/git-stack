@@ -48,6 +48,7 @@ stack status
 stack restack [--mode rebase|merge] [--continue] [--abort]
 stack submit [--all] [branch]
 stack reparent <branch> --parent <new-parent>
+stack prune-local [--yes]
 stack repair
 stack completion [bash|zsh|fish|powershell]
 ```

@@ -3,7 +3,6 @@ package app
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strconv"
@@ -254,12 +253,4 @@ func mergedBranchChildren(state *State, branch string) []string {
 	}
 	sort.Strings(children)
 	return children
-}
-
-func readPromptLine(reader *bufio.Reader) (string, error) {
-	line, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return "", err
-	}
-	return strings.ToLower(strings.TrimSpace(line)), nil
 }

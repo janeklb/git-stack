@@ -21,6 +21,17 @@ func ghFindByHead(branch string) (*GhPR, error) {
 	return &prs[0], nil
 }
 
+func ghFindMergedByHead(branch string) (*GhPR, error) {
+	var prs []GhPR
+	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "merged", "--json", "number,url,baseRefName,headRefOid,state,mergeCommit", "--limit", "1"); err != nil {
+		return nil, err
+	}
+	if len(prs) == 0 {
+		return nil, nil
+	}
+	return &prs[0], nil
+}
+
 func ghView(number int) (*GhPR, error) {
 	var pr GhPR
 	if err := ghJSON(&pr, "pr", "view", strconv.Itoa(number), "--json", "number,url,body,baseRefName,headRefOid,title,state,mergeCommit"); err != nil {
