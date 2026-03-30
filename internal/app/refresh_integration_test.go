@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestRefreshCleansMergedBranchAndReparentsChildren(t *testing.T) {
+func TestRefreshCleansSquashMergedBranchAndReparentsChildren(t *testing.T) {
 	repo := newTestRepo(t)
 	origin := newBareOrigin(t)
 
