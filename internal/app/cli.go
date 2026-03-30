@@ -182,5 +182,17 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	}
 	root.AddCommand(refreshCmd)
 
+	var pruneLocalYes bool
+	pruneLocalCmd := &cobra.Command{
+		Use:   "prune-local",
+		Short: "Delete merged local branches not tracked in stack state",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdPruneLocal(pruneLocalYes)
+		},
+	}
+	pruneLocalCmd.Flags().BoolVar(&pruneLocalYes, "yes", false, "apply without confirmation prompt")
+	root.AddCommand(pruneLocalCmd)
+
 	return root
 }
