@@ -41,6 +41,10 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 	if err != nil {
 		return err
 	}
+	if len(plan.Cleanup) == 0 && !restack && publish == "" {
+		fmt.Println("refresh: nothing to do")
+		return nil
+	}
 
 	current, _ := currentBranch()
 	printRefreshPlan(plan, restack, publish, current)

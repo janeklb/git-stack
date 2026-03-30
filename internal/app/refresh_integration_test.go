@@ -197,15 +197,15 @@ func TestRefreshKeepsMergedBranchWhenLocalHasNewCommitsAfterPRHead(t *testing.T)
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIWithInputAndCapture(t, cli, []string{"refresh"}, "y\n")
+		out, code := runCLIAndCapture(t, cli, []string{"refresh"})
 		if code != 0 {
 			t.Fatalf("refresh failed: exit=%d\n%s", code, out)
 		}
 		if strings.Contains(out, "feat-one -> cleaned merged branch from local stack state") {
 			t.Fatalf("expected merged branch to be kept when local branch has new commits, got:\n%s", out)
 		}
-		if !strings.Contains(out, "refresh completed") {
-			t.Fatalf("expected completion output, got:\n%s", out)
+		if !strings.Contains(out, "refresh: nothing to do") {
+			t.Fatalf("expected noop message, got:\n%s", out)
 		}
 
 		if !branchExists("feat-one") {
@@ -251,6 +251,29 @@ func TestRefreshPublishFlagRejectsInvalidValue(t *testing.T) {
 		}
 		if !strings.Contains(out, "--publish must be one of: current, all") {
 			t.Fatalf("expected validation error, got:\n%s", out)
+		}
+	})
+}
+
+func TestRefreshNoopExitsWithoutPrompt(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+
+		out, code := runCLIAndCapture(t, cli, []string{"refresh"})
+		if code != 0 {
+			t.Fatalf("refresh failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "refresh: nothing to do") {
+			t.Fatalf("expected noop message, got:\n%s", out)
+		}
+		if strings.Contains(out, "apply refresh plan?") {
+			t.Fatalf("did not expect confirmation prompt for noop refresh, got:\n%s", out)
+		}
+		if strings.Contains(out, "refresh cancelled") {
+			t.Fatalf("did not expect cancel output for noop refresh, got:\n%s", out)
 		}
 	})
 }
