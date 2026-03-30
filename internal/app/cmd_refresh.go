@@ -20,6 +20,24 @@ type refreshPlan struct {
 	Cleanup []refreshCleanupCandidate
 }
 
+type refreshPlanDeps struct {
+	ghView                  func(int) (*GhPR, error)
+	remoteBranchExists      func(string) (bool, error)
+	localBranchExists       func(string) bool
+	mergedCleanupIntegrated func(string, string, *GhPR) (bool, error)
+	mergedBranchChildren    func(*State, string) []string
+}
+
+func defaultRefreshPlanDeps() refreshPlanDeps {
+	return refreshPlanDeps{
+		ghView:                  ghView,
+		remoteBranchExists:      remoteBranchExists,
+		localBranchExists:       localBranchExists,
+		mergedCleanupIntegrated: mergedCleanupIntegrated,
+		mergedBranchChildren:    mergedBranchChildren,
+	}
+}
+
 func (a *App) cmdRefresh(restack bool, publish string) error {
 	publish = strings.TrimSpace(strings.ToLower(publish))
 	if publish != "" && publish != "current" && publish != "all" {
@@ -87,6 +105,10 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 }
 
 func buildRefreshPlan(state *State) (*refreshPlan, error) {
+	return buildRefreshPlanWithDeps(state, defaultRefreshPlanDeps())
+}
+
+func buildRefreshPlanWithDeps(state *State, deps refreshPlanDeps) (*refreshPlan, error) {
 	plan := &refreshPlan{Cleanup: []refreshCleanupCandidate{}}
 	branches := topoOrder(state)
 	for _, branch := range branches {
@@ -94,12 +116,12 @@ func buildRefreshPlan(state *State) (*refreshPlan, error) {
 		if meta == nil || meta.PR == nil || meta.PR.Number <= 0 {
 			continue
 		}
-		pr, err := ghView(meta.PR.Number)
+		pr, err := deps.ghView(meta.PR.Number)
 		if err != nil || !strings.EqualFold(pr.State, "MERGED") {
 			continue
 		}
 
-		remoteExists, remoteErr := remoteBranchExists(branch)
+		remoteExists, remoteErr := deps.remoteBranchExists(branch)
 		if remoteErr != nil || remoteExists {
 			continue
 		}
@@ -111,9 +133,9 @@ func buildRefreshPlan(state *State) (*refreshPlan, error) {
 			base = meta.Parent
 		}
 
-		hasLocal := localBranchExists(branch)
+		hasLocal := deps.localBranchExists(branch)
 		if hasLocal {
-			integrated, err := mergedCleanupIntegrated(branch, base, pr)
+			integrated, err := deps.mergedCleanupIntegrated(branch, base, pr)
 			if err != nil || !integrated {
 				continue
 			}
@@ -123,7 +145,7 @@ func buildRefreshPlan(state *State) (*refreshPlan, error) {
 			Branch:   branch,
 			Base:     base,
 			HasLocal: hasLocal,
-			Children: mergedBranchChildren(state, branch),
+			Children: deps.mergedBranchChildren(state, branch),
 		})
 	}
 

@@ -24,6 +24,24 @@ type pruneLocalPlan struct {
 	Skip   []pruneLocalSkip
 }
 
+type pruneLocalPlanDeps struct {
+	listLocalBranches  func() ([]string, error)
+	remoteBranchExists func(string) (bool, error)
+	findMergedByHead   func(string) (*GhPR, error)
+	branchAtOrBehind   func(string, string) (bool, error)
+	baseContainsCommit func(string, string) (bool, error)
+}
+
+func defaultPruneLocalPlanDeps() pruneLocalPlanDeps {
+	return pruneLocalPlanDeps{
+		listLocalBranches:  listLocalBranches,
+		remoteBranchExists: remoteBranchExists,
+		findMergedByHead:   ghFindMergedByHead,
+		branchAtOrBehind:   branchAtOrBehindCommit,
+		baseContainsCommit: baseContainsCommit,
+	}
+}
+
 func (a *App) cmdPruneLocal(yes bool) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
@@ -76,7 +94,11 @@ func (a *App) cmdPruneLocal(yes bool) error {
 }
 
 func buildPruneLocalPlan(state *State) (*pruneLocalPlan, error) {
-	branches, err := listLocalBranches()
+	return buildPruneLocalPlanWithDeps(state, defaultPruneLocalPlanDeps())
+}
+
+func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps) (*pruneLocalPlan, error) {
+	branches, err := deps.listLocalBranches()
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +111,7 @@ func buildPruneLocalPlan(state *State) (*pruneLocalPlan, error) {
 			continue
 		}
 
-		remoteExists, remoteErr := remoteBranchExists(branch)
+		remoteExists, remoteErr := deps.remoteBranchExists(branch)
 		if remoteErr != nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "remote check failed"})
 			continue
@@ -99,7 +121,7 @@ func buildPruneLocalPlan(state *State) (*pruneLocalPlan, error) {
 			continue
 		}
 
-		pr, prErr := ghFindMergedByHead(branch)
+		pr, prErr := deps.findMergedByHead(branch)
 		if prErr != nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merged PR lookup failed"})
 			continue
@@ -123,7 +145,7 @@ func buildPruneLocalPlan(state *State) (*pruneLocalPlan, error) {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "missing PR head commit"})
 			continue
 		}
-		atOrBehind, headErr := branchAtOrBehindCommit(branch, head)
+		atOrBehind, headErr := deps.branchAtOrBehind(branch, head)
 		if headErr != nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "head ancestry check failed"})
 			continue
@@ -141,7 +163,7 @@ func buildPruneLocalPlan(state *State) (*pruneLocalPlan, error) {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "missing merge commit"})
 			continue
 		}
-		contains, containsErr := baseContainsCommit(base, mergeCommit)
+		contains, containsErr := deps.baseContainsCommit(base, mergeCommit)
 		if containsErr != nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merge containment check failed"})
 			continue

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -14,5 +15,104 @@ func TestCmdRefreshRejectsInvalidPublishValue(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--publish must be one of: current, all") {
 		t.Fatalf("expected validation message, got: %v", err)
+	}
+}
+
+func TestBuildRefreshPlanSkipsMergedBranchWhenLocalNotIntegrated(t *testing.T) {
+	t.Parallel()
+
+	deps := refreshPlanDeps{
+		ghView: func(number int) (*GhPR, error) {
+			return &GhPR{Number: number, State: "MERGED"}, nil
+		},
+		remoteBranchExists: func(branch string) (bool, error) {
+			return false, nil
+		},
+		localBranchExists: func(branch string) bool {
+			return true
+		},
+		mergedCleanupIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
+			return false, nil
+		},
+		mergedBranchChildren: func(state *State, branch string) []string {
+			return nil
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-one": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+		},
+	}
+
+	plan, err := buildRefreshPlanWithDeps(state, deps)
+	if err != nil {
+		t.Fatalf("buildRefreshPlan returned error: %v", err)
+	}
+	if len(plan.Cleanup) != 0 {
+		t.Fatalf("expected no cleanup candidates when local branch is not integrated, got: %#v", plan.Cleanup)
+	}
+}
+
+func TestBuildRefreshPlanIncludesMergedRemoteDeletedBranches(t *testing.T) {
+	t.Parallel()
+
+	deps := refreshPlanDeps{
+		ghView: func(number int) (*GhPR, error) {
+			if number == 2 {
+				return &GhPR{Number: number, State: "OPEN"}, nil
+			}
+			if number == 3 {
+				return nil, errors.New("lookup failed")
+			}
+			return &GhPR{Number: number, State: "MERGED"}, nil
+		},
+		remoteBranchExists: func(branch string) (bool, error) {
+			if branch == "feat-remote" {
+				return true, nil
+			}
+			return false, nil
+		},
+		localBranchExists: func(branch string) bool {
+			return branch == "feat-a"
+		},
+		mergedCleanupIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
+			return true, nil
+		},
+		mergedBranchChildren: func(state *State, branch string) []string {
+			if branch == "feat-a" {
+				return []string{"child-one"}
+			}
+			return nil
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-a":      {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+			"feat-open":   {Parent: "main", PR: &PRMeta{Number: 2, Base: "main"}},
+			"feat-err":    {Parent: "main", PR: &PRMeta{Number: 3, Base: "main"}},
+			"feat-remote": {Parent: "main", PR: &PRMeta{Number: 4, Base: "main"}},
+			"feat-nopr":   {Parent: "main"},
+		},
+	}
+
+	plan, err := buildRefreshPlanWithDeps(state, deps)
+	if err != nil {
+		t.Fatalf("buildRefreshPlan returned error: %v", err)
+	}
+	if len(plan.Cleanup) != 1 {
+		t.Fatalf("expected one cleanup candidate, got: %#v", plan.Cleanup)
+	}
+	if plan.Cleanup[0].Branch != "feat-a" {
+		t.Fatalf("expected feat-a candidate, got %#v", plan.Cleanup[0])
+	}
+	if !plan.Cleanup[0].HasLocal {
+		t.Fatalf("expected local candidate, got %#v", plan.Cleanup[0])
+	}
+	if len(plan.Cleanup[0].Children) != 1 || plan.Cleanup[0].Children[0] != "child-one" {
+		t.Fatalf("expected child reparent data, got %#v", plan.Cleanup[0].Children)
 	}
 }
