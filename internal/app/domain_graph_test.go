@@ -7,6 +7,8 @@ import (
 )
 
 func TestSubmitQueueForTargetReturnsRootToTargetPath(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -27,6 +29,8 @@ func TestSubmitQueueForTargetReturnsRootToTargetPath(t *testing.T) {
 }
 
 func TestSubmitQueueAllReturnsTopologicalOrder(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -47,6 +51,8 @@ func TestSubmitQueueAllReturnsTopologicalOrder(t *testing.T) {
 }
 
 func TestSubmitQueueErrorsForUnknownTarget(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -64,6 +70,8 @@ func TestSubmitQueueErrorsForUnknownTarget(t *testing.T) {
 }
 
 func TestBranchesInCurrentStackReturnsOnlyConnectedStack(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -83,6 +91,8 @@ func TestBranchesInCurrentStackReturnsOnlyConnectedStack(t *testing.T) {
 }
 
 func TestBranchesInCurrentStackTrunkSelectsAllBranches(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{

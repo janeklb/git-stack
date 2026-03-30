@@ -6,6 +6,8 @@ import (
 )
 
 func TestCmdRefreshRejectsInvalidPublishValue(t *testing.T) {
+	t.Parallel()
+
 	err := New().cmdRefresh(false, "invalid")
 	if err == nil {
 		t.Fatalf("expected refresh to fail for invalid publish scope")

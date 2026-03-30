@@ -6,6 +6,8 @@ import (
 )
 
 func TestOrderedSelectedLineageBranchesIncludesArchivedAncestors(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -31,6 +33,8 @@ func TestOrderedSelectedLineageBranchesIncludesArchivedAncestors(t *testing.T) {
 }
 
 func TestPruneArchivedLineageDropsUnreferencedNodes(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -51,5 +55,31 @@ func TestPruneArchivedLineageDropsUnreferencedNodes(t *testing.T) {
 	}
 	if _, ok := state.Archived["feat-drop"]; ok {
 		t.Fatal("expected unreferenced archived node to be pruned")
+	}
+}
+
+func TestReparentChildrenAfterMergedDeletionUpdatesParentAndPRBase(t *testing.T) {
+	t.Parallel()
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-one": {
+				Parent: "main",
+			},
+			"feat-two": {
+				Parent: "feat-one",
+				PR:     &PRMeta{Number: 2, Base: "feat-one"},
+			},
+		},
+	}
+
+	reparentChildrenAfterMergedDeletion(state, "feat-one", "main")
+
+	if got := state.Branches["feat-two"].Parent; got != "main" {
+		t.Fatalf("expected feat-two parent main after cleanup, got %q", got)
+	}
+	if got := state.Branches["feat-two"].PR.Base; got != "main" {
+		t.Fatalf("expected feat-two PR base main after cleanup, got %q", got)
 	}
 }

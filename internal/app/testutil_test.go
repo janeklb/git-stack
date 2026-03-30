@@ -28,6 +28,8 @@ func newTestRepo(t *testing.T) string {
 	mustGit(t, base, "init", "-b", "main", repo)
 	mustGit(t, repo, "config", "user.name", "Stack Test")
 	mustGit(t, repo, "config", "user.email", "stack-test@example.com")
+	mustGit(t, repo, "config", "commit.gpgsign", "false")
+	mustGit(t, repo, "config", "gc.auto", "0")
 
 	mustWriteFile(t, filepath.Join(repo, "README.md"), "# test\n")
 	mustGit(t, repo, "add", "README.md")

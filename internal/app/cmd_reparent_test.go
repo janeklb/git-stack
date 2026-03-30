@@ -6,6 +6,8 @@ import (
 )
 
 func TestValidateReparentParentRejectsSelfParent(t *testing.T) {
+	t.Parallel()
+
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
 
 	err := validateReparentParent(state, "feat-one", "feat-one")
@@ -18,6 +20,8 @@ func TestValidateReparentParentRejectsSelfParent(t *testing.T) {
 }
 
 func TestValidateReparentParentRejectsDescendantParent(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{

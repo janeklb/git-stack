@@ -6,6 +6,8 @@ import (
 )
 
 func TestUpsertManagedBlockAppendsAndReplaces(t *testing.T) {
+	t.Parallel()
+
 	managedOne := managedStackBlock("feat-one", []StackPRLine{{
 		Branch: "feat-one",
 		Number: 10,
@@ -38,6 +40,8 @@ func TestUpsertManagedBlockAppendsAndReplaces(t *testing.T) {
 }
 
 func TestUpsertManagedBlockPreservesTextOutsideManagedSection(t *testing.T) {
+	t.Parallel()
+
 	body := strings.Join([]string{
 		"Intro",
 		managedBlockStart,
@@ -58,6 +62,8 @@ func TestUpsertManagedBlockPreservesTextOutsideManagedSection(t *testing.T) {
 }
 
 func TestManagedStackBlockKeepsHeadingInsideManagedMarkers(t *testing.T) {
+	t.Parallel()
+
 	managed := managedStackBlock("feat-a", []StackPRLine{{
 		Branch: "feat-a",
 		Number: 11,
@@ -74,6 +80,8 @@ func TestManagedStackBlockKeepsHeadingInsideManagedMarkers(t *testing.T) {
 }
 
 func TestStackPRMarker(t *testing.T) {
+	t.Parallel()
+
 	if got := stackPRMarker("feat-b", "feat-b", "OPEN"); got != "👉" {
 		t.Fatalf("expected current marker, got %q", got)
 	}
