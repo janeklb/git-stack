@@ -16,7 +16,8 @@ type testState struct {
 }
 
 type testBranchReference struct {
-	Parent string `json:"parent"`
+	Parent        string `json:"parent"`
+	LineageParent string `json:"lineageParent,omitempty"`
 }
 
 func newTestRepo(t *testing.T) string {
@@ -129,6 +130,21 @@ func corruptStateParent(t *testing.T, repo, branch, parent string) {
 	}
 	if err := os.WriteFile(filepath.Join(repo, ".git", "stack", "state.json"), data, 0o600); err != nil {
 		t.Fatalf("write corrupted state: %v", err)
+	}
+}
+
+func setStateLineageParent(t *testing.T, repo, branch, parent string) {
+	t.Helper()
+	state := readStateFile(t, repo)
+	entry := state.Branches[branch]
+	entry.LineageParent = parent
+	state.Branches[branch] = entry
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal state: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".git", "stack", "state.json"), data, 0o600); err != nil {
+		t.Fatalf("write state: %v", err)
 	}
 }
 
