@@ -236,9 +236,6 @@ func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {
 		mergeCommit = strings.TrimSpace(pr.MergeCommit.OID)
 	}
 	headCommit := strings.TrimSpace(pr.HeadRefOID)
-	if mergeCommit == "" {
-		return false, nil
-	}
 	if headCommit == "" {
 		return false, nil
 	}
@@ -248,6 +245,9 @@ func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {
 		return false, err
 	}
 	if !localAtOrBehindHead {
+		return false, nil
+	}
+	if mergeCommit == "" {
 		return false, nil
 	}
 
