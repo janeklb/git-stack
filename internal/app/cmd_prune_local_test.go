@@ -2,17 +2,59 @@ package app
 
 import "testing"
 
+type fakePruneGit struct {
+	listLocalBranchesFn  func() ([]string, error)
+	remoteBranchExistsFn func(string) (bool, error)
+	branchAtOrBehindFn   func(string, string) (bool, error)
+	baseContainsCommitFn func(string, string) (bool, error)
+}
+
+func (f fakePruneGit) ListLocalBranches() ([]string, error) {
+	return f.listLocalBranchesFn()
+}
+
+func (f fakePruneGit) RemoteBranchExists(branch string) (bool, error) {
+	return f.remoteBranchExistsFn(branch)
+}
+
+func (f fakePruneGit) BranchAtOrBehindCommit(branch, commit string) (bool, error) {
+	return f.branchAtOrBehindFn(branch, commit)
+}
+
+func (f fakePruneGit) BaseContainsCommit(base, commit string) (bool, error) {
+	return f.baseContainsCommitFn(base, commit)
+}
+
+type fakePruneGH struct {
+	findMergedByHeadFn func(string) (*GhPR, error)
+}
+
+func (f fakePruneGH) FindMergedByHead(branch string) (*GhPR, error) {
+	return f.findMergedByHeadFn(branch)
+}
+
 func TestBuildPruneLocalPlanSelectsEligibleBranchAndSkipsOthers(t *testing.T) {
 	t.Parallel()
 
 	deps := pruneLocalPlanDeps{
-		listLocalBranches: func() ([]string, error) {
-			return []string{"main", "tracked", "cleanup", "remote", "ahead", "nopr", "wrong-base"}, nil
+		git: fakePruneGit{
+			listLocalBranchesFn: func() ([]string, error) {
+				return []string{"main", "tracked", "cleanup", "remote", "ahead", "nopr", "wrong-base"}, nil
+			},
+			remoteBranchExistsFn: func(branch string) (bool, error) {
+				return branch == "remote", nil
+			},
+			branchAtOrBehindFn: func(branch, commit string) (bool, error) {
+				if branch == "ahead" {
+					return false, nil
+				}
+				return true, nil
+			},
+			baseContainsCommitFn: func(base, commit string) (bool, error) {
+				return true, nil
+			},
 		},
-		remoteBranchExists: func(branch string) (bool, error) {
-			return branch == "remote", nil
-		},
-		findMergedByHead: func(branch string) (*GhPR, error) {
+		gh: fakePruneGH{findMergedByHeadFn: func(branch string) (*GhPR, error) {
 			switch branch {
 			case "cleanup":
 				return &GhPR{Number: 11, URL: "https://example.invalid/pr/11", BaseRefName: "main", HeadRefOID: "h1", MergeCommit: &GhCommit{OID: "m1"}}, nil
@@ -23,16 +65,7 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchAndSkipsOthers(t *testing.T) {
 			default:
 				return nil, nil
 			}
-		},
-		branchAtOrBehind: func(branch, commit string) (bool, error) {
-			if branch == "ahead" {
-				return false, nil
-			}
-			return true, nil
-		},
-		baseContainsCommit: func(base, commit string) (bool, error) {
-			return true, nil
-		},
+		}},
 	}
 
 	state := &State{

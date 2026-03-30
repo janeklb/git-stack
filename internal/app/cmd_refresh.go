@@ -21,18 +21,16 @@ type refreshPlan struct {
 }
 
 type refreshPlanDeps struct {
-	ghView                  func(int) (*GhPR, error)
-	remoteBranchExists      func(string) (bool, error)
-	localBranchExists       func(string) bool
+	git                     refreshGitBoundary
+	gh                      refreshGHBoundary
 	mergedCleanupIntegrated func(string, string, *GhPR) (bool, error)
 	mergedBranchChildren    func(*State, string) []string
 }
 
 func defaultRefreshPlanDeps() refreshPlanDeps {
 	return refreshPlanDeps{
-		ghView:                  ghView,
-		remoteBranchExists:      remoteBranchExists,
-		localBranchExists:       localBranchExists,
+		git:                     defaultGitBoundary{},
+		gh:                      defaultGHBoundary{},
 		mergedCleanupIntegrated: mergedCleanupIntegrated,
 		mergedBranchChildren:    mergedBranchChildren,
 	}
@@ -71,8 +69,9 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 		return nil
 	}
 
+	deps := defaultRefreshPlanDeps()
 	for _, candidate := range plan.Cleanup {
-		cleanupMergedBranchForRefresh(state, candidate)
+		cleanupMergedBranchForRefresh(state, candidate, deps.git)
 	}
 
 	if persisted {
@@ -116,12 +115,12 @@ func buildRefreshPlanWithDeps(state *State, deps refreshPlanDeps) (*refreshPlan,
 		if meta == nil || meta.PR == nil || meta.PR.Number <= 0 {
 			continue
 		}
-		pr, err := deps.ghView(meta.PR.Number)
+		pr, err := deps.gh.View(meta.PR.Number)
 		if err != nil || !strings.EqualFold(pr.State, "MERGED") {
 			continue
 		}
 
-		remoteExists, remoteErr := deps.remoteBranchExists(branch)
+		remoteExists, remoteErr := deps.git.RemoteBranchExists(branch)
 		if remoteErr != nil || remoteExists {
 			continue
 		}
@@ -133,7 +132,7 @@ func buildRefreshPlanWithDeps(state *State, deps refreshPlanDeps) (*refreshPlan,
 			base = meta.Parent
 		}
 
-		hasLocal := deps.localBranchExists(branch)
+		hasLocal := deps.git.LocalBranchExists(branch)
 		if hasLocal {
 			integrated, err := deps.mergedCleanupIntegrated(branch, base, pr)
 			if err != nil || !integrated {
@@ -199,21 +198,21 @@ func confirmRefreshApply() bool {
 	return answer == "y" || answer == "yes"
 }
 
-func cleanupMergedBranchForRefresh(state *State, candidate refreshCleanupCandidate) {
-	current, err := currentBranch()
+func cleanupMergedBranchForRefresh(state *State, candidate refreshCleanupCandidate, git refreshGitBoundary) {
+	current, err := git.CurrentBranch()
 	if err == nil && current == candidate.Branch {
 		target := state.Trunk
 		if strings.TrimSpace(target) == "" {
 			target = "main"
 		}
-		if switchErr := gitRun("switch", target); switchErr != nil {
+		if switchErr := git.Run("switch", target); switchErr != nil {
 			fmt.Printf("%s -> failed to switch to %s before cleanup: %v\n", candidate.Branch, target, switchErr)
 			return
 		}
 	}
 
 	if candidate.HasLocal {
-		if err := deleteLocalBranch(candidate.Branch); err != nil {
+		if err := git.DeleteLocalBranch(candidate.Branch); err != nil {
 			fmt.Printf("%s -> failed to delete local merged branch: %v\n", candidate.Branch, err)
 			return
 		}

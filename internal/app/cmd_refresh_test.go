@@ -6,6 +6,39 @@ import (
 	"testing"
 )
 
+type fakeRefreshGit struct {
+	remoteBranchExistsFn func(string) (bool, error)
+	localBranchExistsFn  func(string) bool
+}
+
+func (f fakeRefreshGit) RemoteBranchExists(branch string) (bool, error) {
+	return f.remoteBranchExistsFn(branch)
+}
+
+func (f fakeRefreshGit) LocalBranchExists(branch string) bool {
+	return f.localBranchExistsFn(branch)
+}
+
+func (f fakeRefreshGit) CurrentBranch() (string, error) {
+	panic("not used in planner tests")
+}
+
+func (f fakeRefreshGit) Run(args ...string) error {
+	panic("not used in planner tests")
+}
+
+func (f fakeRefreshGit) DeleteLocalBranch(branch string) error {
+	panic("not used in planner tests")
+}
+
+type fakeRefreshGH struct {
+	viewFn func(int) (*GhPR, error)
+}
+
+func (f fakeRefreshGH) View(number int) (*GhPR, error) {
+	return f.viewFn(number)
+}
+
 func TestCmdRefreshRejectsInvalidPublishValue(t *testing.T) {
 	t.Parallel()
 
@@ -22,15 +55,17 @@ func TestBuildRefreshPlanSkipsMergedBranchWhenLocalNotIntegrated(t *testing.T) {
 	t.Parallel()
 
 	deps := refreshPlanDeps{
-		ghView: func(number int) (*GhPR, error) {
+		git: fakeRefreshGit{
+			remoteBranchExistsFn: func(branch string) (bool, error) {
+				return false, nil
+			},
+			localBranchExistsFn: func(branch string) bool {
+				return true
+			},
+		},
+		gh: fakeRefreshGH{viewFn: func(number int) (*GhPR, error) {
 			return &GhPR{Number: number, State: "MERGED"}, nil
-		},
-		remoteBranchExists: func(branch string) (bool, error) {
-			return false, nil
-		},
-		localBranchExists: func(branch string) bool {
-			return true
-		},
+		}},
 		mergedCleanupIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
 			return false, nil
 		},
@@ -59,7 +94,18 @@ func TestBuildRefreshPlanIncludesMergedRemoteDeletedBranches(t *testing.T) {
 	t.Parallel()
 
 	deps := refreshPlanDeps{
-		ghView: func(number int) (*GhPR, error) {
+		git: fakeRefreshGit{
+			remoteBranchExistsFn: func(branch string) (bool, error) {
+				if branch == "feat-remote" {
+					return true, nil
+				}
+				return false, nil
+			},
+			localBranchExistsFn: func(branch string) bool {
+				return branch == "feat-a"
+			},
+		},
+		gh: fakeRefreshGH{viewFn: func(number int) (*GhPR, error) {
 			if number == 2 {
 				return &GhPR{Number: number, State: "OPEN"}, nil
 			}
@@ -67,16 +113,7 @@ func TestBuildRefreshPlanIncludesMergedRemoteDeletedBranches(t *testing.T) {
 				return nil, errors.New("lookup failed")
 			}
 			return &GhPR{Number: number, State: "MERGED"}, nil
-		},
-		remoteBranchExists: func(branch string) (bool, error) {
-			if branch == "feat-remote" {
-				return true, nil
-			}
-			return false, nil
-		},
-		localBranchExists: func(branch string) bool {
-			return branch == "feat-a"
-		},
+		}},
 		mergedCleanupIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
 			return true, nil
 		},
