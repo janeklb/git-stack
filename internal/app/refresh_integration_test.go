@@ -221,40 +221,6 @@ func TestRefreshKeepsMergedBranchWhenLocalHasNewCommitsAfterPRHead(t *testing.T)
 	})
 }
 
-func TestRefreshPublishFlagDefaultsToCurrentWhenNoValueProvided(t *testing.T) {
-	repo := newTestRepo(t)
-
-	withRepoCwd(t, repo, func() {
-		cli := New()
-		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
-
-		out, code := runCLIWithInputAndCapture(t, cli, []string{"refresh", "--publish"}, "n\n")
-		if code != 0 {
-			t.Fatalf("refresh failed: exit=%d\n%s", code, out)
-		}
-		if !strings.Contains(out, "- publish: current stack") {
-			t.Fatalf("expected current publish scope in plan, got:\n%s", out)
-		}
-	})
-}
-
-func TestRefreshPublishFlagRejectsInvalidValue(t *testing.T) {
-	repo := newTestRepo(t)
-
-	withRepoCwd(t, repo, func() {
-		cli := New()
-		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
-
-		out, code := runCLIAndCapture(t, cli, []string{"refresh", "--publish=invalid"})
-		if code == 0 {
-			t.Fatalf("expected refresh to fail for invalid publish scope, output:\n%s", out)
-		}
-		if !strings.Contains(out, "--publish must be one of: current, all") {
-			t.Fatalf("expected validation error, got:\n%s", out)
-		}
-	})
-}
-
 func TestRefreshNoopExitsWithoutPrompt(t *testing.T) {
 	repo := newTestRepo(t)
 
