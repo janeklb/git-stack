@@ -2,7 +2,6 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 )
 
@@ -58,6 +57,6 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
-	fmt.Printf("initialized stack state (trunk=%s, mode=%s)\n", detectedTrunk, mode)
+	a.printf("initialized stack state (trunk=%s, mode=%s)\n", detectedTrunk, mode)
 	return nil
 }

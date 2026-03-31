@@ -1,5 +1,10 @@
 package app
 
+import (
+	"io"
+	"os"
+)
+
 const (
 	stateVersion       = 1
 	managedBlockStart  = "<!-- stack:managed:start -->"
@@ -7,7 +12,11 @@ const (
 	defaultRestackMode = "rebase"
 )
 
-type App struct{}
+type App struct {
+	in     io.Reader
+	stdout io.Writer
+	stderr io.Writer
+}
 
 type State struct {
 	Version     int                     `json:"version"`
@@ -66,5 +75,18 @@ type GhCommit struct {
 }
 
 func New() *App {
-	return &App{}
+	return &App{in: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
+}
+
+func NewWithIO(in io.Reader, stdout io.Writer, stderr io.Writer) *App {
+	if in == nil {
+		in = os.Stdin
+	}
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+	return &App{in: in, stdout: stdout, stderr: stderr}
 }

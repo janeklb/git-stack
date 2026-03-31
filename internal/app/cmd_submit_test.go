@@ -2,7 +2,7 @@ package app
 
 import (
 	"bytes"
-	"os"
+	"io"
 	"strings"
 	"testing"
 )
@@ -15,8 +15,8 @@ func TestPromptSwitchTargetForMergedBranchDeletionNoChildrenDefaultsToTrunk(t *t
 		},
 	}
 
-	out, target, proceed := runPromptSwitchTargetWithInput(t, "", func() (string, bool) {
-		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one")
+	out, target, proceed := runPromptSwitchTargetWithInput(t, "", func(in io.Reader, out io.Writer) (string, bool) {
+		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one", in, out)
 	})
 	if !proceed {
 		t.Fatal("expected cleanup to proceed when merged branch has no children")
@@ -38,8 +38,8 @@ func TestPromptSwitchTargetForMergedBranchDeletionSingleChildPrompt(t *testing.T
 		},
 	}
 
-	out, target, proceed := runPromptSwitchTargetWithInput(t, "y\n", func() (string, bool) {
-		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one")
+	out, target, proceed := runPromptSwitchTargetWithInput(t, "y\n", func(in io.Reader, out io.Writer) (string, bool) {
+		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one", in, out)
 	})
 	if !proceed {
 		t.Fatal("expected cleanup to proceed when user confirms child switch")
@@ -62,8 +62,8 @@ func TestPromptSwitchTargetForMergedBranchDeletionMultipleChildrenSelection(t *t
 		},
 	}
 
-	out, target, proceed := runPromptSwitchTargetWithInput(t, "2\n", func() (string, bool) {
-		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one")
+	out, target, proceed := runPromptSwitchTargetWithInput(t, "2\n", func(in io.Reader, out io.Writer) (string, bool) {
+		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one", in, out)
 	})
 	if !proceed {
 		t.Fatal("expected cleanup to proceed for valid child selection")
@@ -86,8 +86,8 @@ func TestPromptSwitchTargetForMergedBranchDeletionInvalidSelectionKeepsBranch(t 
 		},
 	}
 
-	out, target, proceed := runPromptSwitchTargetWithInput(t, "9\n", func() (string, bool) {
-		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one")
+	out, target, proceed := runPromptSwitchTargetWithInput(t, "9\n", func(in io.Reader, out io.Writer) (string, bool) {
+		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one", in, out)
 	})
 	if proceed {
 		t.Fatal("expected cleanup to be cancelled for invalid selection")
@@ -100,40 +100,11 @@ func TestPromptSwitchTargetForMergedBranchDeletionInvalidSelectionKeepsBranch(t 
 	}
 }
 
-func runPromptSwitchTargetWithInput(t *testing.T, input string, fn func() (string, bool)) (string, string, bool) {
+func runPromptSwitchTargetWithInput(t *testing.T, input string, fn func(io.Reader, io.Writer) (string, bool)) (string, string, bool) {
 	t.Helper()
 
-	stdinReader, stdinWriter, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("stdin pipe: %v", err)
-	}
-	if input != "" {
-		if _, err := stdinWriter.WriteString(input); err != nil {
-			t.Fatalf("write stdin input: %v", err)
-		}
-	}
-	_ = stdinWriter.Close()
-
-	stdoutReader, stdoutWriter, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("stdout pipe: %v", err)
-	}
-
-	origStdin := os.Stdin
-	origStdout := os.Stdout
-	os.Stdin = stdinReader
-	os.Stdout = stdoutWriter
-
-	target, proceed := fn()
-
-	_ = stdoutWriter.Close()
-	os.Stdin = origStdin
-	os.Stdout = origStdout
-
 	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(stdoutReader)
-	_ = stdoutReader.Close()
-	_ = stdinReader.Close()
+	target, proceed := fn(strings.NewReader(input), &buf)
 
 	return buf.String(), target, proceed
 }

@@ -81,11 +81,11 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
 	state.Branches[branchName] = &BranchRef{Parent: parentBranch, LineageParent: parentBranch}
 	state.Naming.NextIndex++
 	if !persisted {
-		fmt.Printf("initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode)
+		a.printf("initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode)
 	}
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
-	fmt.Printf("created %s (parent=%s)\n", branchName, parentBranch)
+	a.printf("created %s (parent=%s)\n", branchName, parentBranch)
 	return nil
 }

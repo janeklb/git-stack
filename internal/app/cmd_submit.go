@@ -3,7 +3,7 @@ package app
 import (
 	"bufio"
 	"fmt"
-	"os"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,7 +33,7 @@ func (a *App) defaultSubmitDeps() submitDeps {
 		syncCurrentStackBody: syncCurrentStackBodies,
 		saveState:            saveState,
 		cleanupMergedBranch: func(state *State, branch string) {
-			a.cleanupMergedBranch(state, branch, git)
+			a.cleanupMergedBranch(state, branch, git, a.in, a.stdout)
 		},
 	}
 }
@@ -61,7 +61,7 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 		return err
 	}
 	if len(queue) == 0 {
-		fmt.Println("nothing to submit")
+		a.println("nothing to submit")
 		return nil
 	}
 
@@ -77,7 +77,7 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 				if existing.BaseRefName != "" {
 					meta.PR.Base = existing.BaseRefName
 				}
-				fmt.Printf("%s -> PR #%d already merged, skipping\n", branch, existing.Number)
+				a.printf("%s -> PR #%d already merged, skipping\n", branch, existing.Number)
 				deps.cleanupMergedBranch(state, branch)
 				continue
 			}
@@ -94,7 +94,7 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 			return fmt.Errorf("submit %s: %w", branch, err)
 		}
 		meta.PR = pr
-		fmt.Printf("%s -> PR #%d %s\n", branch, pr.Number, pr.URL)
+		a.printf("%s -> PR #%d %s\n", branch, pr.Number, pr.URL)
 	}
 	if err := deps.syncCurrentStackBody(state, all, branch); err != nil {
 		return err
@@ -108,7 +108,7 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 	return nil
 }
 
-func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClient) {
+func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClient, in io.Reader, out io.Writer) {
 	remoteExists, remoteErr := git.RemoteBranchExists(branch)
 	if remoteErr != nil {
 		return
@@ -129,35 +129,35 @@ func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClie
 
 	integrated, integratedErr := git.BranchFullyIntegrated(branch, base)
 	if integratedErr != nil {
-		fmt.Printf("%s -> merged and remote deleted, but integration check failed; keeping local branch\n", branch)
+		_, _ = fmt.Fprintf(out, "%s -> merged and remote deleted, but integration check failed; keeping local branch\n", branch)
 		return
 	}
 	if !integrated {
-		fmt.Printf("%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch\n", branch)
+		_, _ = fmt.Fprintf(out, "%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch\n", branch)
 		return
 	}
 
 	if currentErr == nil && current == branch {
-		target, proceed := promptSwitchTargetForMergedBranchDeletion(state, branch)
+		target, proceed := promptSwitchTargetForMergedBranchDeletion(state, branch, in, out)
 		if !proceed {
-			fmt.Printf("%s -> keeping local merged branch\n", branch)
+			_, _ = fmt.Fprintf(out, "%s -> keeping local merged branch\n", branch)
 			return
 		}
 		if err := git.Run("switch", target); err != nil {
-			fmt.Printf("%s -> failed to switch to %s before deletion: %v\n", branch, target, err)
+			_, _ = fmt.Fprintf(out, "%s -> failed to switch to %s before deletion: %v\n", branch, target, err)
 			return
 		}
 	}
 
 	if err := git.DeleteLocalBranch(branch); err != nil {
-		fmt.Printf("%s -> failed to delete local merged branch: %v\n", branch, err)
+		_, _ = fmt.Fprintf(out, "%s -> failed to delete local merged branch: %v\n", branch, err)
 		return
 	}
 	archiveMergedBranch(state, branch)
-	reparentChildrenAfterMergedDeletion(state, branch, base)
+	reparentChildrenAfterMergedDeletion(state, branch, base, out)
 	delete(state.Branches, branch)
 	pruneArchivedLineage(state)
-	fmt.Printf("%s -> deleted local merged branch\n", branch)
+	_, _ = fmt.Fprintf(out, "%s -> deleted local merged branch\n", branch)
 }
 
 func archiveMergedBranch(state *State, branch string) {
@@ -208,7 +208,7 @@ func pruneArchivedLineage(state *State) {
 	}
 }
 
-func reparentChildrenAfterMergedDeletion(state *State, deletedBranch, replacementParent string) {
+func reparentChildrenAfterMergedDeletion(state *State, deletedBranch, replacementParent string, out io.Writer) {
 	if strings.TrimSpace(replacementParent) == "" {
 		replacementParent = state.Trunk
 	}
@@ -223,28 +223,28 @@ func reparentChildrenAfterMergedDeletion(state *State, deletedBranch, replacemen
 		if meta.PR != nil {
 			meta.PR.Base = replacementParent
 		}
-		fmt.Printf("%s -> reparented to %s after merged parent cleanup\n", name, replacementParent)
+		_, _ = fmt.Fprintf(out, "%s -> reparented to %s after merged parent cleanup\n", name, replacementParent)
 	}
 }
 
-func promptSwitchTargetForMergedBranchDeletion(state *State, branch string) (string, bool) {
+func promptSwitchTargetForMergedBranchDeletion(state *State, branch string, in io.Reader, out io.Writer) (string, bool) {
 	children := mergedBranchChildren(state, branch)
 	if len(children) == 0 {
 		target := state.Trunk
 		if strings.TrimSpace(target) == "" {
 			target = "main"
 		}
-		fmt.Printf("%s -> merged and remote deleted; switching to %s before cleanup\n", branch, target)
+		_, _ = fmt.Fprintf(out, "%s -> merged and remote deleted; switching to %s before cleanup\n", branch, target)
 		return target, true
 	}
 
-	reader := bufio.NewReader(os.Stdin)
+	reader := bufio.NewReader(in)
 	if len(children) == 1 {
 		target := children[0]
-		fmt.Printf("%s -> merged and remote deleted. Switch to %s and delete this branch? [y/N]: ", branch, target)
+		_, _ = fmt.Fprintf(out, "%s -> merged and remote deleted. Switch to %s and delete this branch? [y/N]: ", branch, target)
 		answer, err := readPromptLine(reader)
 		if err != nil {
-			fmt.Printf("%s -> failed to read cleanup prompt\n", branch)
+			_, _ = fmt.Fprintf(out, "%s -> failed to read cleanup prompt\n", branch)
 			return "", false
 		}
 		if answer != "y" && answer != "yes" {
@@ -253,20 +253,20 @@ func promptSwitchTargetForMergedBranchDeletion(state *State, branch string) (str
 		return target, true
 	}
 
-	fmt.Printf("%s -> merged and remote deleted. Choose branch to switch to before deleting it:\n", branch)
+	_, _ = fmt.Fprintf(out, "%s -> merged and remote deleted. Choose branch to switch to before deleting it:\n", branch)
 	for i, child := range children {
-		fmt.Printf("  %d) %s\n", i+1, child)
+		_, _ = fmt.Fprintf(out, "  %d) %s\n", i+1, child)
 	}
-	fmt.Printf("  0) keep local branch\n")
-	fmt.Printf("selection [0-%d]: ", len(children))
+	_, _ = fmt.Fprintf(out, "  0) keep local branch\n")
+	_, _ = fmt.Fprintf(out, "selection [0-%d]: ", len(children))
 	answer, err := readPromptLine(reader)
 	if err != nil {
-		fmt.Printf("%s -> failed to read cleanup selection\n", branch)
+		_, _ = fmt.Fprintf(out, "%s -> failed to read cleanup selection\n", branch)
 		return "", false
 	}
 	choice, err := strconv.Atoi(answer)
 	if err != nil || choice < 0 || choice > len(children) {
-		fmt.Printf("%s -> invalid selection, keeping local branch\n", branch)
+		_, _ = fmt.Fprintf(out, "%s -> invalid selection, keeping local branch\n", branch)
 		return "", false
 	}
 	if choice == 0 {

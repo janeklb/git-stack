@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"io"
 )
 
 func restackGitOperationInProgress(mode string) (bool, error) {
@@ -12,7 +13,7 @@ func restackGitOperationInProgress(mode string) (bool, error) {
 	return rebaseInProgress()
 }
 
-func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinue bool) error {
+func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinue bool, out io.Writer) error {
 	if fromContinue {
 		contArgs := []string{op.Mode, "--continue"}
 		if op.Mode == "merge" {
@@ -63,11 +64,11 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 	if err := removeOperation(repoRoot); err != nil {
 		return err
 	}
-	fmt.Println("restack completed")
+	_, _ = fmt.Fprintln(out, "restack completed")
 	return nil
 }
 
-func continueRestack(repoRoot string, state *State) error {
+func continueRestack(repoRoot string, state *State, out io.Writer) error {
 	op, err := loadOperation(repoRoot)
 	if err != nil {
 		return err
@@ -89,12 +90,12 @@ func continueRestack(repoRoot string, state *State) error {
 				}
 			}
 		}
-		return runRestack(repoRoot, state, op, false)
+		return runRestack(repoRoot, state, op, false, out)
 	}
-	return runRestack(repoRoot, state, op, true)
+	return runRestack(repoRoot, state, op, true, out)
 }
 
-func abortRestack(repoRoot string) error {
+func abortRestack(repoRoot string, out io.Writer) error {
 	op, err := loadOperation(repoRoot)
 	if err != nil {
 		return err
@@ -113,7 +114,7 @@ func abortRestack(repoRoot string) error {
 	if err := removeOperation(repoRoot); err != nil {
 		return err
 	}
-	fmt.Println("restack aborted")
+	_, _ = fmt.Fprintln(out, "restack aborted")
 	return nil
 }
 

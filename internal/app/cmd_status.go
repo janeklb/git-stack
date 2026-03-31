@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -16,7 +17,7 @@ func (a *App) cmdStatus(all bool, showDrift bool, noColor bool) error {
 	if err != nil {
 		return err
 	}
-	theme := statusTheme{useColor: !noColor && stdoutIsTTY()}
+	theme := statusTheme{useColor: !noColor && stdoutIsTTY(a.stdout)}
 
 	current, err := currentBranch()
 	if err != nil {
@@ -72,12 +73,12 @@ func (a *App) cmdStatus(all bool, showDrift bool, noColor bool) error {
 					line += fmt.Sprintf(" [%s]", theme.warning("drift: "+reason))
 				}
 			}
-			fmt.Println(line)
+			a.println(line)
 			walk(branch, nextPrefix)
 		}
 	}
 
-	fmt.Println(theme.trunk(state.Trunk))
+	a.println(theme.trunk(state.Trunk))
 	walk(state.Trunk, "")
 
 	unrooted := []string{}
@@ -94,13 +95,13 @@ func (a *App) cmdStatus(all bool, showDrift bool, noColor bool) error {
 			line += fmt.Sprintf(" parent=%s", meta.Parent)
 		}
 		line += fmt.Sprintf(" state=%s]", theme.state(branchPRState(meta.PR)))
-		fmt.Println(line)
+		a.println(line)
 		walk(branch, "")
 	}
 
 	op, _ := loadOperation(repoRoot)
 	if op != nil {
-		fmt.Printf("restack in progress: mode=%s index=%d/%d\n", op.Mode, op.Index, len(op.Queue))
+		a.printf("restack in progress: mode=%s index=%d/%d\n", op.Mode, op.Index, len(op.Queue))
 	}
 	return nil
 }
@@ -115,8 +116,12 @@ func branchPRState(pr *PRMeta) string {
 	return "submitted"
 }
 
-func stdoutIsTTY() bool {
-	info, err := os.Stdout.Stat()
+func stdoutIsTTY(out io.Writer) bool {
+	file, ok := out.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
 	if err != nil {
 		return false
 	}
