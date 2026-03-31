@@ -9,11 +9,45 @@ import (
 	"strings"
 )
 
+type submitDeps struct {
+	git                  submitGitClient
+	gh                   submitGHClient
+	ensureCleanWorktree  func() error
+	loadState            func() (string, *State, bool, error)
+	submitQueue          func(*State, bool, []string) ([]string, error)
+	ensurePR             func(string, string, *PRMeta) (*PRMeta, error)
+	syncCurrentStackBody func(*State, bool, string) error
+	saveState            func(string, *State) error
+	cleanupMergedBranch  func(*State, string)
+}
+
+func (a *App) defaultSubmitDeps() submitDeps {
+	git := defaultGitBoundary{}
+	return submitDeps{
+		git:                  git,
+		gh:                   defaultGHBoundary{},
+		ensureCleanWorktree:  ensureCleanWorktree,
+		loadState:            loadStateFromRepoOrInfer,
+		submitQueue:          submitQueue,
+		ensurePR:             ensurePR,
+		syncCurrentStackBody: syncCurrentStackBodies,
+		saveState:            saveState,
+		cleanupMergedBranch: func(state *State, branch string) {
+			a.cleanupMergedBranch(state, branch, git)
+		},
+	}
+}
+
 func (a *App) cmdSubmit(all bool, branch string) error {
-	if err := ensureCleanWorktree(); err != nil {
+	deps := a.defaultSubmitDeps()
+	return a.cmdSubmitWithDeps(all, branch, deps)
+}
+
+func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error {
+	if err := deps.ensureCleanWorktree(); err != nil {
 		return err
 	}
-	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
+	repoRoot, state, persisted, err := deps.loadState()
 	if err != nil {
 		return err
 	}
@@ -22,7 +56,7 @@ func (a *App) cmdSubmit(all bool, branch string) error {
 	if branch != "" {
 		args = append(args, branch)
 	}
-	queue, err := submitQueue(state, all, args)
+	queue, err := deps.submitQueue(state, all, args)
 	if err != nil {
 		return err
 	}
@@ -37,14 +71,14 @@ func (a *App) cmdSubmit(all bool, branch string) error {
 			continue
 		}
 		if meta.PR != nil && meta.PR.Number > 0 {
-			existing, err := ghView(meta.PR.Number)
+			existing, err := deps.gh.View(meta.PR.Number)
 			if err == nil && strings.EqualFold(existing.State, "MERGED") {
 				meta.PR.URL = existing.URL
 				if existing.BaseRefName != "" {
 					meta.PR.Base = existing.BaseRefName
 				}
 				fmt.Printf("%s -> PR #%d already merged, skipping\n", branch, existing.Number)
-				a.cleanupMergedBranch(state, branch)
+				deps.cleanupMergedBranch(state, branch)
 				continue
 			}
 		}
@@ -52,30 +86,30 @@ func (a *App) cmdSubmit(all bool, branch string) error {
 		if parent == "" {
 			parent = state.Trunk
 		}
-		if err := pushBranch(branch); err != nil {
+		if err := deps.git.PushBranch(branch); err != nil {
 			return fmt.Errorf("push %s: %w", branch, err)
 		}
-		pr, err := ensurePR(branch, parent, meta.PR)
+		pr, err := deps.ensurePR(branch, parent, meta.PR)
 		if err != nil {
 			return fmt.Errorf("submit %s: %w", branch, err)
 		}
 		meta.PR = pr
 		fmt.Printf("%s -> PR #%d %s\n", branch, pr.Number, pr.URL)
 	}
-	if err := syncCurrentStackBodies(state, all, branch); err != nil {
+	if err := deps.syncCurrentStackBody(state, all, branch); err != nil {
 		return err
 	}
 
 	if persisted {
-		if err := saveState(repoRoot, state); err != nil {
+		if err := deps.saveState(repoRoot, state); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (a *App) cleanupMergedBranch(state *State, branch string) {
-	remoteExists, remoteErr := remoteBranchExists(branch)
+func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClient) {
+	remoteExists, remoteErr := git.RemoteBranchExists(branch)
 	if remoteErr != nil {
 		return
 	}
@@ -83,7 +117,7 @@ func (a *App) cleanupMergedBranch(state *State, branch string) {
 		return
 	}
 
-	current, currentErr := currentBranch()
+	current, currentErr := git.CurrentBranch()
 	base := state.Trunk
 	if meta := state.Branches[branch]; meta != nil {
 		if meta.PR != nil && strings.TrimSpace(meta.PR.Base) != "" {
@@ -93,7 +127,7 @@ func (a *App) cleanupMergedBranch(state *State, branch string) {
 		}
 	}
 
-	integrated, integratedErr := branchFullyIntegrated(branch, base)
+	integrated, integratedErr := git.BranchFullyIntegrated(branch, base)
 	if integratedErr != nil {
 		fmt.Printf("%s -> merged and remote deleted, but integration check failed; keeping local branch\n", branch)
 		return
@@ -109,13 +143,13 @@ func (a *App) cleanupMergedBranch(state *State, branch string) {
 			fmt.Printf("%s -> keeping local merged branch\n", branch)
 			return
 		}
-		if err := gitRun("switch", target); err != nil {
+		if err := git.Run("switch", target); err != nil {
 			fmt.Printf("%s -> failed to switch to %s before deletion: %v\n", branch, target, err)
 			return
 		}
 	}
 
-	if err := deleteLocalBranch(branch); err != nil {
+	if err := git.DeleteLocalBranch(branch); err != nil {
 		fmt.Printf("%s -> failed to delete local merged branch: %v\n", branch, err)
 		return
 	}
