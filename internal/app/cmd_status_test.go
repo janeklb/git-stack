@@ -3,6 +3,8 @@ package app
 import "testing"
 
 func TestBranchPRState(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		pr   *PRMeta

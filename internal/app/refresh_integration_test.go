@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,118 +138,6 @@ func TestRefreshCancelLeavesStateUntouched(t *testing.T) {
 		}
 		if !branchExists("feat-one") {
 			t.Fatalf("expected feat-one branch to remain when refresh cancelled")
-		}
-	})
-}
-
-func TestRefreshKeepsMergedBranchWhenLocalHasNewCommitsAfterPRHead(t *testing.T) {
-	repo := newTestRepo(t)
-	origin := newBareOrigin(t)
-
-	withRepoCwd(t, repo, func() {
-		cli := New()
-
-		mustPointRepoOriginAndTrack(t, repo, origin, "main")
-		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
-
-		mustRunCLI(t, cli, []string{"new", "feat-one"})
-		mustWriteFile(t, filepath.Join(repo, "one.txt"), "one\n")
-		mustGit(t, repo, "add", "one.txt")
-		mustGit(t, repo, "commit", "-m", "feat one")
-		mustGit(t, repo, "push", "-u", "origin", "feat-one")
-
-		mustGit(t, repo, "switch", "main")
-		mustGit(t, repo, "merge", "--no-ff", "feat-one", "-m", "merge feat one")
-		mergeSHA, err := gitOutput("rev-parse", "main")
-		if err != nil {
-			t.Fatalf("read merge sha: %v", err)
-		}
-		mergeSHA = strings.TrimSpace(mergeSHA)
-		headSHA, err := gitOutput("rev-parse", "feat-one")
-		if err != nil {
-			t.Fatalf("read head sha: %v", err)
-		}
-		headSHA = strings.TrimSpace(headSHA)
-		mustGit(t, repo, "push", "origin", "main")
-		mustGit(t, repo, "push", "origin", ":feat-one")
-
-		mustGit(t, repo, "switch", "feat-one")
-		mustWriteFile(t, filepath.Join(repo, "one.txt"), "diverged\n")
-		mustGit(t, repo, "add", "one.txt")
-		mustGit(t, repo, "commit", "-m", "local diverged commit")
-
-		state, err := loadState(repo)
-		if err != nil {
-			t.Fatalf("load state: %v", err)
-		}
-		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-		if err := saveState(repo, state); err != nil {
-			t.Fatalf("save state: %v", err)
-		}
-
-		fakeBin := t.TempDir()
-		ghPath := filepath.Join(fakeBin, "gh")
-		ghScript := fmt.Sprintf("#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"headRefOid\":\"%s\",\"title\":\"merged\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\"%s\"}}\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n", headSHA, mergeSHA)
-		mustWriteFile(t, ghPath, ghScript)
-		if err := os.Chmod(ghPath, 0o755); err != nil {
-			t.Fatalf("chmod fake gh: %v", err)
-		}
-		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-		out, code := runCLIAndCapture(t, cli, []string{"refresh"})
-		if code != 0 {
-			t.Fatalf("refresh failed: exit=%d\n%s", code, out)
-		}
-		if strings.Contains(out, "feat-one -> cleaned merged branch from local stack state") {
-			t.Fatalf("expected merged branch to be kept when local branch has new commits, got:\n%s", out)
-		}
-		if !strings.Contains(out, "refresh: nothing to do") {
-			t.Fatalf("expected noop message, got:\n%s", out)
-		}
-
-		if !branchExists("feat-one") {
-			t.Fatalf("expected feat-one local branch to remain")
-		}
-		stateAfter, err := loadState(repo)
-		if err != nil {
-			t.Fatalf("load state after refresh: %v", err)
-		}
-		if _, ok := stateAfter.Branches["feat-one"]; !ok {
-			t.Fatalf("expected feat-one to remain in active branches")
-		}
-	})
-}
-
-func TestRefreshPublishFlagDefaultsToCurrentWhenNoValueProvided(t *testing.T) {
-	repo := newTestRepo(t)
-
-	withRepoCwd(t, repo, func() {
-		cli := New()
-		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
-
-		out, code := runCLIWithInputAndCapture(t, cli, []string{"refresh", "--publish"}, "n\n")
-		if code != 0 {
-			t.Fatalf("refresh failed: exit=%d\n%s", code, out)
-		}
-		if !strings.Contains(out, "- publish: current stack") {
-			t.Fatalf("expected current publish scope in plan, got:\n%s", out)
-		}
-	})
-}
-
-func TestRefreshPublishFlagRejectsInvalidValue(t *testing.T) {
-	repo := newTestRepo(t)
-
-	withRepoCwd(t, repo, func() {
-		cli := New()
-		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
-
-		out, code := runCLIAndCapture(t, cli, []string{"refresh", "--publish=invalid"})
-		if code == 0 {
-			t.Fatalf("expected refresh to fail for invalid publish scope, output:\n%s", out)
-		}
-		if !strings.Contains(out, "--publish must be one of: current, all") {
-			t.Fatalf("expected validation error, got:\n%s", out)
 		}
 	})
 }

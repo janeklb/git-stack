@@ -7,6 +7,8 @@ import (
 )
 
 func TestSubmitQueueForTargetReturnsRootToTargetPath(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -27,6 +29,8 @@ func TestSubmitQueueForTargetReturnsRootToTargetPath(t *testing.T) {
 }
 
 func TestSubmitQueueAllReturnsTopologicalOrder(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -47,6 +51,8 @@ func TestSubmitQueueAllReturnsTopologicalOrder(t *testing.T) {
 }
 
 func TestSubmitQueueErrorsForUnknownTarget(t *testing.T) {
+	t.Parallel()
+
 	state := &State{
 		Trunk: "main",
 		Branches: map[string]*BranchRef{
@@ -60,5 +66,43 @@ func TestSubmitQueueErrorsForUnknownTarget(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "branch not tracked in stack") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBranchesInCurrentStackReturnsOnlyConnectedStack(t *testing.T) {
+	t.Parallel()
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"stack-a-1": {Parent: "main"},
+			"stack-a-2": {Parent: "stack-a-1"},
+			"stack-b-1": {Parent: "main"},
+		},
+	}
+
+	selected := branchesInCurrentStack(state, "stack-a-2")
+	if !selected["stack-a-1"] || !selected["stack-a-2"] {
+		t.Fatalf("expected connected stack branches selected, got: %#v", selected)
+	}
+	if selected["stack-b-1"] {
+		t.Fatalf("did not expect unrelated stack branch selected, got: %#v", selected)
+	}
+}
+
+func TestBranchesInCurrentStackTrunkSelectsAllBranches(t *testing.T) {
+	t.Parallel()
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-one": {Parent: "main"},
+			"feat-two": {Parent: "feat-one"},
+		},
+	}
+
+	selected := branchesInCurrentStack(state, "main")
+	if !selected["feat-one"] || !selected["feat-two"] {
+		t.Fatalf("expected all branches selected from trunk, got: %#v", selected)
 	}
 }
