@@ -40,6 +40,12 @@ func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
 	if flag.NoOptDefVal != "current" {
 		t.Fatalf("expected publish no-opt default current, got %q", flag.NoOptDefVal)
 	}
+	if refresh.Flags().Lookup("advance") == nil {
+		t.Fatalf("expected advance flag to exist")
+	}
+	if refresh.Flags().Lookup("next") == nil {
+		t.Fatalf("expected next flag to exist")
+	}
 }
 
 func TestStatusHasStatAlias(t *testing.T) {

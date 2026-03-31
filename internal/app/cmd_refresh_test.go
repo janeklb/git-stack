@@ -42,12 +42,31 @@ func (f fakeRefreshGH) View(number int) (*GhPR, error) {
 func TestCmdRefreshRejectsInvalidPublishValue(t *testing.T) {
 	t.Parallel()
 
-	err := New().cmdRefresh(false, "invalid")
+	err := New().cmdRefresh(false, "invalid", false, "")
 	if err == nil {
 		t.Fatalf("expected refresh to fail for invalid publish scope")
 	}
 	if !strings.Contains(err.Error(), "--publish must be one of: current, all") {
 		t.Fatalf("expected validation message, got: %v", err)
+	}
+}
+
+func TestCmdRefreshRejectsAdvanceCombinationFlags(t *testing.T) {
+	t.Parallel()
+
+	err := New().cmdRefresh(true, "", true, "")
+	if err == nil || !strings.Contains(err.Error(), "--advance cannot be combined with --restack") {
+		t.Fatalf("expected advance/restack validation error, got: %v", err)
+	}
+
+	err = New().cmdRefresh(false, "all", true, "")
+	if err == nil || !strings.Contains(err.Error(), "--advance cannot be combined with --publish") {
+		t.Fatalf("expected advance/publish validation error, got: %v", err)
+	}
+
+	err = New().cmdRefresh(false, "", false, "feat-next")
+	if err == nil || !strings.Contains(err.Error(), "--next requires --advance") {
+		t.Fatalf("expected --next validation error, got: %v", err)
 	}
 }
 
@@ -151,5 +170,45 @@ func TestBuildRefreshPlanIncludesMergedRemoteDeletedBranches(t *testing.T) {
 	}
 	if len(plan.Cleanup[0].Children) != 1 || plan.Cleanup[0].Children[0] != "child-one" {
 		t.Fatalf("expected child reparent data, got %#v", plan.Cleanup[0].Children)
+	}
+}
+
+func TestBuildRefreshAdvanceCandidateRequiresRemoteDeletion(t *testing.T) {
+	t.Parallel()
+
+	deps := refreshPlanDeps{
+		git: fakeRefreshGit{
+			remoteBranchExistsFn: func(branch string) (bool, error) {
+				if branch == "feat-a" {
+					return true, nil
+				}
+				return false, nil
+			},
+			localBranchExistsFn: func(string) bool { return true },
+		},
+		gh: fakeRefreshGH{viewFn: func(number int) (*GhPR, error) {
+			return &GhPR{Number: number, State: "MERGED", BaseRefName: "main"}, nil
+		}},
+		mergedCleanupIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
+			return true, nil
+		},
+		mergedBranchChildren: func(state *State, branch string) []string {
+			return nil
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-a": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+		},
+	}
+
+	_, err := buildRefreshAdvanceCandidateWithDeps(state, "feat-a", deps)
+	if err == nil {
+		t.Fatalf("expected refresh advance candidate build to fail when remote branch still exists")
+	}
+	if !strings.Contains(err.Error(), "origin/feat-a still exists") {
+		t.Fatalf("expected remote deletion guidance, got: %v", err)
 	}
 }
