@@ -10,8 +10,8 @@ import (
 )
 
 type submitDeps struct {
-	git                  submitGitBoundary
-	gh                   submitGHBoundary
+	git                  submitGitClient
+	gh                   submitGHClient
 	ensureCleanWorktree  func() error
 	loadState            func() (string, *State, bool, error)
 	submitQueue          func(*State, bool, []string) ([]string, error)
@@ -22,22 +22,20 @@ type submitDeps struct {
 }
 
 func (a *App) defaultSubmitDeps() submitDeps {
-	deps := submitDeps{
-		git:                 defaultGitBoundary{},
-		gh:                  defaultGHBoundary{},
-		ensureCleanWorktree: ensureCleanWorktree,
-		loadState:           loadStateFromRepoOrInfer,
-		submitQueue:         submitQueue,
-		ensurePR:            ensurePR,
-		syncCurrentStackBody: func(state *State, all bool, branch string) error {
-			return syncCurrentStackBodies(state, all, branch)
+	git := defaultGitBoundary{}
+	return submitDeps{
+		git:                  git,
+		gh:                   defaultGHBoundary{},
+		ensureCleanWorktree:  ensureCleanWorktree,
+		loadState:            loadStateFromRepoOrInfer,
+		submitQueue:          submitQueue,
+		ensurePR:             ensurePR,
+		syncCurrentStackBody: syncCurrentStackBodies,
+		saveState:            saveState,
+		cleanupMergedBranch: func(state *State, branch string) {
+			a.cleanupMergedBranch(state, branch, git)
 		},
-		saveState: saveState,
 	}
-	deps.cleanupMergedBranch = func(state *State, branch string) {
-		a.cleanupMergedBranch(state, branch, deps.git)
-	}
-	return deps
 }
 
 func (a *App) cmdSubmit(all bool, branch string) error {
@@ -110,7 +108,7 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 	return nil
 }
 
-func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitBoundary) {
+func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClient) {
 	remoteExists, remoteErr := git.RemoteBranchExists(branch)
 	if remoteErr != nil {
 		return

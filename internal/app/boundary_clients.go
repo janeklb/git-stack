@@ -23,7 +23,7 @@ type pruneGHBoundary interface {
 	FindMergedByHead(branch string) (*GhPR, error)
 }
 
-type submitGitBoundary interface {
+type submitGitClient interface {
 	PushBranch(branch string) error
 	RemoteBranchExists(branch string) (bool, error)
 	CurrentBranch() (string, error)
@@ -32,7 +32,7 @@ type submitGitBoundary interface {
 	BranchFullyIntegrated(branch, base string) (bool, error)
 }
 
-type submitGHBoundary interface {
+type submitGHClient interface {
 	View(number int) (*GhPR, error)
 }
 
