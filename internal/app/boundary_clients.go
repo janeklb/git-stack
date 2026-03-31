@@ -23,6 +23,19 @@ type pruneGHBoundary interface {
 	FindMergedByHead(branch string) (*GhPR, error)
 }
 
+type submitGitBoundary interface {
+	PushBranch(branch string) error
+	RemoteBranchExists(branch string) (bool, error)
+	CurrentBranch() (string, error)
+	Run(args ...string) error
+	DeleteLocalBranch(branch string) error
+	BranchFullyIntegrated(branch, base string) (bool, error)
+}
+
+type submitGHBoundary interface {
+	View(number int) (*GhPR, error)
+}
+
 type defaultGitBoundary struct{}
 
 func (defaultGitBoundary) RemoteBranchExists(branch string) (bool, error) {
@@ -55,6 +68,14 @@ func (defaultGitBoundary) BranchAtOrBehindCommit(branch, commit string) (bool, e
 
 func (defaultGitBoundary) BaseContainsCommit(base, commit string) (bool, error) {
 	return baseContainsCommit(base, commit)
+}
+
+func (defaultGitBoundary) PushBranch(branch string) error {
+	return pushBranch(branch)
+}
+
+func (defaultGitBoundary) BranchFullyIntegrated(branch, base string) (bool, error) {
+	return branchFullyIntegrated(branch, base)
 }
 
 type defaultGHBoundary struct{}

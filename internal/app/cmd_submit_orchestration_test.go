@@ -1,0 +1,216 @@
+package app
+
+import (
+	"errors"
+	"testing"
+)
+
+type fakeSubmitGitBoundary struct {
+	pushCalls []string
+}
+
+func (f *fakeSubmitGitBoundary) PushBranch(branch string) error {
+	f.pushCalls = append(f.pushCalls, branch)
+	return nil
+}
+
+func (f *fakeSubmitGitBoundary) RemoteBranchExists(string) (bool, error) {
+	return false, nil
+}
+
+func (f *fakeSubmitGitBoundary) CurrentBranch() (string, error) {
+	return "", nil
+}
+
+func (f *fakeSubmitGitBoundary) Run(args ...string) error {
+	_ = args
+	return nil
+}
+
+func (f *fakeSubmitGitBoundary) DeleteLocalBranch(string) error {
+	return nil
+}
+
+func (f *fakeSubmitGitBoundary) BranchFullyIntegrated(string, string) (bool, error) {
+	return true, nil
+}
+
+type fakeSubmitGHBoundary struct {
+	view map[int]*GhPR
+}
+
+func (f fakeSubmitGHBoundary) View(number int) (*GhPR, error) {
+	if pr, ok := f.view[number]; ok {
+		return pr, nil
+	}
+	return nil, errors.New("not found")
+}
+
+func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
+	app := &App{}
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
+	git := &fakeSubmitGitBoundary{}
+	syncCalled := false
+	saveCalled := false
+
+	err := app.cmdSubmitWithDeps(false, "", submitDeps{
+		git:                 git,
+		gh:                  fakeSubmitGHBoundary{},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, true, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{}, nil
+		},
+		ensurePR: func(string, string, *PRMeta) (*PRMeta, error) {
+			t.Fatal("ensurePR should not be called for empty queue")
+			return nil, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error {
+			syncCalled = true
+			return nil
+		},
+		saveState: func(string, *State) error {
+			saveCalled = true
+			return nil
+		},
+		cleanupMergedBranch: func(*State, string) {
+			t.Fatal("cleanup should not be called for empty queue")
+		},
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if syncCalled {
+		t.Fatal("expected sync not to run when queue is empty")
+	}
+	if saveCalled {
+		t.Fatal("expected save not to run when queue is empty")
+	}
+	if len(git.pushCalls) != 0 {
+		t.Fatalf("expected no pushes, got %v", git.pushCalls)
+	}
+}
+
+func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
+	app := &App{}
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"feat-one": {Parent: "main", PR: &PRMeta{Number: 7, URL: "https://old", Base: "main"}},
+	}}
+	git := &fakeSubmitGitBoundary{}
+	cleaned := ""
+
+	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
+		git:                 git,
+		gh:                  fakeSubmitGHBoundary{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, false, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(string, string, *PRMeta) (*PRMeta, error) {
+			t.Fatal("ensurePR should not be called for merged PR")
+			return nil, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error {
+			return nil
+		},
+		saveState: func(string, *State) error {
+			t.Fatal("save should not run when persisted=false")
+			return nil
+		},
+		cleanupMergedBranch: func(_ *State, branch string) {
+			cleaned = branch
+		},
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if cleaned != "feat-one" {
+		t.Fatalf("expected cleanup for feat-one, got %q", cleaned)
+	}
+	if len(git.pushCalls) != 0 {
+		t.Fatalf("expected no push when PR is merged, got %v", git.pushCalls)
+	}
+	if got := state.Branches["feat-one"].PR.URL; got != "https://new" {
+		t.Fatalf("expected PR URL refreshed from gh view, got %q", got)
+	}
+}
+
+func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
+	app := &App{}
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"feat-one": {Parent: "", PR: nil},
+	}}
+	git := &fakeSubmitGitBoundary{}
+	ensurePRBranch := ""
+	ensurePRBase := ""
+	syncedAll := false
+	syncedBranch := ""
+	savedRoot := ""
+
+	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
+		git:                 git,
+		gh:                  fakeSubmitGHBoundary{},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, true, nil
+		},
+		submitQueue: func(_ *State, all bool, args []string) ([]string, error) {
+			if all {
+				t.Fatal("expected all=false")
+			}
+			if len(args) != 1 || args[0] != "feat-one" {
+				t.Fatalf("expected branch arg feat-one, got %v", args)
+			}
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(branch, parent string, existing *PRMeta) (*PRMeta, error) {
+			if existing != nil {
+				t.Fatalf("expected nil existing PR, got %+v", existing)
+			}
+			ensurePRBranch = branch
+			ensurePRBase = parent
+			return &PRMeta{Number: 11, URL: "https://example.invalid/pr/11", Base: parent}, nil
+		},
+		syncCurrentStackBody: func(_ *State, all bool, branch string) error {
+			syncedAll = all
+			syncedBranch = branch
+			return nil
+		},
+		saveState: func(root string, _ *State) error {
+			savedRoot = root
+			return nil
+		},
+		cleanupMergedBranch: func(*State, string) {
+			t.Fatal("cleanup should not be called for open PR path")
+		},
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if len(git.pushCalls) != 1 || git.pushCalls[0] != "feat-one" {
+		t.Fatalf("expected push for feat-one, got %v", git.pushCalls)
+	}
+	if ensurePRBranch != "feat-one" {
+		t.Fatalf("expected ensurePR for feat-one, got %q", ensurePRBranch)
+	}
+	if ensurePRBase != "main" {
+		t.Fatalf("expected trunk fallback parent main, got %q", ensurePRBase)
+	}
+	if syncedAll {
+		t.Fatal("expected sync all=false")
+	}
+	if syncedBranch != "feat-one" {
+		t.Fatalf("expected sync branch feat-one, got %q", syncedBranch)
+	}
+	if savedRoot != "/tmp/repo" {
+		t.Fatalf("expected save root /tmp/repo, got %q", savedRoot)
+	}
+	if state.Branches["feat-one"].PR == nil || state.Branches["feat-one"].PR.Number != 11 {
+		t.Fatalf("expected state PR metadata to be updated, got %+v", state.Branches["feat-one"].PR)
+	}
+}
