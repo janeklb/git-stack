@@ -10,11 +10,7 @@ Track recurring user questions about using `stack` in GitHub issue #34:
 
 - https://github.com/janeklb/stack/issues/34
 
-AI agent instruction:
-
-- Always read issue #34 before making user-facing docs or process updates.
-- Update issue #34 when you encounter a new question pattern about using `stack`.
-- Add links in issue #34 to any PRs that address the question pattern.
+AI agent instructions live in `docs/agent-instructions.md` (with `CLAUDE.md` and `AGENTS.md` symlinked to it).
 
 It supports both forms:
 
