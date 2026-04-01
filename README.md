@@ -47,6 +47,28 @@ make install
 (`GOBIN` if set, otherwise `$(go env GOPATH)/bin`) and creates `git-stack` as a symlink
 in the same location so both `stack ...` and `git stack ...` work.
 
+## Testing Tiers
+
+Use test-name conventions to run fast unit coverage separately from integration smoke coverage:
+
+- Fast unit-focused loop (skips `IntegrationSmoke` tests):
+
+```bash
+go test ./... -count=1 -skip IntegrationSmoke
+```
+
+- Integration smoke wiring checks (`submit`, `prune-local`, `status`):
+
+```bash
+go test ./internal/app -count=1 -run IntegrationSmoke
+```
+
+- Full suite:
+
+```bash
+go test ./... -count=1
+```
+
 ## Commands
 
 ```text
