@@ -1,4 +1,5 @@
 GO ?= go
+SHELL := /bin/bash
 BIN_DIR ?= bin
 BINARY := $(BIN_DIR)/stack
 GO_SRCS := $(shell find cmd internal -name '*.go' -type f ! -name '*_test.go')
@@ -9,12 +10,8 @@ test:
 	$(GO) test ./...
 
 test-timings:
-	@tmp=$$(mktemp); \
-	$(GO) test -json ./... > "$$tmp"; \
-	status=$$?; \
-	jq -r -s 'def fmt2: ((. // 0) * 100 | round / 100) as $$n | ($$n | tostring) as $$s | if ($$s | contains(".")) then ($$s | split(".") | .[0]) + "." + (((( $$s | split(".") | .[1]) + "00")[0:2])) else $$s + ".00" end; map(select((.Action=="pass" or .Action=="fail") and (.Test != null))) | sort_by(.Elapsed // 0) | reverse[] | [.Action, (.Elapsed | fmt2), (.Package // ""), .Test] | @tsv' "$$tmp"; \
-	rm -f "$$tmp"; \
-	exit $$status
+	@set -o pipefail; \
+	$(GO) test -json ./... | jq -r -s 'map(select((.Action=="pass" or .Action=="fail") and (.Test != null))) | sort_by(.Elapsed // 0) | reverse[] | [.Action, (.Elapsed // 0), (.Package // ""), .Test] | @tsv'
 
 build: $(BINARY)
 
