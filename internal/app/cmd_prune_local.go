@@ -70,7 +70,7 @@ func (a *App) cmdPruneLocal(yes bool) error {
 			if strings.TrimSpace(target) == "" {
 				target = "main"
 			}
-			if err := gitRun("switch", target); err != nil {
+			if err := gitRunQuiet("switch", target); err != nil {
 				a.printf("%s -> failed to switch to %s before deletion: %v\n", candidate.Branch, target, err)
 				continue
 			}

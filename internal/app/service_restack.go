@@ -41,7 +41,7 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 			parent = state.Trunk
 		}
 
-		if err := gitRun("switch", branch); err != nil {
+		if err := gitRunQuiet("switch", branch); err != nil {
 			return err
 		}
 
@@ -58,7 +58,7 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 		}
 	}
 
-	if err := gitRun("switch", op.OriginalBranch); err != nil {
+	if err := gitRunQuiet("switch", op.OriginalBranch); err != nil {
 		return err
 	}
 	if err := removeOperation(repoRoot); err != nil {
@@ -109,7 +109,7 @@ func abortRestack(repoRoot string, out io.Writer) error {
 		_ = gitRun("rebase", "--abort")
 	}
 	if op.OriginalBranch != "" {
-		_ = gitRun("switch", op.OriginalBranch)
+		_ = gitRunQuiet("switch", op.OriginalBranch)
 	}
 	if err := removeOperation(repoRoot); err != nil {
 		return err
