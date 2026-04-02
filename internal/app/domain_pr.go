@@ -41,12 +41,16 @@ func branchSummary(parent, branch string) (string, []string, error) {
 
 func composeBody(summary []string, managed string) string {
 	var b strings.Builder
-	b.WriteString("## Summary\n")
+	b.WriteString("## Motivation\n")
+	b.WriteString("- TODO\n\n")
+	b.WriteString("## Modification(s)\n")
 	for _, item := range summary {
 		b.WriteString("- ")
 		b.WriteString(item)
 		b.WriteString("\n")
 	}
+	b.WriteString("\n## Result\n")
+	b.WriteString("- TODO\n")
 	if strings.TrimSpace(managed) != "" {
 		b.WriteString("\n")
 		b.WriteString(managed)
@@ -59,7 +63,7 @@ func managedStackBlock(currentBranch string, lines []StackPRLine) string {
 	var b strings.Builder
 	b.WriteString(managedBlockStart)
 	b.WriteString("\n")
-	b.WriteString("## Current Stack\n")
+	b.WriteString("## Chained PRs\n")
 	for _, line := range lines {
 		if line.Number <= 0 || strings.TrimSpace(line.URL) == "" {
 			continue

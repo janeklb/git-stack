@@ -19,7 +19,7 @@ func TestUpsertManagedBlockAppendsAndReplaces(t *testing.T) {
 	if !strings.Contains(body, "User body") {
 		t.Fatalf("expected original body to be preserved, got:\n%s", body)
 	}
-	if !strings.Contains(body, "## Current Stack") {
+	if !strings.Contains(body, "## Chained PRs") {
 		t.Fatalf("expected managed block to be appended, got:\n%s", body)
 	}
 
@@ -72,10 +72,24 @@ func TestManagedStackBlockKeepsHeadingInsideManagedMarkers(t *testing.T) {
 		State:  "OPEN",
 	}})
 	start := strings.Index(managed, managedBlockStart)
-	heading := strings.Index(managed, "## Current Stack")
+	heading := strings.Index(managed, "## Chained PRs")
 	end := strings.Index(managed, managedBlockEnd)
 	if !(start >= 0 && heading > start && end > heading) {
 		t.Fatalf("expected heading to be inside managed markers, got:\n%s", managed)
+	}
+}
+
+func TestComposeBodyUsesSubmitTemplateSections(t *testing.T) {
+	t.Parallel()
+
+	body := composeBody([]string{"Added validation", "Refined output format"}, "")
+	for _, heading := range []string{"## Motivation", "## Modification(s)", "## Result"} {
+		if !strings.Contains(body, heading) {
+			t.Fatalf("expected body to include %q, got:\n%s", heading, body)
+		}
+	}
+	if !strings.Contains(body, "- Added validation") || !strings.Contains(body, "- Refined output format") {
+		t.Fatalf("expected summary bullets to live under modifications, got:\n%s", body)
 	}
 }
 
