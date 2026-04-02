@@ -1,6 +1,6 @@
 package app
 
-type refreshGitBoundary interface {
+type refreshGitClient interface {
 	RemoteBranchExists(branch string) (bool, error)
 	LocalBranchExists(branch string) bool
 	CurrentBranch() (string, error)
@@ -8,18 +8,18 @@ type refreshGitBoundary interface {
 	DeleteLocalBranch(branch string) error
 }
 
-type refreshGHBoundary interface {
+type refreshGHClient interface {
 	View(number int) (*GhPR, error)
 }
 
-type pruneGitBoundary interface {
+type pruneGitClient interface {
 	ListLocalBranches() ([]string, error)
 	RemoteBranchExists(branch string) (bool, error)
 	BranchAtOrBehindCommit(branch, commit string) (bool, error)
 	BaseContainsCommit(base, commit string) (bool, error)
 }
 
-type pruneGHBoundary interface {
+type pruneGHClient interface {
 	FindMergedByHead(branch string) (*GhPR, error)
 }
 
@@ -36,54 +36,54 @@ type submitGHClient interface {
 	View(number int) (*GhPR, error)
 }
 
-type defaultGitBoundary struct{}
+type defaultGitClient struct{}
 
-func (defaultGitBoundary) RemoteBranchExists(branch string) (bool, error) {
+func (defaultGitClient) RemoteBranchExists(branch string) (bool, error) {
 	return remoteBranchExists(branch)
 }
 
-func (defaultGitBoundary) LocalBranchExists(branch string) bool {
+func (defaultGitClient) LocalBranchExists(branch string) bool {
 	return localBranchExists(branch)
 }
 
-func (defaultGitBoundary) CurrentBranch() (string, error) {
+func (defaultGitClient) CurrentBranch() (string, error) {
 	return currentBranch()
 }
 
-func (defaultGitBoundary) Run(args ...string) error {
+func (defaultGitClient) Run(args ...string) error {
 	return gitRun(args...)
 }
 
-func (defaultGitBoundary) DeleteLocalBranch(branch string) error {
+func (defaultGitClient) DeleteLocalBranch(branch string) error {
 	return deleteLocalBranch(branch)
 }
 
-func (defaultGitBoundary) ListLocalBranches() ([]string, error) {
+func (defaultGitClient) ListLocalBranches() ([]string, error) {
 	return listLocalBranches()
 }
 
-func (defaultGitBoundary) BranchAtOrBehindCommit(branch, commit string) (bool, error) {
+func (defaultGitClient) BranchAtOrBehindCommit(branch, commit string) (bool, error) {
 	return branchAtOrBehindCommit(branch, commit)
 }
 
-func (defaultGitBoundary) BaseContainsCommit(base, commit string) (bool, error) {
+func (defaultGitClient) BaseContainsCommit(base, commit string) (bool, error) {
 	return baseContainsCommit(base, commit)
 }
 
-func (defaultGitBoundary) PushBranch(branch string) error {
+func (defaultGitClient) PushBranch(branch string) error {
 	return pushBranch(branch)
 }
 
-func (defaultGitBoundary) BranchFullyIntegrated(branch, base string) (bool, error) {
+func (defaultGitClient) BranchFullyIntegrated(branch, base string) (bool, error) {
 	return branchFullyIntegrated(branch, base)
 }
 
-type defaultGHBoundary struct{}
+type defaultGHClient struct{}
 
-func (defaultGHBoundary) View(number int) (*GhPR, error) {
+func (defaultGHClient) View(number int) (*GhPR, error) {
 	return ghView(number)
 }
 
-func (defaultGHBoundary) FindMergedByHead(branch string) (*GhPR, error) {
+func (defaultGHClient) FindMergedByHead(branch string) (*GhPR, error) {
 	return ghFindMergedByHead(branch)
 }

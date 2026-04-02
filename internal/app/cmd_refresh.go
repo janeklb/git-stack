@@ -21,16 +21,16 @@ type refreshPlan struct {
 }
 
 type refreshPlanDeps struct {
-	git                     refreshGitBoundary
-	gh                      refreshGHBoundary
+	git                     refreshGitClient
+	gh                      refreshGHClient
 	mergedCleanupIntegrated func(string, string, *GhPR) (bool, error)
 	mergedBranchChildren    func(*State, string) []string
 }
 
 func defaultRefreshPlanDeps() refreshPlanDeps {
 	return refreshPlanDeps{
-		git:                     defaultGitBoundary{},
-		gh:                      defaultGHBoundary{},
+		git:                     defaultGitClient{},
+		gh:                      defaultGHClient{},
 		mergedCleanupIntegrated: mergedCleanupIntegrated,
 		mergedBranchChildren:    mergedBranchChildren,
 	}
@@ -198,7 +198,7 @@ func confirmRefreshApply(in io.Reader, out io.Writer) bool {
 	return answer == "y" || answer == "yes"
 }
 
-func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitBoundary) {
+func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitClient) {
 	current, err := git.CurrentBranch()
 	if err == nil && current == candidate.Branch {
 		target := state.Trunk

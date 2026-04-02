@@ -25,14 +25,14 @@ type pruneLocalPlan struct {
 }
 
 type pruneLocalPlanDeps struct {
-	git pruneGitBoundary
-	gh  pruneGHBoundary
+	git pruneGitClient
+	gh  pruneGHClient
 }
 
 func defaultPruneLocalPlanDeps() pruneLocalPlanDeps {
 	return pruneLocalPlanDeps{
-		git: defaultGitBoundary{},
-		gh:  defaultGHBoundary{},
+		git: defaultGitClient{},
+		gh:  defaultGHClient{},
 	}
 }
 

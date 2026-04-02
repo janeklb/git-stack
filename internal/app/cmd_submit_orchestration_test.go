@@ -7,41 +7,41 @@ import (
 	"testing"
 )
 
-type fakeSubmitGitBoundary struct {
+type fakeSubmitGitClient struct {
 	pushCalls []string
 }
 
-func (f *fakeSubmitGitBoundary) PushBranch(branch string) error {
+func (f *fakeSubmitGitClient) PushBranch(branch string) error {
 	f.pushCalls = append(f.pushCalls, branch)
 	return nil
 }
 
-func (f *fakeSubmitGitBoundary) RemoteBranchExists(string) (bool, error) {
+func (f *fakeSubmitGitClient) RemoteBranchExists(string) (bool, error) {
 	return false, nil
 }
 
-func (f *fakeSubmitGitBoundary) CurrentBranch() (string, error) {
+func (f *fakeSubmitGitClient) CurrentBranch() (string, error) {
 	return "", nil
 }
 
-func (f *fakeSubmitGitBoundary) Run(args ...string) error {
+func (f *fakeSubmitGitClient) Run(args ...string) error {
 	_ = args
 	return nil
 }
 
-func (f *fakeSubmitGitBoundary) DeleteLocalBranch(string) error {
+func (f *fakeSubmitGitClient) DeleteLocalBranch(string) error {
 	return nil
 }
 
-func (f *fakeSubmitGitBoundary) BranchFullyIntegrated(string, string) (bool, error) {
+func (f *fakeSubmitGitClient) BranchFullyIntegrated(string, string) (bool, error) {
 	return true, nil
 }
 
-type fakeSubmitGHBoundary struct {
+type fakeSubmitGHClient struct {
 	view map[int]*GhPR
 }
 
-func (f fakeSubmitGHBoundary) View(number int) (*GhPR, error) {
+func (f fakeSubmitGHClient) View(number int) (*GhPR, error) {
 	if pr, ok := f.view[number]; ok {
 		return pr, nil
 	}
@@ -51,13 +51,13 @@ func (f fakeSubmitGHBoundary) View(number int) (*GhPR, error) {
 func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
-	git := &fakeSubmitGitBoundary{}
+	git := &fakeSubmitGitClient{}
 	syncCalled := false
 	saveCalled := false
 
 	err := app.cmdSubmitWithDeps(false, "", submitDeps{
 		git:                 git,
-		gh:                  fakeSubmitGHBoundary{},
+		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
 		loadState: func() (string, *State, bool, error) {
 			return "/tmp/repo", state, true, nil
@@ -100,12 +100,12 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
 		"feat-one": {Parent: "main", PR: &PRMeta{Number: 7, URL: "https://old", Base: "main"}},
 	}}
-	git := &fakeSubmitGitBoundary{}
+	git := &fakeSubmitGitClient{}
 	cleaned := ""
 
 	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
 		git:                 git,
-		gh:                  fakeSubmitGHBoundary{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
+		gh:                  fakeSubmitGHClient{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
 		ensureCleanWorktree: func() error { return nil },
 		loadState: func() (string, *State, bool, error) {
 			return "/tmp/repo", state, false, nil
@@ -147,7 +147,7 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
 		"feat-one": {Parent: "", PR: nil},
 	}}
-	git := &fakeSubmitGitBoundary{}
+	git := &fakeSubmitGitClient{}
 	ensurePRBranch := ""
 	ensurePRBase := ""
 	syncedAll := false
@@ -156,7 +156,7 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 
 	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
 		git:                 git,
-		gh:                  fakeSubmitGHBoundary{},
+		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
 		loadState: func() (string, *State, bool, error) {
 			return "/tmp/repo", state, true, nil

@@ -22,10 +22,10 @@ type submitDeps struct {
 }
 
 func (a *App) defaultSubmitDeps() submitDeps {
-	git := defaultGitBoundary{}
+	git := defaultGitClient{}
 	return submitDeps{
 		git:                  git,
-		gh:                   defaultGHBoundary{},
+		gh:                   defaultGHClient{},
 		ensureCleanWorktree:  ensureCleanWorktree,
 		loadState:            loadStateFromRepoOrInfer,
 		submitQueue:          submitQueue,
