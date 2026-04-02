@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"sort"
 	"strings"
 )
@@ -58,20 +58,20 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 		return err
 	}
 	if len(plan.Cleanup) == 0 && !restack && publish == "" {
-		fmt.Println("refresh: nothing to do")
+		a.println("refresh: nothing to do")
 		return nil
 	}
 
 	current, _ := currentBranch()
-	printRefreshPlan(plan, restack, publish, current)
-	if !confirmRefreshApply() {
-		fmt.Println("refresh cancelled")
+	printRefreshPlan(a.stdout, plan, restack, publish, current)
+	if !confirmRefreshApply(a.in, a.stdout) {
+		a.println("refresh cancelled")
 		return nil
 	}
 
 	deps := defaultRefreshPlanDeps()
 	for _, candidate := range plan.Cleanup {
-		cleanupMergedBranchForRefresh(state, candidate, deps.git)
+		cleanupMergedBranchForRefresh(a.stdout, state, candidate, deps.git)
 	}
 
 	if persisted {
@@ -99,7 +99,7 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 		}
 	}
 
-	fmt.Println("refresh completed")
+	a.println("refresh completed")
 	return nil
 }
 
@@ -154,43 +154,43 @@ func buildRefreshPlanWithDeps(state *State, deps refreshPlanDeps) (*refreshPlan,
 	return plan, nil
 }
 
-func printRefreshPlan(plan *refreshPlan, restack bool, publish, current string) {
-	fmt.Println("refresh plan:")
+func printRefreshPlan(out io.Writer, plan *refreshPlan, restack bool, publish, current string) {
+	fmt.Fprintln(out, "refresh plan:")
 	if len(plan.Cleanup) == 0 {
-		fmt.Println("- cleanup: none")
+		fmt.Fprintln(out, "- cleanup: none")
 	} else {
 		for _, candidate := range plan.Cleanup {
 			kind := "state-only"
 			if candidate.HasLocal {
 				kind = "delete-local+state"
 			}
-			fmt.Printf("- cleanup: %s (%s)\n", candidate.Branch, kind)
+			fmt.Fprintf(out, "- cleanup: %s (%s)\n", candidate.Branch, kind)
 			if len(candidate.Children) > 0 {
-				fmt.Printf("  reparent children -> %s: %s\n", candidate.Base, strings.Join(candidate.Children, ", "))
+				fmt.Fprintf(out, "  reparent children -> %s: %s\n", candidate.Base, strings.Join(candidate.Children, ", "))
 			}
 		}
 	}
 	if restack {
-		fmt.Println("- restack: enabled")
+		fmt.Fprintln(out, "- restack: enabled")
 	} else {
-		fmt.Println("- restack: disabled")
+		fmt.Fprintln(out, "- restack: disabled")
 	}
 	if publish == "all" {
-		fmt.Println("- publish: all tracked branches")
+		fmt.Fprintln(out, "- publish: all tracked branches")
 	} else if publish == "current" {
 		if strings.TrimSpace(current) == "" {
-			fmt.Println("- publish: current stack (auto) ")
+			fmt.Fprintln(out, "- publish: current stack (auto) ")
 		} else {
-			fmt.Printf("- publish: current stack from %s\n", current)
+			fmt.Fprintf(out, "- publish: current stack from %s\n", current)
 		}
 	} else {
-		fmt.Println("- publish: disabled")
+		fmt.Fprintln(out, "- publish: disabled")
 	}
 }
 
-func confirmRefreshApply() bool {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("apply refresh plan? [y/N]: ")
+func confirmRefreshApply(in io.Reader, out io.Writer) bool {
+	reader := bufio.NewReader(in)
+	fmt.Fprint(out, "apply refresh plan? [y/N]: ")
 	answer, err := readPromptLine(reader)
 	if err != nil {
 		return false
@@ -198,7 +198,7 @@ func confirmRefreshApply() bool {
 	return answer == "y" || answer == "yes"
 }
 
-func cleanupMergedBranchForRefresh(state *State, candidate refreshCleanupCandidate, git refreshGitBoundary) {
+func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitBoundary) {
 	current, err := git.CurrentBranch()
 	if err == nil && current == candidate.Branch {
 		target := state.Trunk
@@ -206,26 +206,26 @@ func cleanupMergedBranchForRefresh(state *State, candidate refreshCleanupCandida
 			target = "main"
 		}
 		if switchErr := git.Run("switch", target); switchErr != nil {
-			fmt.Printf("%s -> failed to switch to %s before cleanup: %v\n", candidate.Branch, target, switchErr)
+			fmt.Fprintf(out, "%s -> failed to switch to %s before cleanup: %v\n", candidate.Branch, target, switchErr)
 			return
 		}
 	}
 
 	if candidate.HasLocal {
 		if err := git.DeleteLocalBranch(candidate.Branch); err != nil {
-			fmt.Printf("%s -> failed to delete local merged branch: %v\n", candidate.Branch, err)
+			fmt.Fprintf(out, "%s -> failed to delete local merged branch: %v\n", candidate.Branch, err)
 			return
 		}
 	}
 
 	archiveMergedBranch(state, candidate.Branch)
-	reparentChildrenAfterCleanup(state, candidate.Branch, candidate.Base)
+	reparentChildrenAfterCleanup(out, state, candidate.Branch, candidate.Base)
 	delete(state.Branches, candidate.Branch)
 	pruneArchivedLineage(state)
-	fmt.Printf("%s -> cleaned merged branch from local stack state\n", candidate.Branch)
+	fmt.Fprintf(out, "%s -> cleaned merged branch from local stack state\n", candidate.Branch)
 }
 
-func reparentChildrenAfterCleanup(state *State, removedBranch, replacementParent string) {
+func reparentChildrenAfterCleanup(out io.Writer, state *State, removedBranch, replacementParent string) {
 	if strings.TrimSpace(replacementParent) == "" {
 		replacementParent = state.Trunk
 	}
@@ -240,7 +240,7 @@ func reparentChildrenAfterCleanup(state *State, removedBranch, replacementParent
 		if meta.PR != nil {
 			meta.PR.Base = replacementParent
 		}
-		fmt.Printf("%s -> reparented to %s after merged parent cleanup\n", name, replacementParent)
+		fmt.Fprintf(out, "%s -> reparented to %s after merged parent cleanup\n", name, replacementParent)
 	}
 }
 

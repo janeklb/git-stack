@@ -36,7 +36,7 @@ func (a *App) cmdReparent(target, newParent string) error {
 		oldParent = state.Trunk
 	}
 	if oldParent == newParent {
-		fmt.Println("branch already has requested parent")
+		a.println("branch already has requested parent")
 		return nil
 	}
 	if err := validateReparentParent(state, target, newParent); err != nil {
@@ -66,7 +66,7 @@ func (a *App) cmdReparent(target, newParent string) error {
 		}
 	}
 
-	fmt.Printf("reparented %s: %s -> %s\n", target, oldParent, newParent)
+	a.printf("reparented %s: %s -> %s\n", target, oldParent, newParent)
 	return nil
 }
 

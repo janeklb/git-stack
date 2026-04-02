@@ -1,9 +1,5 @@
 package app
 
-import (
-	"fmt"
-)
-
 func (a *App) cmdRepair() error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
@@ -45,6 +41,6 @@ func (a *App) cmdRepair() error {
 	if err := saveState(repoRoot, newState); err != nil {
 		return err
 	}
-	fmt.Println("rebuilt stack metadata from git ancestry")
+	a.println("rebuilt stack metadata from git ancestry")
 	return nil
 }

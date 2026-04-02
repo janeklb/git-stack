@@ -3,7 +3,7 @@ package app
 import (
 	"bufio"
 	"fmt"
-	"os"
+	"io"
 	"sort"
 	"strings"
 )
@@ -53,13 +53,13 @@ func (a *App) cmdPruneLocal(yes bool) error {
 		return err
 	}
 	if len(plan.Delete) == 0 {
-		fmt.Println("prune-local: nothing to do")
+		a.println("prune-local: nothing to do")
 		return nil
 	}
 
-	printPruneLocalPlan(plan)
-	if !yes && !confirmPruneLocalApply() {
-		fmt.Println("prune-local cancelled")
+	printPruneLocalPlan(a.stdout, plan)
+	if !yes && !confirmPruneLocalApply(a.in, a.stdout) {
+		a.println("prune-local cancelled")
 		return nil
 	}
 
@@ -71,19 +71,19 @@ func (a *App) cmdPruneLocal(yes bool) error {
 				target = "main"
 			}
 			if err := gitRun("switch", target); err != nil {
-				fmt.Printf("%s -> failed to switch to %s before deletion: %v\n", candidate.Branch, target, err)
+				a.printf("%s -> failed to switch to %s before deletion: %v\n", candidate.Branch, target, err)
 				continue
 			}
 			current = target
 		}
 		if err := deleteLocalBranch(candidate.Branch); err != nil {
-			fmt.Printf("%s -> failed to delete local branch: %v\n", candidate.Branch, err)
+			a.printf("%s -> failed to delete local branch: %v\n", candidate.Branch, err)
 			continue
 		}
-		fmt.Printf("%s -> deleted local branch (merged PR #%d)\n", candidate.Branch, candidate.PR.Number)
+		a.printf("%s -> deleted local branch (merged PR #%d)\n", candidate.Branch, candidate.PR.Number)
 	}
 
-	fmt.Println("prune-local completed")
+	a.println("prune-local completed")
 	return nil
 }
 
@@ -179,19 +179,19 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps) (*pruneL
 	return plan, nil
 }
 
-func printPruneLocalPlan(plan *pruneLocalPlan) {
-	fmt.Println("prune-local plan:")
+func printPruneLocalPlan(out io.Writer, plan *pruneLocalPlan) {
+	fmt.Fprintln(out, "prune-local plan:")
 	for _, candidate := range plan.Delete {
-		fmt.Printf("- delete: %s (PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
+		fmt.Fprintf(out, "- delete: %s (PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
 	}
 	for _, skipped := range plan.Skip {
-		fmt.Printf("- skip: %s (%s)\n", skipped.Branch, skipped.Reason)
+		fmt.Fprintf(out, "- skip: %s (%s)\n", skipped.Branch, skipped.Reason)
 	}
 }
 
-func confirmPruneLocalApply() bool {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("apply prune-local plan? [y/N]: ")
+func confirmPruneLocalApply(in io.Reader, out io.Writer) bool {
+	reader := bufio.NewReader(in)
+	fmt.Fprint(out, "apply prune-local plan? [y/N]: ")
 	answer, err := readPromptLine(reader)
 	if err != nil {
 		return false
