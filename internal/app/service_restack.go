@@ -64,7 +64,7 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 	if err := removeOperation(repoRoot); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(out, "restack completed")
+	fmt.Fprintln(out, "restack completed")
 	return nil
 }
 
@@ -114,7 +114,7 @@ func abortRestack(repoRoot string, out io.Writer) error {
 	if err := removeOperation(repoRoot); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(out, "restack aborted")
+	fmt.Fprintln(out, "restack aborted")
 	return nil
 }
 

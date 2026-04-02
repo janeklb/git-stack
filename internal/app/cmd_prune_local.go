@@ -180,18 +180,18 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps) (*pruneL
 }
 
 func printPruneLocalPlan(out io.Writer, plan *pruneLocalPlan) {
-	_, _ = fmt.Fprintln(out, "prune-local plan:")
+	fmt.Fprintln(out, "prune-local plan:")
 	for _, candidate := range plan.Delete {
-		_, _ = fmt.Fprintf(out, "- delete: %s (PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
+		fmt.Fprintf(out, "- delete: %s (PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
 	}
 	for _, skipped := range plan.Skip {
-		_, _ = fmt.Fprintf(out, "- skip: %s (%s)\n", skipped.Branch, skipped.Reason)
+		fmt.Fprintf(out, "- skip: %s (%s)\n", skipped.Branch, skipped.Reason)
 	}
 }
 
 func confirmPruneLocalApply(in io.Reader, out io.Writer) bool {
 	reader := bufio.NewReader(in)
-	_, _ = fmt.Fprint(out, "apply prune-local plan? [y/N]: ")
+	fmt.Fprint(out, "apply prune-local plan? [y/N]: ")
 	answer, err := readPromptLine(reader)
 	if err != nil {
 		return false

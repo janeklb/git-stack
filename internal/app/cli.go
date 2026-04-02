@@ -15,7 +15,7 @@ func (a *App) Run(args []string, invocation string) int {
 	root.SetArgs(args)
 	err := root.Execute()
 	if err != nil {
-		_, _ = fmt.Fprintf(a.stderr, "error: %v\n", err)
+		fmt.Fprintf(a.stderr, "error: %v\n", err)
 		return 1
 	}
 	return 0
