@@ -97,7 +97,7 @@ func ghJSON(out any, args ...string) error {
 }
 
 func ghRun(args ...string) error {
-	if _, err := runCommand("gh", args, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways}); err != nil {
+	if _, err := runCommand("gh", args, commandRunOptions{streamOutput: true, boxMode: commandBoxOnFailure}); err != nil {
 		return errors.New("gh " + strings.Join(args, " ") + ": " + err.Error())
 	}
 	return nil

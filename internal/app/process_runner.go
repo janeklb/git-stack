@@ -77,10 +77,7 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 
 	go func() {
 		defer wg.Done()
-		if opts.streamOutput && showLiveBox {
-			copyDecoratedOutput(stderrPipe, &stderrBuf, os.Stderr, theme.stderrLine, writeMu)
-			return
-		}
+		// Keep stderr buffered so we can choose its tone based on exit code.
 		_, _ = io.Copy(&stderrBuf, stderrPipe)
 	}()
 
@@ -89,6 +86,13 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 	exitCode := exitCodeForError(waitErr)
 
 	if showLiveBox {
+		if opts.streamOutput {
+			stderrStyle := theme.stdoutLine
+			if waitErr != nil {
+				stderrStyle = theme.stderrLine
+			}
+			printCapturedOutput(stderrBuf.String(), os.Stderr, stderrStyle)
+		}
 		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ exit %d", exitCode)))
 	} else if decorate && opts.boxMode == commandBoxOnFailure && waitErr != nil {
 		fmt.Fprintln(os.Stdout, theme.header("┌─ spawned: "+formatCommand(name, args)))

@@ -158,8 +158,8 @@ func remoteBranchExists(branch string) (bool, error) {
 }
 
 func deleteLocalBranch(branch string) error {
-	if err := gitRun("branch", "-d", branch); err != nil {
-		return gitRun("branch", "-D", branch)
+	if err := gitRunQuiet("branch", "-d", branch); err != nil {
+		return gitRunQuiet("branch", "-D", branch)
 	}
 	return nil
 }
@@ -275,7 +275,7 @@ func pathExists(path string) bool {
 }
 
 func gitRun(args ...string) error {
-	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways}); err != nil {
+	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: gitRunBoxMode(args)}); err != nil {
 		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return nil
@@ -312,4 +312,21 @@ func commandRunError(result commandRunResult, fallback error) error {
 		return fallback
 	}
 	return errors.New(msg)
+}
+
+func gitRunBoxMode(args []string) commandBoxMode {
+	if len(args) == 0 {
+		return commandBoxAlways
+	}
+
+	switch args[0] {
+	case "switch", "fetch", "show-ref", "merge-base":
+		return commandBoxOnFailure
+	case "branch":
+		if len(args) > 1 && (args[1] == "-d" || args[1] == "-D") {
+			return commandBoxOnFailure
+		}
+	}
+
+	return commandBoxAlways
 }
