@@ -41,3 +41,14 @@ func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
 		t.Fatalf("expected publish no-opt default current, got %q", flag.NoOptDefVal)
 	}
 }
+
+func TestStatusHasStatAlias(t *testing.T) {
+	root := New().newRootCmd("stack")
+	cmd, _, err := root.Find([]string{"stat"})
+	if err != nil {
+		t.Fatalf("find stat command: %v", err)
+	}
+	if cmd.Name() != "status" {
+		t.Fatalf("expected alias to resolve to status, got %q", cmd.Name())
+	}
+}

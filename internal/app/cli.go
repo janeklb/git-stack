@@ -100,9 +100,10 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	var statusDrift bool
 	var statusNoColor bool
 	statusCmd := &cobra.Command{
-		Use:   "status",
-		Short: "Show stack graph and state",
-		Args:  cobra.NoArgs,
+		Use:     "status",
+		Aliases: []string{"stat"},
+		Short:   "Show stack graph and state",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdStatus(statusAll, statusDrift, statusNoColor)
 		},
