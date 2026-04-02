@@ -74,7 +74,7 @@ func (a *App) cmdDoctor() error {
 			report.add(doctorSeverityError, "cycle-detected", fmt.Sprintf("branch=%s", branch), fmt.Sprintf("parent=%s", parent))
 			continue
 		}
-		if err := gitRun("merge-base", "--is-ancestor", parent, branch); err != nil {
+		if err := gitRunQuiet("merge-base", "--is-ancestor", parent, branch); err != nil {
 			report.add(doctorSeverityError, "parent-not-ancestor", fmt.Sprintf("branch=%s", branch), fmt.Sprintf("parent=%s", parent))
 		}
 	}

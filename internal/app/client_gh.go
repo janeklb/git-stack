@@ -1,11 +1,9 @@
 package app
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -99,27 +97,20 @@ func ghJSON(out any, args ...string) error {
 }
 
 func ghRun(args ...string) error {
-	cmd := exec.Command("gh", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if _, err := runCommand("gh", args, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways}); err != nil {
 		return errors.New("gh " + strings.Join(args, " ") + ": " + err.Error())
 	}
 	return nil
 }
 
 func ghOutput(args ...string) (string, error) {
-	cmd := exec.Command("gh", args...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
+	result, err := runCommand("gh", args, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
+	if err != nil {
+		msg := strings.TrimSpace(result.stderr)
 		if msg != "" {
 			return "", errors.New(msg)
 		}
 		return "", err
 	}
-	return out.String(), nil
+	return result.stdout, nil
 }
