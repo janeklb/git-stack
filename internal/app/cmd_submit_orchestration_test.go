@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -48,7 +49,7 @@ func (f fakeSubmitGHBoundary) View(number int) (*GhPR, error) {
 }
 
 func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
-	app := NewWithIO(nil, io.Discard, io.Discard)
+	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
 	git := &fakeSubmitGitBoundary{}
 	syncCalled := false
@@ -95,7 +96,7 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 }
 
 func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
-	app := NewWithIO(nil, io.Discard, io.Discard)
+	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
 		"feat-one": {Parent: "main", PR: &PRMeta{Number: 7, URL: "https://old", Base: "main"}},
 	}}
@@ -142,7 +143,7 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 }
 
 func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
-	app := NewWithIO(nil, io.Discard, io.Discard)
+	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
 		"feat-one": {Parent: "", PR: nil},
 	}}

@@ -129,35 +129,35 @@ func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClie
 
 	integrated, integratedErr := git.BranchFullyIntegrated(branch, base)
 	if integratedErr != nil {
-		fmt.Fprintf(a.stdout, "%s -> merged and remote deleted, but integration check failed; keeping local branch\n", branch)
+		a.printf("%s -> merged and remote deleted, but integration check failed; keeping local branch\n", branch)
 		return
 	}
 	if !integrated {
-		fmt.Fprintf(a.stdout, "%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch\n", branch)
+		a.printf("%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch\n", branch)
 		return
 	}
 
 	if currentErr == nil && current == branch {
 		target, proceed := promptSwitchTargetForMergedBranchDeletion(state, branch, a.in, a.stdout)
 		if !proceed {
-			fmt.Fprintf(a.stdout, "%s -> keeping local merged branch\n", branch)
+			a.printf("%s -> keeping local merged branch\n", branch)
 			return
 		}
 		if err := git.Run("switch", target); err != nil {
-			fmt.Fprintf(a.stdout, "%s -> failed to switch to %s before deletion: %v\n", branch, target, err)
+			a.printf("%s -> failed to switch to %s before deletion: %v\n", branch, target, err)
 			return
 		}
 	}
 
 	if err := git.DeleteLocalBranch(branch); err != nil {
-		fmt.Fprintf(a.stdout, "%s -> failed to delete local merged branch: %v\n", branch, err)
+		a.printf("%s -> failed to delete local merged branch: %v\n", branch, err)
 		return
 	}
 	archiveMergedBranch(state, branch)
 	reparentChildrenAfterMergedDeletion(state, branch, base, a.stdout)
 	delete(state.Branches, branch)
 	pruneArchivedLineage(state)
-	fmt.Fprintf(a.stdout, "%s -> deleted local merged branch\n", branch)
+	a.printf("%s -> deleted local merged branch\n", branch)
 }
 
 func archiveMergedBranch(state *State, branch string) {
