@@ -3,9 +3,10 @@ package app
 import (
 	"sort"
 	"strings"
+	"sync"
 )
 
-func ensurePR(branch, parent string, existing *PRMeta) (*PRMeta, error) {
+func ensurePR(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 	latestTitle, summary, err := branchSummary(parent, branch)
 	if err != nil {
 		return nil, err
@@ -13,12 +14,17 @@ func ensurePR(branch, parent string, existing *PRMeta) (*PRMeta, error) {
 	defaultBody := composeBody(summary, "")
 
 	if existing != nil && existing.Number > 0 {
-		pr, err := ghView(existing.Number)
-		if err == nil && strings.EqualFold(pr.State, "OPEN") {
-			if err := ghEdit(existing.Number, parent, pr.Body); err != nil {
+		if existingPR == nil {
+			pr, err := ghView(existing.Number)
+			if err == nil {
+				existingPR = pr
+			}
+		}
+		if existingPR != nil && strings.EqualFold(existingPR.State, "OPEN") {
+			if err := ghEdit(existing.Number, parent, existingPR.Body); err != nil {
 				return nil, err
 			}
-			return &PRMeta{Number: existing.Number, URL: pr.URL, Base: parent, Updated: true}, nil
+			return &PRMeta{Number: existing.Number, URL: existingPR.URL, Base: parent, Updated: true}, nil
 		}
 	}
 
@@ -42,55 +48,107 @@ func syncCurrentStackBodies(state *State, all bool, target string) error {
 		return err
 	}
 	ordered := orderedSelectedLineageBranches(state, selected)
+	snapshots := fetchStackBodySyncSnapshots(state, ordered)
 
 	lines := []StackPRLine{}
-	type editablePR struct {
-		branch string
-		number int
-		base   string
-		body   string
-	}
-	editable := []editablePR{}
-
-	for _, branch := range ordered {
-		prMeta := lineagePRMeta(state, branch)
-		if prMeta == nil || prMeta.Number <= 0 {
-			continue
+	updates := []stackBodyUpdate{}
+	for _, snapshot := range snapshots {
+		if snapshot.hasLine {
+			lines = append(lines, snapshot.line)
 		}
-		pr, err := ghView(prMeta.Number)
-		if err != nil {
-			continue
-		}
-		lines = append(lines, StackPRLine{
-			Branch: branch,
-			Number: pr.Number,
-			Title:  pr.Title,
-			URL:    pr.URL,
-			State:  pr.State,
-		})
-		if strings.EqualFold(pr.State, "OPEN") {
-			meta := state.Branches[branch]
-			if meta == nil {
-				continue
-			}
-			base := meta.Parent
-			if base == "" {
-				base = state.Trunk
-			}
-			editable = append(editable, editablePR{branch: branch, number: pr.Number, base: base, body: pr.Body})
+		if snapshot.hasUpdate {
+			updates = append(updates, snapshot.update)
 		}
 	}
 
-	if len(lines) == 0 || len(editable) == 0 {
+	if len(lines) == 0 || len(updates) == 0 {
 		return nil
 	}
 
-	for _, pr := range editable {
-		managed := managedStackBlock(pr.branch, lines)
-		body := upsertManagedBlock(pr.body, managed)
-		if err := ghEdit(pr.number, pr.base, body); err != nil {
-			return err
-		}
+	return applyStackBodyUpdates(lines, updates)
+}
+
+type stackBodyUpdate struct {
+	branch string
+	number int
+	base   string
+	body   string
+}
+
+type stackBodySyncSnapshot struct {
+	line      StackPRLine
+	hasLine   bool
+	update    stackBodyUpdate
+	hasUpdate bool
+}
+
+func fetchStackBodySyncSnapshots(state *State, ordered []string) []stackBodySyncSnapshot {
+	results := make([]stackBodySyncSnapshot, len(ordered))
+
+	var fetchWG sync.WaitGroup
+	fetchWG.Add(len(ordered))
+	for i, branch := range ordered {
+		go func(idx int, branch string) {
+			defer fetchWG.Done()
+			prMeta := lineagePRMeta(state, branch)
+			if prMeta == nil || prMeta.Number <= 0 {
+				return
+			}
+			pr, err := ghView(prMeta.Number)
+			if err != nil {
+				return
+			}
+
+			snapshot := stackBodySyncSnapshot{
+				line: StackPRLine{
+					Branch: branch,
+					Number: pr.Number,
+					Title:  pr.Title,
+					URL:    pr.URL,
+					State:  pr.State,
+				},
+				hasLine: true,
+			}
+
+			if strings.EqualFold(pr.State, "OPEN") {
+				meta := state.Branches[branch]
+				if meta != nil {
+					base := meta.Parent
+					if base == "" {
+						base = state.Trunk
+					}
+					snapshot.update = stackBodyUpdate{branch: branch, number: pr.Number, base: base, body: pr.Body}
+					snapshot.hasUpdate = true
+				}
+			}
+
+			results[idx] = snapshot
+		}(i, branch)
+	}
+	fetchWG.Wait()
+	return results
+}
+
+func applyStackBodyUpdates(lines []StackPRLine, updates []stackBodyUpdate) error {
+	var editWG sync.WaitGroup
+	errCh := make(chan error, len(updates))
+
+	editWG.Add(len(updates))
+	for _, update := range updates {
+		go func(update stackBodyUpdate) {
+			defer editWG.Done()
+			managed := managedStackBlock(update.branch, lines)
+			body := upsertManagedBlock(update.body, managed)
+			if err := ghEdit(update.number, update.base, body); err != nil {
+				errCh <- err
+			}
+		}(update)
+	}
+	editWG.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		return err
 	}
 	return nil
 }

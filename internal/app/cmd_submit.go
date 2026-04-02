@@ -15,7 +15,7 @@ type submitDeps struct {
 	ensureCleanWorktree  func() error
 	loadState            func() (string, *State, bool, error)
 	submitQueue          func(*State, bool, []string) ([]string, error)
-	ensurePR             func(string, string, *PRMeta) (*PRMeta, error)
+	ensurePR             func(string, string, *PRMeta, *GhPR) (*PRMeta, error)
 	syncCurrentStackBody func(*State, bool, string) error
 	saveState            func(string, *State) error
 	cleanupMergedBranch  func(*State, string)
@@ -70,6 +70,7 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 		if !ok {
 			continue
 		}
+		var existingPR *GhPR
 		if meta.PR != nil && meta.PR.Number > 0 {
 			existing, err := deps.gh.View(meta.PR.Number)
 			if err == nil && strings.EqualFold(existing.State, "MERGED") {
@@ -81,6 +82,9 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 				deps.cleanupMergedBranch(state, branch)
 				continue
 			}
+			if err == nil {
+				existingPR = existing
+			}
 		}
 		parent := meta.Parent
 		if parent == "" {
@@ -89,7 +93,7 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 		if err := deps.git.PushBranch(branch); err != nil {
 			return fmt.Errorf("push %s: %w", branch, err)
 		}
-		pr, err := deps.ensurePR(branch, parent, meta.PR)
+		pr, err := deps.ensurePR(branch, parent, meta.PR, existingPR)
 		if err != nil {
 			return fmt.Errorf("submit %s: %w", branch, err)
 		}
