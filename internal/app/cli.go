@@ -157,15 +157,15 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	_ = reparentCmd.MarkFlagRequired("parent")
 	root.AddCommand(reparentCmd)
 
-	repairCmd := &cobra.Command{
-		Use:   "repair",
-		Short: "Rebuild local stack metadata from git ancestry",
+	doctorCmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Diagnose local stack metadata health",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdRepair()
+			return a.cmdDoctor()
 		},
 	}
-	root.AddCommand(repairCmd)
+	root.AddCommand(doctorCmd)
 
 	var refreshRestack bool
 	var refreshPublish string
