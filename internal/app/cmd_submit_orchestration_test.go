@@ -65,7 +65,7 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{}, nil
 		},
-		ensurePR: func(string, string, *PRMeta) (*PRMeta, error) {
+		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for empty queue")
 			return nil, nil
 		},
@@ -113,7 +113,7 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, *PRMeta) (*PRMeta, error) {
+		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for merged PR")
 			return nil, nil
 		},
@@ -170,9 +170,12 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 			}
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(branch, parent string, existing *PRMeta) (*PRMeta, error) {
+		ensurePR: func(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 			if existing != nil {
 				t.Fatalf("expected nil existing PR, got %+v", existing)
+			}
+			if existingPR != nil {
+				t.Fatalf("expected nil existing GhPR snapshot, got %+v", existingPR)
 			}
 			ensurePRBranch = branch
 			ensurePRBase = parent

@@ -3,9 +3,10 @@ package app
 import (
 	"sort"
 	"strings"
+	"sync"
 )
 
-func ensurePR(branch, parent string, existing *PRMeta) (*PRMeta, error) {
+func ensurePR(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 	latestTitle, summary, err := branchSummary(parent, branch)
 	if err != nil {
 		return nil, err
@@ -13,12 +14,17 @@ func ensurePR(branch, parent string, existing *PRMeta) (*PRMeta, error) {
 	defaultBody := composeBody(summary, "")
 
 	if existing != nil && existing.Number > 0 {
-		pr, err := ghView(existing.Number)
-		if err == nil && strings.EqualFold(pr.State, "OPEN") {
-			if err := ghEdit(existing.Number, parent, pr.Body); err != nil {
+		if existingPR == nil {
+			pr, err := ghView(existing.Number)
+			if err == nil {
+				existingPR = pr
+			}
+		}
+		if existingPR != nil && strings.EqualFold(existingPR.State, "OPEN") {
+			if err := ghEdit(existing.Number, parent, existingPR.Body); err != nil {
 				return nil, err
 			}
-			return &PRMeta{Number: existing.Number, URL: pr.URL, Base: parent, Updated: true}, nil
+			return &PRMeta{Number: existing.Number, URL: existingPR.URL, Base: parent, Updated: true}, nil
 		}
 	}
 
@@ -43,41 +49,66 @@ func syncCurrentStackBodies(state *State, all bool, target string) error {
 	}
 	ordered := orderedSelectedLineageBranches(state, selected)
 
-	lines := []StackPRLine{}
 	type editablePR struct {
 		branch string
 		number int
 		base   string
 		body   string
 	}
-	editable := []editablePR{}
+	type syncResult struct {
+		line     *StackPRLine
+		editable *editablePR
+	}
+	results := make([]syncResult, len(ordered))
 
-	for _, branch := range ordered {
-		prMeta := lineagePRMeta(state, branch)
-		if prMeta == nil || prMeta.Number <= 0 {
-			continue
-		}
-		pr, err := ghView(prMeta.Number)
-		if err != nil {
-			continue
-		}
-		lines = append(lines, StackPRLine{
-			Branch: branch,
-			Number: pr.Number,
-			Title:  pr.Title,
-			URL:    pr.URL,
-			State:  pr.State,
-		})
-		if strings.EqualFold(pr.State, "OPEN") {
-			meta := state.Branches[branch]
-			if meta == nil {
-				continue
+	var fetchWG sync.WaitGroup
+	fetchWG.Add(len(ordered))
+	for i, branch := range ordered {
+		go func(idx int, branch string) {
+			defer fetchWG.Done()
+			prMeta := lineagePRMeta(state, branch)
+			if prMeta == nil || prMeta.Number <= 0 {
+				return
 			}
-			base := meta.Parent
-			if base == "" {
-				base = state.Trunk
+			pr, err := ghView(prMeta.Number)
+			if err != nil {
+				return
 			}
-			editable = append(editable, editablePR{branch: branch, number: pr.Number, base: base, body: pr.Body})
+
+			result := syncResult{
+				line: &StackPRLine{
+					Branch: branch,
+					Number: pr.Number,
+					Title:  pr.Title,
+					URL:    pr.URL,
+					State:  pr.State,
+				},
+			}
+
+			if strings.EqualFold(pr.State, "OPEN") {
+				meta := state.Branches[branch]
+				if meta != nil {
+					base := meta.Parent
+					if base == "" {
+						base = state.Trunk
+					}
+					result.editable = &editablePR{branch: branch, number: pr.Number, base: base, body: pr.Body}
+				}
+			}
+
+			results[idx] = result
+		}(i, branch)
+	}
+	fetchWG.Wait()
+
+	lines := []StackPRLine{}
+	editable := []editablePR{}
+	for _, result := range results {
+		if result.line != nil {
+			lines = append(lines, *result.line)
+		}
+		if result.editable != nil {
+			editable = append(editable, *result.editable)
 		}
 	}
 
@@ -85,12 +116,23 @@ func syncCurrentStackBodies(state *State, all bool, target string) error {
 		return nil
 	}
 
+	var editWG sync.WaitGroup
+	var editErr error
+	var editErrOnce sync.Once
+	editWG.Add(len(editable))
 	for _, pr := range editable {
-		managed := managedStackBlock(pr.branch, lines)
-		body := upsertManagedBlock(pr.body, managed)
-		if err := ghEdit(pr.number, pr.base, body); err != nil {
-			return err
-		}
+		go func(pr editablePR) {
+			defer editWG.Done()
+			managed := managedStackBlock(pr.branch, lines)
+			body := upsertManagedBlock(pr.body, managed)
+			if err := ghEdit(pr.number, pr.base, body); err != nil {
+				editErrOnce.Do(func() { editErr = err })
+			}
+		}(pr)
+	}
+	editWG.Wait()
+	if editErr != nil {
+		return editErr
 	}
 	return nil
 }
