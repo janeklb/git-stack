@@ -75,7 +75,7 @@ func managedStackBlock(currentBranch string, lines []StackPRLine) string {
 		}
 		b.WriteString(fmt.Sprintf("- %s [#%d %s](%s)\n", marker, line.Number, title, line.URL))
 	}
-	b.WriteString("\n<sub>Legend: 👉 current PR, ⚪ open, ☑️ merged</sub>\n")
+	b.WriteString("\n<p align=right><sub>Legend: 👉 current PR, ⚪ open, ☑️ merged</sub></p>\n")
 	b.WriteString(managedBlockEnd)
 	return b.String()
 }
