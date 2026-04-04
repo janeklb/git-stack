@@ -95,12 +95,15 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 		}
 		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 	} else if decorate && opts.boxMode == commandBoxOnFailure && waitErr != nil {
-		fmt.Fprintln(os.Stdout, theme.header("┌─ "+formatCommand(name, args)))
-		if opts.streamOutput {
-			printCapturedOutput(stdoutBuf.String(), os.Stdout, theme, theme.stdoutLine)
-			printCapturedOutput(stderrBuf.String(), os.Stderr, theme, theme.stderrLine)
+		hasCapturedOutput := strings.TrimSpace(stdoutBuf.String()) != "" || strings.TrimSpace(stderrBuf.String()) != ""
+		if hasCapturedOutput {
+			fmt.Fprintln(os.Stdout, theme.header("┌─ "+formatCommand(name, args)))
+			if opts.streamOutput {
+				printCapturedOutput(stdoutBuf.String(), os.Stdout, theme, theme.stdoutLine)
+				printCapturedOutput(stderrBuf.String(), os.Stderr, theme, theme.stderrLine)
+			}
+			fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 		}
-		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 	}
 
 	result := commandRunResult{stdout: stdoutBuf.String(), stderr: stderrBuf.String(), exitCode: exitCode}

@@ -158,10 +158,7 @@ func remoteBranchExists(branch string) (bool, error) {
 }
 
 func deleteLocalBranch(branch string) error {
-	if err := gitRunQuiet("branch", "-d", branch); err != nil {
-		return gitRunQuiet("branch", "-D", branch)
-	}
-	return nil
+	return gitRunQuiet("branch", "-D", branch)
 }
 
 func branchFullyIntegrated(branch, base string) (bool, error) {
