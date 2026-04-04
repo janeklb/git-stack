@@ -43,7 +43,7 @@ func (a *App) cmdReparent(target, newParent string) error {
 		return err
 	}
 
-	if err := gitRun("switch", target); err != nil {
+	if err := gitRunQuiet("switch", target); err != nil {
 		return err
 	}
 	if err := gitRun("rebase", "--onto", newParent, oldParent); err != nil {

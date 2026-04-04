@@ -70,11 +70,11 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
 	}
 
 	if cur != parentBranch {
-		if err := gitRun("switch", parentBranch); err != nil {
+		if err := gitRunQuiet("switch", parentBranch); err != nil {
 			return err
 		}
 	}
-	if err := gitRun("switch", "-c", branchName); err != nil {
+	if err := gitRunQuiet("switch", "-c", branchName); err != nil {
 		return err
 	}
 

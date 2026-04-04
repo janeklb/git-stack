@@ -1,11 +1,9 @@
 package app
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -50,11 +48,11 @@ func branchExists(name string) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	err := gitRun("show-ref", "--verify", "--quiet", "refs/heads/"+name)
+	err := gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+name)
 	if err == nil {
 		return true
 	}
-	err = gitRun("show-ref", "--verify", "--quiet", "refs/remotes/origin/"+name)
+	err = gitRunQuiet("show-ref", "--verify", "--quiet", "refs/remotes/origin/"+name)
 	return err == nil
 }
 
@@ -62,7 +60,7 @@ func localBranchExists(name string) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	err := gitRun("show-ref", "--verify", "--quiet", "refs/heads/"+name)
+	err := gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+name)
 	return err == nil
 }
 
@@ -126,20 +124,19 @@ func branchTimestamp(branch string) (int64, error) {
 
 func pushBranch(branch string) error {
 	refspec := fmt.Sprintf("%s:%s", branch, branch)
-	out, err := gitCombined("push", "-u", "origin", refspec)
+	result, err := runCommand("git", []string{"push", "-u", "origin", refspec}, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways})
+	out := combineCommandOutput(result)
 	if err == nil {
-		printGitOutput(out)
 		return nil
 	}
 	if shouldRetryPushWithLease(out) {
-		out, forceErr := gitCombined("push", "--force-with-lease", "-u", "origin", refspec)
-		printGitOutput(out)
+		result, forceErr := runCommand("git", []string{"push", "--force-with-lease", "-u", "origin", refspec}, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways})
 		if forceErr == nil {
 			return nil
 		}
-		return forceErr
+		return commandRunError(result, forceErr)
 	}
-	return err
+	return commandRunError(result, err)
 }
 
 func shouldRetryPushWithLease(output string) bool {
@@ -147,27 +144,6 @@ func shouldRetryPushWithLease(output string) bool {
 	return strings.Contains(msg, "non-fast-forward") ||
 		strings.Contains(msg, "behind its remote") ||
 		strings.Contains(msg, "behind its remote counterpart")
-}
-
-func printGitOutput(out string) {
-	out = strings.TrimSpace(out)
-	if out == "" {
-		return
-	}
-	fmt.Println(out)
-}
-
-func gitCombined(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	combined, err := cmd.CombinedOutput()
-	if err != nil {
-		msg := strings.TrimSpace(string(combined))
-		if msg == "" {
-			msg = err.Error()
-		}
-		return msg, errors.New(msg)
-	}
-	return string(combined), nil
 }
 
 func remoteBranchExists(branch string) (bool, error) {
@@ -182,8 +158,8 @@ func remoteBranchExists(branch string) (bool, error) {
 }
 
 func deleteLocalBranch(branch string) error {
-	if err := gitRun("branch", "-d", branch); err != nil {
-		return gitRun("branch", "-D", branch)
+	if err := gitRunQuiet("branch", "-d", branch); err != nil {
+		return gitRunQuiet("branch", "-D", branch)
 	}
 	return nil
 }
@@ -240,10 +216,9 @@ func commitIsAncestor(ancestor, descendant string) (bool, error) {
 	if strings.TrimSpace(ancestor) == "" || strings.TrimSpace(descendant) == "" {
 		return false, errors.New("empty commit for ancestry check")
 	}
-	cmd := exec.Command("git", "merge-base", "--is-ancestor", strings.TrimSpace(ancestor), strings.TrimSpace(descendant))
-	if err := cmd.Run(); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+	result, err := runCommand("git", []string{"merge-base", "--is-ancestor", strings.TrimSpace(ancestor), strings.TrimSpace(descendant)}, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
+	if err != nil {
+		if result.exitCode == 1 {
 			return false, nil
 		}
 		return false, err
@@ -255,11 +230,11 @@ func resolveComparisonBase(base string) (string, error) {
 	if strings.TrimSpace(base) == "" {
 		return "", errors.New("empty comparison base")
 	}
-	if gitRun("show-ref", "--verify", "--quiet", "refs/heads/"+base) == nil {
+	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+base) == nil {
 		return base, nil
 	}
 	remoteRef := "refs/remotes/origin/" + base
-	if gitRun("show-ref", "--verify", "--quiet", remoteRef) == nil {
+	if gitRunQuiet("show-ref", "--verify", "--quiet", remoteRef) == nil {
 		return "origin/" + base, nil
 	}
 	return "", fmt.Errorf("comparison base not found: %s", base)
@@ -300,27 +275,58 @@ func pathExists(path string) bool {
 }
 
 func gitRun(args ...string) error {
-	cmd := exec.Command("git", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: gitRunBoxMode(args)}); err != nil {
+		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return nil
+}
+
+func gitRunQuiet(args ...string) error {
+	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: commandBoxOnFailure}); err != nil {
 		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return nil
 }
 
 func gitOutput(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
+	result, err := runCommand("git", args, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
+	if err != nil {
+		msg := strings.TrimSpace(result.stderr)
 		if msg != "" {
 			return "", errors.New(msg)
 		}
 		return "", err
 	}
-	return out.String(), nil
+	return result.stdout, nil
+}
+
+func combineCommandOutput(result commandRunResult) string {
+	parts := []string{strings.TrimSpace(result.stdout), strings.TrimSpace(result.stderr)}
+	combined := strings.TrimSpace(strings.Join(parts, "\n"))
+	return combined
+}
+
+func commandRunError(result commandRunResult, fallback error) error {
+	msg := combineCommandOutput(result)
+	if msg == "" {
+		return fallback
+	}
+	return errors.New(msg)
+}
+
+func gitRunBoxMode(args []string) commandBoxMode {
+	if len(args) == 0 {
+		return commandBoxAlways
+	}
+
+	switch args[0] {
+	case "switch", "fetch", "show-ref", "merge-base":
+		return commandBoxOnFailure
+	case "branch":
+		if len(args) > 1 && (args[1] == "-d" || args[1] == "-D") {
+			return commandBoxOnFailure
+		}
+	}
+
+	return commandBoxAlways
 }

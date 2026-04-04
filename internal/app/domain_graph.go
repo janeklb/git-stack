@@ -88,7 +88,7 @@ func detectDrift(branch, parent string) (bool, string) {
 	if !branchExists(parent) {
 		return true, "parent-missing"
 	}
-	err := gitRun("merge-base", "--is-ancestor", parent, branch)
+	err := gitRunQuiet("merge-base", "--is-ancestor", parent, branch)
 	if err != nil {
 		return true, "parent-not-ancestor"
 	}
@@ -118,7 +118,7 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 		if strings.TrimSpace(candidateHead) == branchHead {
 			continue
 		}
-		if err := gitRun("merge-base", "--is-ancestor", b, branch); err == nil {
+		if err := gitRunQuiet("merge-base", "--is-ancestor", b, branch); err == nil {
 			ts, err := branchTimestamp(b)
 			if err != nil {
 				return "", err
@@ -132,7 +132,7 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 			return "", err
 		}
 		if strings.TrimSpace(trunkHead) != branchHead {
-			if err := gitRun("merge-base", "--is-ancestor", trunk, branch); err == nil {
+			if err := gitRunQuiet("merge-base", "--is-ancestor", trunk, branch); err == nil {
 				ts, err := branchTimestamp(trunk)
 				if err != nil {
 					return "", err
