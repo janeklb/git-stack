@@ -69,7 +69,7 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 	go func() {
 		defer wg.Done()
 		if opts.streamOutput && showLiveBox {
-			copyDecoratedOutput(stdoutPipe, &stdoutBuf, os.Stdout, theme.stdoutLine, writeMu)
+			copyDecoratedOutput(stdoutPipe, &stdoutBuf, os.Stdout, theme, theme.stdoutLine, writeMu)
 			return
 		}
 		_, _ = io.Copy(&stdoutBuf, stdoutPipe)
@@ -91,14 +91,14 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 			if waitErr != nil {
 				stderrStyle = theme.stderrLine
 			}
-			printCapturedOutput(stderrBuf.String(), os.Stderr, stderrStyle)
+			printCapturedOutput(stderrBuf.String(), os.Stderr, theme, stderrStyle)
 		}
 		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ exit %d", exitCode)))
 	} else if decorate && opts.boxMode == commandBoxOnFailure && waitErr != nil {
 		fmt.Fprintln(os.Stdout, theme.header("┌─ spawned: "+formatCommand(name, args)))
 		if opts.streamOutput {
-			printCapturedOutput(stdoutBuf.String(), os.Stdout, theme.stdoutLine)
-			printCapturedOutput(stderrBuf.String(), os.Stderr, theme.stderrLine)
+			printCapturedOutput(stdoutBuf.String(), os.Stdout, theme, theme.stdoutLine)
+			printCapturedOutput(stderrBuf.String(), os.Stderr, theme, theme.stderrLine)
 		}
 		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ exit %d", exitCode)))
 	}
@@ -110,7 +110,7 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 	return result, nil
 }
 
-func printCapturedOutput(captured string, dest io.Writer, styleFn func(string) string) {
+func printCapturedOutput(captured string, dest io.Writer, theme subprocessTheme, styleFn func(string) string) {
 	if captured == "" {
 		return
 	}
@@ -119,7 +119,7 @@ func printCapturedOutput(captured string, dest io.Writer, styleFn func(string) s
 		line, err := reader.ReadString('\n')
 		if len(line) > 0 {
 			trimmed := strings.TrimSuffix(line, "\n")
-			_, _ = io.WriteString(dest, styleFn("│ "+trimmed)+"\n")
+			_, _ = io.WriteString(dest, theme.formatLine(trimmed, styleFn)+"\n")
 		}
 		if err == nil {
 			continue
@@ -145,7 +145,7 @@ func runCommandPassthrough(name string, args []string) (commandRunResult, error)
 	return result, nil
 }
 
-func copyDecoratedOutput(src io.Reader, capture io.Writer, dest io.Writer, styleFn func(string) string, mu *sync.Mutex) {
+func copyDecoratedOutput(src io.Reader, capture io.Writer, dest io.Writer, theme subprocessTheme, styleFn func(string) string, mu *sync.Mutex) {
 	reader := bufio.NewReader(src)
 	for {
 		line, err := reader.ReadString('\n')
@@ -153,7 +153,7 @@ func copyDecoratedOutput(src io.Reader, capture io.Writer, dest io.Writer, style
 			_, _ = io.WriteString(capture, line)
 			trimmed := strings.TrimSuffix(line, "\n")
 			mu.Lock()
-			_, _ = io.WriteString(dest, styleFn("│ "+trimmed)+"\n")
+			_, _ = io.WriteString(dest, theme.formatLine(trimmed, styleFn)+"\n")
 			mu.Unlock()
 		}
 		if err == nil {
@@ -225,4 +225,11 @@ func (t subprocessTheme) wrap(text, code string) string {
 		return text
 	}
 	return "\x1b[" + code + "m" + text + "\x1b[0m"
+}
+
+func (t subprocessTheme) formatLine(text string, styleFn func(string) string) string {
+	if !t.useColor {
+		return "│ " + text
+	}
+	return t.header("│") + " " + styleFn(text)
 }
