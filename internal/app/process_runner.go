@@ -50,12 +50,12 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 	theme := subprocessTheme{useColor: decorate}
 	showLiveBox := decorate && opts.boxMode == commandBoxAlways
 	if showLiveBox {
-		fmt.Fprintln(os.Stdout, theme.header("┌─ spawned: "+formatCommand(name, args)))
+		fmt.Fprintln(os.Stdout, theme.header("┌─ "+formatCommand(name, args)))
 	}
 
 	if err := cmd.Start(); err != nil {
 		if showLiveBox {
-			fmt.Fprintln(os.Stdout, theme.footer("└─ exit -1"))
+			fmt.Fprintln(os.Stdout, theme.footer("└─ -1"))
 		}
 		return commandRunResult{}, err
 	}
@@ -93,14 +93,14 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 			}
 			printCapturedOutput(stderrBuf.String(), os.Stderr, theme, stderrStyle)
 		}
-		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ exit %d", exitCode)))
+		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 	} else if decorate && opts.boxMode == commandBoxOnFailure && waitErr != nil {
-		fmt.Fprintln(os.Stdout, theme.header("┌─ spawned: "+formatCommand(name, args)))
+		fmt.Fprintln(os.Stdout, theme.header("┌─ "+formatCommand(name, args)))
 		if opts.streamOutput {
 			printCapturedOutput(stdoutBuf.String(), os.Stdout, theme, theme.stdoutLine)
 			printCapturedOutput(stderrBuf.String(), os.Stderr, theme, theme.stderrLine)
 		}
-		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ exit %d", exitCode)))
+		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 	}
 
 	result := commandRunResult{stdout: stdoutBuf.String(), stderr: stderrBuf.String(), exitCode: exitCode}
