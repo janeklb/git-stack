@@ -33,7 +33,7 @@ func (f fakePruneGH) FindMergedByHead(branch string) (*GhPR, error) {
 	return f.findMergedByHeadFn(branch)
 }
 
-func TestBuildPruneLocalPlanSelectsEligibleBranchAndSkipsOthers(t *testing.T) {
+func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) {
 	t.Parallel()
 
 	deps := pruneLocalPlanDeps{
@@ -56,6 +56,8 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchAndSkipsOthers(t *testing.T) {
 		},
 		gh: fakePruneGH{findMergedByHeadFn: func(branch string) (*GhPR, error) {
 			switch branch {
+			case "tracked":
+				return &GhPR{Number: 10, URL: "https://example.invalid/pr/10", BaseRefName: "main", HeadRefOID: "h0", MergeCommit: &GhCommit{OID: "m0"}}, nil
 			case "cleanup":
 				return &GhPR{Number: 11, URL: "https://example.invalid/pr/11", BaseRefName: "main", HeadRefOID: "h1", MergeCommit: &GhCommit{OID: "m1"}}, nil
 			case "ahead":
@@ -79,8 +81,11 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchAndSkipsOthers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
 	}
-	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "cleanup" {
-		t.Fatalf("expected only cleanup branch to be deleted, got %#v", plan.Delete)
+	if len(plan.Delete) != 2 {
+		t.Fatalf("expected tracked and cleanup branches to be deleted, got %#v", plan.Delete)
+	}
+	if plan.Delete[0].Branch != "cleanup" || plan.Delete[1].Branch != "tracked" {
+		t.Fatalf("expected sorted delete list [cleanup tracked], got %#v", plan.Delete)
 	}
 
 	reasons := map[string]string{}

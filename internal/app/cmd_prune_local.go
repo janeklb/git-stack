@@ -40,7 +40,7 @@ func (a *App) cmdPruneLocal(yes bool) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
-	_, state, err := loadStateFromRepo()
+	repoRoot, state, err := loadStateFromRepo()
 	if err != nil {
 		return err
 	}
@@ -64,6 +64,7 @@ func (a *App) cmdPruneLocal(yes bool) error {
 	}
 
 	current, _ := currentBranch()
+	stateUpdated := false
 	for _, candidate := range plan.Delete {
 		if current == candidate.Branch {
 			target := state.Trunk
@@ -80,7 +81,22 @@ func (a *App) cmdPruneLocal(yes bool) error {
 			a.printf("%s -> failed to delete local branch: %v\n", candidate.Branch, err)
 			continue
 		}
+
+		if _, tracked := state.Branches[candidate.Branch]; tracked {
+			archiveMergedBranch(state, candidate.Branch)
+			reparentChildrenAfterMergedDeletion(state, candidate.Branch, candidate.Base, a.stdout)
+			delete(state.Branches, candidate.Branch)
+			pruneArchivedLineage(state)
+			stateUpdated = true
+		}
+
 		a.printf("%s -> deleted local branch (merged PR #%d)\n", candidate.Branch, candidate.PR.Number)
+	}
+
+	if stateUpdated {
+		if err := saveState(repoRoot, state); err != nil {
+			return err
+		}
 	}
 
 	a.println("prune-local completed")
@@ -99,9 +115,6 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps) (*pruneL
 	plan := &pruneLocalPlan{}
 	for _, branch := range branches {
 		if branch == "" || branch == state.Trunk {
-			continue
-		}
-		if _, tracked := state.Branches[branch]; tracked {
 			continue
 		}
 
