@@ -4,7 +4,7 @@ This file is the source of truth for repository-specific AI agent instructions.
 
 ## Required Reading
 
-- [MANIFEST.md](../MANIFEST.md)
+- [MANIFEST.md](/MANIFEST.md)
 - Always read https://github.com/janeklb/stack/issues/34 before making user-facing docs or process updates.
 
 ## Issue Update Policy
