@@ -64,7 +64,6 @@ func (a *App) cmdPruneLocal(yes bool) error {
 	}
 
 	current, _ := currentBranch()
-	stateUpdated := false
 	for _, candidate := range plan.Delete {
 		if current == candidate.Branch {
 			target := state.Trunk
@@ -83,23 +82,26 @@ func (a *App) cmdPruneLocal(yes bool) error {
 		}
 
 		if _, tracked := state.Branches[candidate.Branch]; tracked {
-			archiveMergedBranch(state, candidate.Branch)
-			reparentChildrenAfterMergedDeletion(state, candidate.Branch, candidate.Base, a.stdout)
-			delete(state.Branches, candidate.Branch)
-			pruneArchivedLineage(state)
-			stateUpdated = true
+			if err := pruneTrackedBranchFromState(repoRoot, state, candidate, a.stdout); err != nil {
+				return err
+			}
 		}
 
 		a.printf("%s -> deleted local branch (merged PR #%d)\n", candidate.Branch, candidate.PR.Number)
 	}
 
-	if stateUpdated {
-		if err := saveState(repoRoot, state); err != nil {
-			return err
-		}
-	}
-
 	a.println("prune-local completed")
+	return nil
+}
+
+func pruneTrackedBranchFromState(repoRoot string, state *State, candidate pruneLocalCandidate, out io.Writer) error {
+	archiveMergedBranch(state, candidate.Branch)
+	reparentChildrenAfterMergedDeletion(state, candidate.Branch, candidate.Base, out)
+	delete(state.Branches, candidate.Branch)
+	pruneArchivedLineage(state)
+	if err := saveState(repoRoot, state); err != nil {
+		return fmt.Errorf("%s -> deleted locally but failed to update stack state: %w", candidate.Branch, err)
+	}
 	return nil
 }
 
