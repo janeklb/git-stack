@@ -105,14 +105,14 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 }
 
 func (a *App) cmdAdvance(next string) error {
-	if err := gitRun("fetch", "--prune", "origin"); err != nil {
-		return fmt.Errorf("advance fetch failed: %w", err)
-	}
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
+	if err := gitRun("fetch", "--prune", "origin"); err != nil {
+		return fmt.Errorf("advance fetch failed: %w", err)
+	}
 
-	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
+	repoRoot, state, err := loadStateFromRepo()
 	if err != nil {
 		return err
 	}
@@ -136,16 +136,30 @@ func (a *App) cmdAdvance(next string) error {
 		return err
 	}
 
-	if persisted {
-		if err := saveState(repoRoot, state); err != nil {
-			return err
-		}
+	if err := saveState(repoRoot, state); err != nil {
+		return err
 	}
 
 	if err := a.cmdRestack("", false, false); err != nil {
 		return err
 	}
-	if err := a.cmdSubmit(true, ""); err != nil {
+	if err := a.cmdSubmitWithDeps(false, "", submitDeps{
+		git:                 defaultGitClient{},
+		gh:                  defaultGHClient{},
+		ensureCleanWorktree: ensureCleanWorktree,
+		loadState: func() (string, *State, bool, error) {
+			return repoRoot, state, true, nil
+		},
+		submitQueue: func(state *State, all bool, args []string) ([]string, error) {
+			return advanceSubmitQueue(state, candidate.Children), nil
+		},
+		ensurePR: ensurePR,
+		syncCurrentStackBody: func(state *State, all bool, target string) error {
+			return syncAdvanceStackBodies(state, candidate.Children)
+		},
+		saveState:           saveState,
+		cleanupMergedBranch: func(*State, string) {},
+	}); err != nil {
 		return err
 	}
 
@@ -208,7 +222,7 @@ func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candi
 		if next == candidate.Branch {
 			return "", fmt.Errorf("advance --next cannot be the branch being cleaned: %s", next)
 		}
-		exists, err := refreshTargetExists(git, next)
+		exists, err := advanceTargetExists(git, next)
 		if err != nil {
 			return "", err
 		}
@@ -231,7 +245,7 @@ func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candi
 
 	if len(candidate.Children) == 1 {
 		target := candidate.Children[0]
-		exists, err := refreshTargetExists(git, target)
+		exists, err := advanceTargetExists(git, target)
 		if err != nil {
 			return "", err
 		}
@@ -256,7 +270,7 @@ func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candi
 		return "", errors.New("advance invalid selection")
 	}
 	target := candidate.Children[choice-1]
-	exists, err := refreshTargetExists(git, target)
+	exists, err := advanceTargetExists(git, target)
 	if err != nil {
 		return "", err
 	}
@@ -266,7 +280,7 @@ func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candi
 	return target, nil
 }
 
-func refreshTargetExists(git refreshGitClient, branch string) (bool, error) {
+func advanceTargetExists(git refreshGitClient, branch string) (bool, error) {
 	if git.LocalBranchExists(branch) {
 		return true, nil
 	}
@@ -275,6 +289,65 @@ func refreshTargetExists(git refreshGitClient, branch string) (bool, error) {
 		return false, fmt.Errorf("advance failed to verify branch %s: %w", branch, err)
 	}
 	return remoteExists, nil
+}
+
+func advanceSubmitQueue(state *State, roots []string) []string {
+	if len(roots) == 0 {
+		return nil
+	}
+	children := map[string][]string{}
+	for branch, meta := range state.Branches {
+		if meta == nil {
+			continue
+		}
+		children[meta.Parent] = append(children[meta.Parent], branch)
+	}
+	for parent := range children {
+		sort.Strings(children[parent])
+	}
+	selected := []string{}
+	seen := map[string]bool{}
+	orderedRoots := append([]string{}, roots...)
+	sort.Strings(orderedRoots)
+	var visit func(string)
+	visit = func(branch string) {
+		if seen[branch] {
+			return
+		}
+		seen[branch] = true
+		selected = append(selected, branch)
+		for _, child := range children[branch] {
+			visit(child)
+		}
+	}
+	for _, root := range orderedRoots {
+		visit(root)
+	}
+	return selected
+}
+
+func syncAdvanceStackBodies(state *State, roots []string) error {
+	selected := map[string]bool{}
+	for _, branch := range advanceSubmitQueue(state, roots) {
+		selected[branch] = true
+	}
+	ordered := orderedSelectedLineageBranches(state, selected)
+	snapshots := fetchStackBodySyncSnapshots(state, ordered)
+
+	lines := []StackPRLine{}
+	updates := []stackBodyUpdate{}
+	for _, snapshot := range snapshots {
+		if snapshot.hasLine {
+			lines = append(lines, snapshot.line)
+		}
+		if snapshot.hasUpdate {
+			updates = append(updates, snapshot.update)
+		}
+	}
+	if len(lines) == 0 || len(updates) == 0 {
+		return nil
+	}
+	return applyStackBodyUpdates(lines, updates)
 }
 
 func cleanupMergedBranchForRefreshAdvance(out io.Writer, state *State, candidate refreshCleanupCandidate, switchTarget string, git refreshGitClient) error {
