@@ -42,31 +42,12 @@ func (f fakeRefreshGH) View(number int) (*GhPR, error) {
 func TestCmdRefreshRejectsInvalidPublishValue(t *testing.T) {
 	t.Parallel()
 
-	err := New().cmdRefresh(false, "invalid", false, "")
+	err := New().cmdRefresh(false, "invalid")
 	if err == nil {
 		t.Fatalf("expected refresh to fail for invalid publish scope")
 	}
 	if !strings.Contains(err.Error(), "--publish must be one of: current, all") {
 		t.Fatalf("expected validation message, got: %v", err)
-	}
-}
-
-func TestCmdRefreshRejectsAdvanceCombinationFlags(t *testing.T) {
-	t.Parallel()
-
-	err := New().cmdRefresh(true, "", true, "")
-	if err == nil || !strings.Contains(err.Error(), "--advance cannot be combined with --restack") {
-		t.Fatalf("expected advance/restack validation error, got: %v", err)
-	}
-
-	err = New().cmdRefresh(false, "all", true, "")
-	if err == nil || !strings.Contains(err.Error(), "--advance cannot be combined with --publish") {
-		t.Fatalf("expected advance/publish validation error, got: %v", err)
-	}
-
-	err = New().cmdRefresh(false, "", false, "feat-next")
-	if err == nil || !strings.Contains(err.Error(), "--next requires --advance") {
-		t.Fatalf("expected --next validation error, got: %v", err)
 	}
 }
 

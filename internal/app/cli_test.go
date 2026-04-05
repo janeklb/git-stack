@@ -40,11 +40,18 @@ func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
 	if flag.NoOptDefVal != "current" {
 		t.Fatalf("expected publish no-opt default current, got %q", flag.NoOptDefVal)
 	}
-	if refresh.Flags().Lookup("advance") == nil {
-		t.Fatalf("expected advance flag to exist")
+	if refresh.Flags().Lookup("next") != nil {
+		t.Fatalf("did not expect refresh next flag to exist")
 	}
-	if refresh.Flags().Lookup("next") == nil {
-		t.Fatalf("expected next flag to exist")
+	if refresh.Flags().Lookup("advance") != nil {
+		t.Fatalf("did not expect refresh advance flag to exist")
+	}
+	advance, _, err := root.Find([]string{"advance"})
+	if err != nil {
+		t.Fatalf("find advance command: %v", err)
+	}
+	if advance.Flags().Lookup("next") == nil {
+		t.Fatalf("expected advance next flag to exist")
 	}
 }
 

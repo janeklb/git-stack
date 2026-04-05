@@ -54,11 +54,11 @@ func TestRefreshAdvanceSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"refresh", "--advance"})
+		out, code := runCLIAndCapture(t, cli, []string{"advance"})
 		if code != 0 {
-			t.Fatalf("refresh --advance failed: exit=%d\n%s", code, out)
+			t.Fatalf("advance failed: exit=%d\n%s", code, out)
 		}
-		if !strings.Contains(out, "refresh advance completed") {
+		if !strings.Contains(out, "advance completed") {
 			t.Fatalf("expected advance completion output, got:\n%s", out)
 		}
 
@@ -75,7 +75,7 @@ func TestRefreshAdvanceSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 
 		stateAfter, err := loadState(repo)
 		if err != nil {
-			t.Fatalf("load state after refresh advance: %v", err)
+			t.Fatalf("load state after advance: %v", err)
 		}
 		if _, ok := stateAfter.Branches["feat-one"]; ok {
 			t.Fatalf("expected feat-one removed from active branches")
@@ -127,9 +127,9 @@ func TestRefreshAdvanceAbortsWhenRemoteBranchStillExists(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"refresh", "--advance"})
+		out, code := runCLIAndCapture(t, cli, []string{"advance"})
 		if code == 0 {
-			t.Fatalf("expected refresh --advance to fail when remote still exists, output:\n%s", out)
+			t.Fatalf("expected advance to fail when remote still exists, output:\n%s", out)
 		}
 		if !strings.Contains(out, "origin/feat-one still exists") {
 			t.Fatalf("expected remote-exists guidance, got:\n%s", out)

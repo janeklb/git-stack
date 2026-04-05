@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -38,21 +37,8 @@ func defaultRefreshPlanDeps() refreshPlanDeps {
 	}
 }
 
-func (a *App) cmdRefresh(restack bool, publish string, advance bool, next string) error {
+func (a *App) cmdRefresh(restack bool, publish string) error {
 	publish = strings.TrimSpace(strings.ToLower(publish))
-	next = strings.TrimSpace(next)
-	if advance {
-		if restack {
-			return errors.New("--advance cannot be combined with --restack")
-		}
-		if publish != "" {
-			return errors.New("--advance cannot be combined with --publish")
-		}
-		return a.cmdRefreshAdvance(next)
-	}
-	if next != "" {
-		return errors.New("--next requires --advance")
-	}
 	if publish != "" && publish != "current" && publish != "all" {
 		return errors.New("--publish must be one of: current, all")
 	}
@@ -118,9 +104,9 @@ func (a *App) cmdRefresh(restack bool, publish string, advance bool, next string
 	return nil
 }
 
-func (a *App) cmdRefreshAdvance(next string) error {
+func (a *App) cmdAdvance(next string) error {
 	if err := gitRun("fetch", "--prune", "origin"); err != nil {
-		return fmt.Errorf("refresh fetch failed: %w", err)
+		return fmt.Errorf("advance fetch failed: %w", err)
 	}
 	if err := ensureCleanWorktree(); err != nil {
 		return err
@@ -140,13 +126,13 @@ func (a *App) cmdRefreshAdvance(next string) error {
 	if err != nil {
 		return err
 	}
-	target, err := chooseRefreshAdvanceTarget(state, candidate, next, deps.git)
+	target, err := chooseRefreshAdvanceTarget(a.in, a.stdout, state, candidate, next, deps.git)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("refresh advance: cleanup %s, switch to %s, restack, submit all\n", candidate.Branch, target)
-	if err := cleanupMergedBranchForRefreshAdvance(state, candidate, target, deps.git); err != nil {
+	a.printf("advance: cleanup %s, switch to %s, restack, submit all\n", candidate.Branch, target)
+	if err := cleanupMergedBranchForRefreshAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
 		return err
 	}
 
@@ -163,33 +149,33 @@ func (a *App) cmdRefreshAdvance(next string) error {
 		return err
 	}
 
-	fmt.Println("refresh advance completed")
+	a.println("advance completed")
 	return nil
 }
 
 func buildRefreshAdvanceCandidateWithDeps(state *State, current string, deps refreshPlanDeps) (refreshCleanupCandidate, error) {
 	meta := state.Branches[current]
 	if meta == nil {
-		return refreshCleanupCandidate{}, fmt.Errorf("refresh --advance requires current branch to be tracked in stack state: %s", current)
+		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current branch to be tracked in stack state: %s", current)
 	}
 	if meta.PR == nil || meta.PR.Number <= 0 {
-		return refreshCleanupCandidate{}, fmt.Errorf("refresh --advance requires current branch to have PR metadata: %s", current)
+		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current branch to have PR metadata: %s", current)
 	}
 
 	pr, err := deps.gh.View(meta.PR.Number)
 	if err != nil {
-		return refreshCleanupCandidate{}, fmt.Errorf("refresh --advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+		return refreshCleanupCandidate{}, fmt.Errorf("advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
 	}
 	if !strings.EqualFold(pr.State, "MERGED") {
-		return refreshCleanupCandidate{}, fmt.Errorf("refresh --advance requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
+		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
 	}
 
 	remoteExists, err := deps.git.RemoteBranchExists(current)
 	if err != nil {
-		return refreshCleanupCandidate{}, fmt.Errorf("refresh --advance failed to check remote branch %s: %w", current, err)
+		return refreshCleanupCandidate{}, fmt.Errorf("advance failed to check remote branch %s: %w", current, err)
 	}
 	if remoteExists {
-		return refreshCleanupCandidate{}, fmt.Errorf("refresh --advance aborted: origin/%s still exists; delete the remote branch first", current)
+		return refreshCleanupCandidate{}, fmt.Errorf("advance aborted: origin/%s still exists; delete the remote branch first", current)
 	}
 
 	base := state.Trunk
@@ -203,10 +189,10 @@ func buildRefreshAdvanceCandidateWithDeps(state *State, current string, deps ref
 
 	integrated, err := deps.mergedCleanupIntegrated(current, base, pr)
 	if err != nil {
-		return refreshCleanupCandidate{}, fmt.Errorf("refresh --advance integration check failed for %s against %s: %w", current, base, err)
+		return refreshCleanupCandidate{}, fmt.Errorf("advance integration check failed for %s against %s: %w", current, base, err)
 	}
 	if !integrated {
-		return refreshCleanupCandidate{}, fmt.Errorf("refresh --advance aborted: %s has local commits not fully integrated into %s", current, base)
+		return refreshCleanupCandidate{}, fmt.Errorf("advance aborted: %s has local commits not fully integrated into %s", current, base)
 	}
 
 	return refreshCleanupCandidate{
@@ -217,17 +203,17 @@ func buildRefreshAdvanceCandidateWithDeps(state *State, current string, deps ref
 	}, nil
 }
 
-func chooseRefreshAdvanceTarget(state *State, candidate refreshCleanupCandidate, next string, git refreshGitClient) (string, error) {
+func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candidate refreshCleanupCandidate, next string, git refreshGitClient) (string, error) {
 	if next != "" {
 		if next == candidate.Branch {
-			return "", fmt.Errorf("refresh --advance --next cannot be the branch being cleaned: %s", next)
+			return "", fmt.Errorf("advance --next cannot be the branch being cleaned: %s", next)
 		}
 		exists, err := refreshTargetExists(git, next)
 		if err != nil {
 			return "", err
 		}
 		if !exists {
-			return "", fmt.Errorf("refresh --advance --next branch does not exist: %s", next)
+			return "", fmt.Errorf("advance --next branch does not exist: %s", next)
 		}
 		return next, nil
 	}
@@ -238,7 +224,7 @@ func chooseRefreshAdvanceTarget(state *State, candidate refreshCleanupCandidate,
 			target = "main"
 		}
 		if target == candidate.Branch {
-			return "", fmt.Errorf("refresh --advance could not choose a checkout target distinct from %s", candidate.Branch)
+			return "", fmt.Errorf("advance could not choose a checkout target distinct from %s", candidate.Branch)
 		}
 		return target, nil
 	}
@@ -250,24 +236,24 @@ func chooseRefreshAdvanceTarget(state *State, candidate refreshCleanupCandidate,
 			return "", err
 		}
 		if !exists {
-			return "", fmt.Errorf("refresh --advance child branch does not exist: %s", target)
+			return "", fmt.Errorf("advance child branch does not exist: %s", target)
 		}
 		return target, nil
 	}
 
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Printf("%s -> select next branch to checkout after cleanup:\n", candidate.Branch)
+	reader := bufio.NewReader(in)
+	fmt.Fprintf(out, "%s -> select next branch to checkout after cleanup:\n", candidate.Branch)
 	for i, child := range candidate.Children {
-		fmt.Printf("  %d) %s\n", i+1, child)
+		fmt.Fprintf(out, "  %d) %s\n", i+1, child)
 	}
-	fmt.Printf("selection [1-%d]: ", len(candidate.Children))
+	fmt.Fprintf(out, "selection [1-%d]: ", len(candidate.Children))
 	answer, err := readPromptLine(reader)
 	if err != nil {
-		return "", fmt.Errorf("refresh --advance failed to read selection: %w", err)
+		return "", fmt.Errorf("advance failed to read selection: %w", err)
 	}
 	choice, err := strconv.Atoi(answer)
 	if err != nil || choice < 1 || choice > len(candidate.Children) {
-		return "", errors.New("refresh --advance invalid selection")
+		return "", errors.New("advance invalid selection")
 	}
 	target := candidate.Children[choice-1]
 	exists, err := refreshTargetExists(git, target)
@@ -275,7 +261,7 @@ func chooseRefreshAdvanceTarget(state *State, candidate refreshCleanupCandidate,
 		return "", err
 	}
 	if !exists {
-		return "", fmt.Errorf("refresh --advance selected branch does not exist: %s", target)
+		return "", fmt.Errorf("advance selected branch does not exist: %s", target)
 	}
 	return target, nil
 }
@@ -286,12 +272,12 @@ func refreshTargetExists(git refreshGitClient, branch string) (bool, error) {
 	}
 	remoteExists, err := git.RemoteBranchExists(branch)
 	if err != nil {
-		return false, fmt.Errorf("refresh --advance failed to verify branch %s: %w", branch, err)
+		return false, fmt.Errorf("advance failed to verify branch %s: %w", branch, err)
 	}
 	return remoteExists, nil
 }
 
-func cleanupMergedBranchForRefreshAdvance(state *State, candidate refreshCleanupCandidate, switchTarget string, git refreshGitClient) error {
+func cleanupMergedBranchForRefreshAdvance(out io.Writer, state *State, candidate refreshCleanupCandidate, switchTarget string, git refreshGitClient) error {
 	current, err := git.CurrentBranch()
 	if err != nil {
 		return err
@@ -309,10 +295,10 @@ func cleanupMergedBranchForRefreshAdvance(state *State, candidate refreshCleanup
 	}
 
 	archiveMergedBranch(state, candidate.Branch)
-	reparentChildrenAfterCleanup(os.Stdout, state, candidate.Branch, candidate.Base)
+	reparentChildrenAfterCleanup(out, state, candidate.Branch, candidate.Base)
 	delete(state.Branches, candidate.Branch)
 	pruneArchivedLineage(state)
-	fmt.Printf("%s -> cleaned merged branch from local stack state\n", candidate.Branch)
+	fmt.Fprintf(out, "%s -> cleaned merged branch from local stack state\n", candidate.Branch)
 	return nil
 }
 
