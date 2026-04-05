@@ -24,35 +24,22 @@ func submitQueue(state *State, all bool, args []string) ([]string, error) {
 		return nil, fmt.Errorf("branch not tracked in stack: %s (use --all to submit everything)", target)
 	}
 
-	order := []string{}
-	seen := map[string]bool{}
-	cur := target
-	for {
-		meta, ok := state.Branches[cur]
-		if !ok {
-			break
-		}
-		if seen[cur] {
-			break
-		}
-		seen[cur] = true
-		order = append(order, cur)
-		if meta.Parent == "" || meta.Parent == state.Trunk {
-			break
-		}
-		cur = meta.Parent
-	}
-	for i, j := 0, len(order)-1; i < j; i, j = i+1, j-1 {
-		order[i], order[j] = order[j], order[i]
-	}
-	return order, nil
+	selected := branchesInCurrentStack(state, target)
+	return topoOrderSelected(state, selected), nil
 }
 
 func topoOrder(state *State) []string {
+	return topoOrderSelected(state, nil)
+}
+
+func topoOrderSelected(state *State, selected map[string]bool) []string {
 	visited := map[string]bool{}
 	order := []string{}
 	children := map[string][]string{}
 	for name, meta := range state.Branches {
+		if selected != nil && !selected[name] {
+			continue
+		}
 		p := meta.Parent
 		if p == "" {
 			p = state.Trunk
@@ -76,6 +63,9 @@ func topoOrder(state *State) []string {
 	visit(state.Trunk)
 
 	for name := range state.Branches {
+		if selected != nil && !selected[name] {
+			continue
+		}
 		if visited[name] {
 			continue
 		}
