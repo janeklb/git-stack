@@ -29,6 +29,11 @@ type pruneLocalPlanDeps struct {
 	gh  pruneGHClient
 }
 
+type pruneLocalScope struct {
+	trackedBranches  map[string]bool
+	includeUntracked bool
+}
+
 func defaultPruneLocalPlanDeps() pruneLocalPlanDeps {
 	return pruneLocalPlanDeps{
 		git: defaultGitClient{},
@@ -36,7 +41,23 @@ func defaultPruneLocalPlanDeps() pruneLocalPlanDeps {
 	}
 }
 
+func allTrackedBranches(state *State) map[string]bool {
+	tracked := map[string]bool{}
+	for branch := range state.Branches {
+		tracked[branch] = true
+	}
+	return tracked
+}
+
+func (a *App) cmdCleanup(yes bool, untracked bool) error {
+	return a.runCleanupCommand("cleanup", yes, pruneLocalScope{includeUntracked: untracked})
+}
+
 func (a *App) cmdPruneLocal(yes bool) error {
+	return a.runCleanupCommand("prune-local", yes, pruneLocalScope{includeUntracked: true})
+}
+
+func (a *App) runCleanupCommand(commandName string, yes bool, scope pruneLocalScope) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
@@ -45,21 +66,24 @@ func (a *App) cmdPruneLocal(yes bool) error {
 		return err
 	}
 	if err := gitRun("fetch", "--prune", "origin"); err != nil {
-		return fmt.Errorf("prune-local fetch failed: %w", err)
+		return fmt.Errorf("%s fetch failed: %w", commandName, err)
+	}
+	if scope.trackedBranches == nil {
+		scope.trackedBranches = allTrackedBranches(state)
 	}
 
-	plan, err := buildPruneLocalPlan(state)
+	plan, err := buildPruneLocalPlan(state, scope)
 	if err != nil {
 		return err
 	}
 	if len(plan.Delete) == 0 {
-		a.println("prune-local: nothing to do")
+		a.printf("%s: nothing to do\n", commandName)
 		return nil
 	}
 
-	printPruneLocalPlan(a.stdout, plan)
-	if !yes && !confirmPruneLocalApply(a.in, a.stdout) {
-		a.println("prune-local cancelled")
+	printCleanupPlan(a.stdout, commandName, plan)
+	if !yes && !confirmCleanupApply(a.in, a.stdout, commandName) {
+		a.printf("%s cancelled\n", commandName)
 		return nil
 	}
 
@@ -90,7 +114,7 @@ func (a *App) cmdPruneLocal(yes bool) error {
 		a.printf("%s -> deleted local branch (merged PR #%d)\n", candidate.Branch, candidate.PR.Number)
 	}
 
-	a.println("prune-local completed")
+	a.printf("%s completed\n", commandName)
 	return nil
 }
 
@@ -105,11 +129,11 @@ func pruneTrackedBranchFromState(repoRoot string, state *State, candidate pruneL
 	return nil
 }
 
-func buildPruneLocalPlan(state *State) (*pruneLocalPlan, error) {
-	return buildPruneLocalPlanWithDeps(state, defaultPruneLocalPlanDeps())
+func buildPruneLocalPlan(state *State, scope pruneLocalScope) (*pruneLocalPlan, error) {
+	return buildPruneLocalPlanWithDeps(state, defaultPruneLocalPlanDeps(), scope)
 }
 
-func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps) (*pruneLocalPlan, error) {
+func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pruneLocalScope) (*pruneLocalPlan, error) {
 	branches, err := deps.git.ListLocalBranches()
 	if err != nil {
 		return nil, err
@@ -117,6 +141,15 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps) (*pruneL
 	plan := &pruneLocalPlan{}
 	for _, branch := range branches {
 		if branch == "" || branch == state.Trunk {
+			continue
+		}
+
+		_, tracked := state.Branches[branch]
+		if tracked {
+			if scope.trackedBranches != nil && !scope.trackedBranches[branch] {
+				continue
+			}
+		} else if !scope.includeUntracked {
 			continue
 		}
 
@@ -194,8 +227,8 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps) (*pruneL
 	return plan, nil
 }
 
-func printPruneLocalPlan(out io.Writer, plan *pruneLocalPlan) {
-	fmt.Fprintln(out, "prune-local plan:")
+func printCleanupPlan(out io.Writer, commandName string, plan *pruneLocalPlan) {
+	fmt.Fprintf(out, "%s plan:\n", commandName)
 	for _, candidate := range plan.Delete {
 		fmt.Fprintf(out, "- delete: %s (PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
 	}
@@ -204,9 +237,9 @@ func printPruneLocalPlan(out io.Writer, plan *pruneLocalPlan) {
 	}
 }
 
-func confirmPruneLocalApply(in io.Reader, out io.Writer) bool {
+func confirmCleanupApply(in io.Reader, out io.Writer, commandName string) bool {
 	reader := bufio.NewReader(in)
-	fmt.Fprint(out, "apply prune-local plan? [y/N]: ")
+	fmt.Fprintf(out, "apply %s plan? [y/N]: ", commandName)
 	answer, err := readPromptLine(reader)
 	if err != nil {
 		return false

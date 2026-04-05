@@ -47,6 +47,16 @@ func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
 	if advance.Flags().Lookup("next") == nil {
 		t.Fatalf("expected advance next flag to exist")
 	}
+	cleanup, _, err := root.Find([]string{"cleanup"})
+	if err != nil {
+		t.Fatalf("find cleanup command: %v", err)
+	}
+	if cleanup.Flags().Lookup("yes") == nil {
+		t.Fatalf("expected cleanup yes flag to exist")
+	}
+	if cleanup.Flags().Lookup("untracked") == nil {
+		t.Fatalf("expected cleanup untracked flag to exist")
+	}
 }
 
 func TestStatusHasStatAlias(t *testing.T) {

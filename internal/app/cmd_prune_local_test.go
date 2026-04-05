@@ -77,7 +77,7 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 		},
 	}
 
-	plan, err := buildPruneLocalPlanWithDeps(state, deps)
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{includeUntracked: true})
 	if err != nil {
 		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
 	}
@@ -103,5 +103,44 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 	}
 	if reasons["wrong-base"] != "merged into non-trunk base" {
 		t.Fatalf("expected wrong-base skip reason, got %#v", reasons)
+	}
+}
+
+func TestBuildPruneLocalPlanDefaultCleanupExcludesUntrackedBranches(t *testing.T) {
+	t.Parallel()
+
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn: func() ([]string, error) {
+				return []string{"main", "tracked", "untracked"}, nil
+			},
+			remoteBranchExistsFn: func(string) (bool, error) {
+				return false, nil
+			},
+			branchAtOrBehindFn: func(string, string) (bool, error) {
+				return true, nil
+			},
+			baseContainsCommitFn: func(string, string) (bool, error) {
+				return true, nil
+			},
+		},
+		gh: fakePruneGH{findMergedByHeadFn: func(branch string) (*GhPR, error) {
+			return &GhPR{Number: 10, URL: "https://example.invalid/pr/10", BaseRefName: "main", HeadRefOID: "h0", MergeCommit: &GhCommit{OID: "m0"}}, nil
+		}},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"tracked": {Parent: "main"},
+		},
+	}
+
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "tracked" {
+		t.Fatalf("expected only tracked branch selected, got %#v", plan.Delete)
 	}
 }
