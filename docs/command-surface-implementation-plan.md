@@ -262,3 +262,7 @@ Add or update coverage for:
   answer: (TO DO)
 
 You can answer deferred questions directly in this document underneath each item as decisions solidify.
+
+## Observed Workflow Gaps
+
+- There is currently no first-class way to adopt an already-existing local branch into stack state once a state file has been created. `stack init` only infers and tracks existing branches during first initialization when state is absent; rerunning `init` preserves the persisted branch map instead of re-inferring. This makes immediate dogfooding awkward for repos that begin from manually-created branches and suggests the redesigned workflow needs either transparent adoption during auto-bootstrap or an explicit adopt/import path.
