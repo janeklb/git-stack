@@ -40,11 +40,15 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	if strings.TrimSpace(mode) != "" {
 		chosenMode = strings.TrimSpace(mode)
 	}
+	return a.runRestackQueue(repoRoot, state, chosenMode, topoOrder(state))
+}
+
+func (a *App) runRestackQueue(repoRoot string, state *State, mode string, queue []string) error {
+	chosenMode := mode
 	if chosenMode != "rebase" && chosenMode != "merge" {
 		return errors.New("restack mode must be rebase or merge")
 	}
 
-	queue := topoOrder(state)
 	if len(queue) == 0 {
 		a.println("nothing to restack")
 		return nil
@@ -53,7 +57,7 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	if err != nil {
 		return err
 	}
-	op = &RestackOperation{
+	op := &RestackOperation{
 		Type:           "restack",
 		Mode:           chosenMode,
 		OriginalBranch: original,

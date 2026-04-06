@@ -135,12 +135,13 @@ func (a *App) cmdAdvance(next string) error {
 	if err := cleanupMergedBranchForRefreshAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
 		return err
 	}
+	restackQueue := advanceRestackQueue(state, candidate.Children)
 
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
 
-	if err := a.cmdRestack("", false, false); err != nil {
+	if err := a.runRestackQueue(repoRoot, state, state.RestackMode, restackQueue); err != nil {
 		return err
 	}
 	if err := a.cmdSubmitWithDeps(false, "", submitDeps{
@@ -292,6 +293,17 @@ func advanceTargetExists(git refreshGitClient, branch string) (bool, error) {
 }
 
 func advanceSubmitQueue(state *State, roots []string) []string {
+	if len(roots) == 0 {
+		return nil
+	}
+	return advanceDescendantQueue(state, roots)
+}
+
+func advanceRestackQueue(state *State, roots []string) []string {
+	return advanceDescendantQueue(state, roots)
+}
+
+func advanceDescendantQueue(state *State, roots []string) []string {
 	if len(roots) == 0 {
 		return nil
 	}
