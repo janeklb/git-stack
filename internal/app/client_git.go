@@ -227,12 +227,12 @@ func resolveComparisonBase(base string) (string, error) {
 	if strings.TrimSpace(base) == "" {
 		return "", errors.New("empty comparison base")
 	}
-	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+base) == nil {
-		return base, nil
-	}
 	remoteRef := "refs/remotes/origin/" + base
 	if gitRunQuiet("show-ref", "--verify", "--quiet", remoteRef) == nil {
 		return "origin/" + base, nil
+	}
+	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+base) == nil {
+		return base, nil
 	}
 	return "", fmt.Errorf("comparison base not found: %s", base)
 }
