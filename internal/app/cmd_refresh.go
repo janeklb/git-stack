@@ -141,7 +141,7 @@ func (a *App) cmdAdvance(next string) error {
 		return err
 	}
 
-	if err := a.runRestackQueue(repoRoot, state, state.RestackMode, restackQueue); err != nil {
+	if err := runRestackQueue(repoRoot, state, state.RestackMode, restackQueue, a.stdout); err != nil {
 		return err
 	}
 	if err := a.cmdSubmitWithDeps(false, "", submitDeps{
