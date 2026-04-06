@@ -185,6 +185,18 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	}
 	root.AddCommand(refreshCmd)
 
+	var advanceNext string
+	advanceCmd := &cobra.Command{
+		Use:   "advance",
+		Short: "Advance after the current branch merges",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdAdvance(advanceNext)
+		},
+	}
+	advanceCmd.Flags().StringVar(&advanceNext, "next", "", "checkout target after advancing a merged branch")
+	root.AddCommand(advanceCmd)
+
 	var pruneLocalYes bool
 	pruneLocalCmd := &cobra.Command{
 		Use:   "prune-local",

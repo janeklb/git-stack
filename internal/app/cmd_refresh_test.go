@@ -153,3 +153,43 @@ func TestBuildRefreshPlanIncludesMergedRemoteDeletedBranches(t *testing.T) {
 		t.Fatalf("expected child reparent data, got %#v", plan.Cleanup[0].Children)
 	}
 }
+
+func TestBuildRefreshAdvanceCandidateRequiresRemoteDeletion(t *testing.T) {
+	t.Parallel()
+
+	deps := refreshPlanDeps{
+		git: fakeRefreshGit{
+			remoteBranchExistsFn: func(branch string) (bool, error) {
+				if branch == "feat-a" {
+					return true, nil
+				}
+				return false, nil
+			},
+			localBranchExistsFn: func(string) bool { return true },
+		},
+		gh: fakeRefreshGH{viewFn: func(number int) (*GhPR, error) {
+			return &GhPR{Number: number, State: "MERGED", BaseRefName: "main"}, nil
+		}},
+		mergedCleanupIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
+			return true, nil
+		},
+		mergedBranchChildren: func(state *State, branch string) []string {
+			return nil
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-a": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+		},
+	}
+
+	_, err := buildRefreshAdvanceCandidateWithDeps(state, "feat-a", deps)
+	if err == nil {
+		t.Fatalf("expected refresh advance candidate build to fail when remote branch still exists")
+	}
+	if !strings.Contains(err.Error(), "origin/feat-a still exists") {
+		t.Fatalf("expected remote deletion guidance, got: %v", err)
+	}
+}

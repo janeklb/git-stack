@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -100,6 +101,277 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 	}
 
 	a.println("refresh completed")
+	return nil
+}
+
+func (a *App) cmdAdvance(next string) error {
+	if err := ensureCleanWorktree(); err != nil {
+		return err
+	}
+	if err := gitRun("fetch", "--prune", "origin"); err != nil {
+		return fmt.Errorf("advance fetch failed: %w", err)
+	}
+
+	repoRoot, state, err := loadStateFromRepo()
+	if err != nil {
+		return err
+	}
+	current, err := currentBranch()
+	if err != nil {
+		return err
+	}
+
+	deps := defaultRefreshPlanDeps()
+	candidate, err := buildRefreshAdvanceCandidateWithDeps(state, current, deps)
+	if err != nil {
+		return err
+	}
+	target, err := chooseRefreshAdvanceTarget(a.in, a.stdout, state, candidate, next, deps.git)
+	if err != nil {
+		return err
+	}
+
+	a.printf("advance: cleanup %s, switch to %s, restack, submit all\n", candidate.Branch, target)
+	if err := cleanupMergedBranchForRefreshAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
+		return err
+	}
+
+	if err := saveState(repoRoot, state); err != nil {
+		return err
+	}
+
+	if err := a.cmdRestack("", false, false); err != nil {
+		return err
+	}
+	if err := a.cmdSubmitWithDeps(false, "", submitDeps{
+		git:                 defaultGitClient{},
+		gh:                  defaultGHClient{},
+		ensureCleanWorktree: ensureCleanWorktree,
+		loadState: func() (string, *State, bool, error) {
+			return repoRoot, state, true, nil
+		},
+		submitQueue: func(state *State, all bool, args []string) ([]string, error) {
+			return advanceSubmitQueue(state, candidate.Children), nil
+		},
+		ensurePR: ensurePR,
+		syncCurrentStackBody: func(state *State, all bool, target string) error {
+			return syncAdvanceStackBodies(state, candidate.Children)
+		},
+		saveState:           saveState,
+		cleanupMergedBranch: func(*State, string) {},
+	}); err != nil {
+		return err
+	}
+
+	a.println("advance completed")
+	return nil
+}
+
+func buildRefreshAdvanceCandidateWithDeps(state *State, current string, deps refreshPlanDeps) (refreshCleanupCandidate, error) {
+	meta := state.Branches[current]
+	if meta == nil {
+		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current branch to be tracked in stack state: %s", current)
+	}
+	if meta.PR == nil || meta.PR.Number <= 0 {
+		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current branch to have PR metadata: %s", current)
+	}
+
+	pr, err := deps.gh.View(meta.PR.Number)
+	if err != nil {
+		return refreshCleanupCandidate{}, fmt.Errorf("advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+	}
+	if !strings.EqualFold(pr.State, "MERGED") {
+		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
+	}
+
+	remoteExists, err := deps.git.RemoteBranchExists(current)
+	if err != nil {
+		return refreshCleanupCandidate{}, fmt.Errorf("advance failed to check remote branch %s: %w", current, err)
+	}
+	if remoteExists {
+		return refreshCleanupCandidate{}, fmt.Errorf("advance aborted: origin/%s still exists; delete the remote branch first", current)
+	}
+
+	base := state.Trunk
+	if strings.TrimSpace(pr.BaseRefName) != "" {
+		base = strings.TrimSpace(pr.BaseRefName)
+	} else if strings.TrimSpace(meta.PR.Base) != "" {
+		base = strings.TrimSpace(meta.PR.Base)
+	} else if strings.TrimSpace(meta.Parent) != "" {
+		base = strings.TrimSpace(meta.Parent)
+	}
+
+	integrated, err := deps.mergedCleanupIntegrated(current, base, pr)
+	if err != nil {
+		return refreshCleanupCandidate{}, fmt.Errorf("advance integration check failed for %s against %s: %w", current, base, err)
+	}
+	if !integrated {
+		return refreshCleanupCandidate{}, fmt.Errorf("advance aborted: %s has local commits not fully integrated into %s", current, base)
+	}
+
+	return refreshCleanupCandidate{
+		Branch:   current,
+		Base:     base,
+		HasLocal: deps.git.LocalBranchExists(current),
+		Children: deps.mergedBranchChildren(state, current),
+	}, nil
+}
+
+func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candidate refreshCleanupCandidate, next string, git refreshGitClient) (string, error) {
+	if next != "" {
+		if next == candidate.Branch {
+			return "", fmt.Errorf("advance --next cannot be the branch being cleaned: %s", next)
+		}
+		exists, err := advanceTargetExists(git, next)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return "", fmt.Errorf("advance --next branch does not exist: %s", next)
+		}
+		return next, nil
+	}
+
+	if len(candidate.Children) == 0 {
+		target := state.Trunk
+		if strings.TrimSpace(target) == "" {
+			target = "main"
+		}
+		if target == candidate.Branch {
+			return "", fmt.Errorf("advance could not choose a checkout target distinct from %s", candidate.Branch)
+		}
+		return target, nil
+	}
+
+	if len(candidate.Children) == 1 {
+		target := candidate.Children[0]
+		exists, err := advanceTargetExists(git, target)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return "", fmt.Errorf("advance child branch does not exist: %s", target)
+		}
+		return target, nil
+	}
+
+	reader := bufio.NewReader(in)
+	fmt.Fprintf(out, "%s -> select next branch to checkout after cleanup:\n", candidate.Branch)
+	for i, child := range candidate.Children {
+		fmt.Fprintf(out, "  %d) %s\n", i+1, child)
+	}
+	fmt.Fprintf(out, "selection [1-%d]: ", len(candidate.Children))
+	answer, err := readPromptLine(reader)
+	if err != nil {
+		return "", fmt.Errorf("advance failed to read selection: %w", err)
+	}
+	choice, err := strconv.Atoi(answer)
+	if err != nil || choice < 1 || choice > len(candidate.Children) {
+		return "", errors.New("advance invalid selection")
+	}
+	target := candidate.Children[choice-1]
+	exists, err := advanceTargetExists(git, target)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return "", fmt.Errorf("advance selected branch does not exist: %s", target)
+	}
+	return target, nil
+}
+
+func advanceTargetExists(git refreshGitClient, branch string) (bool, error) {
+	if git.LocalBranchExists(branch) {
+		return true, nil
+	}
+	remoteExists, err := git.RemoteBranchExists(branch)
+	if err != nil {
+		return false, fmt.Errorf("advance failed to verify branch %s: %w", branch, err)
+	}
+	return remoteExists, nil
+}
+
+func advanceSubmitQueue(state *State, roots []string) []string {
+	if len(roots) == 0 {
+		return nil
+	}
+	children := map[string][]string{}
+	for branch, meta := range state.Branches {
+		if meta == nil {
+			continue
+		}
+		children[meta.Parent] = append(children[meta.Parent], branch)
+	}
+	for parent := range children {
+		sort.Strings(children[parent])
+	}
+	selected := []string{}
+	seen := map[string]bool{}
+	orderedRoots := append([]string{}, roots...)
+	sort.Strings(orderedRoots)
+	var visit func(string)
+	visit = func(branch string) {
+		if seen[branch] {
+			return
+		}
+		seen[branch] = true
+		selected = append(selected, branch)
+		for _, child := range children[branch] {
+			visit(child)
+		}
+	}
+	for _, root := range orderedRoots {
+		visit(root)
+	}
+	return selected
+}
+
+func syncAdvanceStackBodies(state *State, roots []string) error {
+	selected := map[string]bool{}
+	for _, branch := range advanceSubmitQueue(state, roots) {
+		selected[branch] = true
+	}
+	ordered := orderedSelectedLineageBranches(state, selected)
+	snapshots := fetchStackBodySyncSnapshots(state, ordered)
+
+	lines := []StackPRLine{}
+	updates := []stackBodyUpdate{}
+	for _, snapshot := range snapshots {
+		if snapshot.hasLine {
+			lines = append(lines, snapshot.line)
+		}
+		if snapshot.hasUpdate {
+			updates = append(updates, snapshot.update)
+		}
+	}
+	if len(lines) == 0 || len(updates) == 0 {
+		return nil
+	}
+	return applyStackBodyUpdates(lines, updates)
+}
+
+func cleanupMergedBranchForRefreshAdvance(out io.Writer, state *State, candidate refreshCleanupCandidate, switchTarget string, git refreshGitClient) error {
+	current, err := git.CurrentBranch()
+	if err != nil {
+		return err
+	}
+	if current == candidate.Branch {
+		if err := git.Run("switch", switchTarget); err != nil {
+			return fmt.Errorf("failed to switch to %s before cleanup: %w", switchTarget, err)
+		}
+	}
+
+	if candidate.HasLocal {
+		if err := git.DeleteLocalBranch(candidate.Branch); err != nil {
+			return fmt.Errorf("failed to delete local merged branch %s: %w", candidate.Branch, err)
+		}
+	}
+
+	archiveMergedBranch(state, candidate.Branch)
+	reparentChildrenAfterCleanup(out, state, candidate.Branch, candidate.Base)
+	delete(state.Branches, candidate.Branch)
+	pruneArchivedLineage(state)
+	fmt.Fprintf(out, "%s -> cleaned merged branch from local stack state\n", candidate.Branch)
 	return nil
 }
 
