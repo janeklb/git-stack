@@ -84,7 +84,9 @@ func TestCleanupMergedBranchStateReparentsChildrenAndArchivesLineage(t *testing.
 	}
 
 	var out bytes.Buffer
-	cleanupMergedBranchState(&out, state, "feat-one", "main")
+	if err := cleanupMergedBranchState(&out, state, "feat-one", "main"); err != nil {
+		t.Fatalf("cleanupMergedBranchState returned error: %v", err)
+	}
 
 	if _, ok := state.Branches["feat-one"]; ok {
 		t.Fatal("expected feat-one removed from active branches")
@@ -97,5 +99,19 @@ func TestCleanupMergedBranchStateReparentsChildrenAndArchivesLineage(t *testing.
 	}
 	if state.Archived["feat-one"] == nil {
 		t.Fatal("expected feat-one archived for lineage preservation")
+	}
+}
+
+func TestCleanupMergedBranchStateErrorsForMissingTrackedBranch(t *testing.T) {
+	t.Parallel()
+
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
+	var out bytes.Buffer
+	err := cleanupMergedBranchState(&out, state, "missing", "main")
+	if err == nil {
+		t.Fatal("expected cleanupMergedBranchState to reject missing branch metadata")
+	}
+	if got := err.Error(); got != "cleanup requires tracked branch metadata for missing" {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

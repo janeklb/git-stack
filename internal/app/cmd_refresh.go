@@ -72,7 +72,9 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 
 	deps := defaultRefreshPlanDeps()
 	for _, candidate := range plan.Cleanup {
-		cleanupMergedBranchForRefresh(a.stdout, state, candidate, deps.git)
+		if err := cleanupMergedBranchForRefresh(a.stdout, state, candidate, deps.git); err != nil {
+			return err
+		}
 	}
 
 	if persisted {
@@ -517,16 +519,18 @@ func confirmRefreshApply(in io.Reader, out io.Writer) bool {
 	return answer == "y" || answer == "yes"
 }
 
-func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitClient) {
+func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitClient) error {
 	target := state.Trunk
 	if strings.TrimSpace(target) == "" {
 		target = "main"
 	}
 	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, target); err != nil {
-		fmt.Fprintf(out, "%s -> %v\n", candidate.Branch, err)
-		return
+		return fmt.Errorf("refresh cleanup failed for %s: %w", candidate.Branch, err)
 	}
-	cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base)
+	if err := cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
+		return fmt.Errorf("refresh cleanup failed for %s: %w", candidate.Branch, err)
+	}
+	return nil
 }
 
 func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {

@@ -15,7 +15,7 @@ type mergedCleanupGitClient interface {
 func switchAwayThenDeleteMergedBranch(git mergedCleanupGitClient, branch string, hasLocal bool, switchTarget string) error {
 	current, err := git.CurrentBranch()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to determine current branch before cleanup of %s: %w", branch, err)
 	}
 	if current == branch {
 		switchTarget = strings.TrimSpace(switchTarget)
@@ -36,10 +36,19 @@ func switchAwayThenDeleteMergedBranch(git mergedCleanupGitClient, branch string,
 	return nil
 }
 
-func cleanupMergedBranchState(out io.Writer, state *State, branch, replacementParent string) {
+func cleanupMergedBranchState(out io.Writer, state *State, branch, replacementParent string) error {
+	if state == nil {
+		return fmt.Errorf("cleanup requires stack state for %s", branch)
+	}
+	if state.Branches[branch] == nil {
+		return fmt.Errorf("cleanup requires tracked branch metadata for %s", branch)
+	}
 	archiveMergedBranch(state, branch)
 	reparentChildrenAfterMergedDeletion(state, branch, replacementParent, out)
 	delete(state.Branches, branch)
 	pruneArchivedLineage(state)
-	fmt.Fprintf(out, "%s -> cleaned merged branch from local stack state\n", branch)
+	if _, err := fmt.Fprintf(out, "%s -> cleaned merged branch from local stack state\n", branch); err != nil {
+		return fmt.Errorf("failed to write cleanup output for %s: %w", branch, err)
+	}
+	return nil
 }

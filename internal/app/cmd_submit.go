@@ -151,7 +151,10 @@ func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClie
 			a.printf("%s -> %v\n", branch, err)
 			return
 		}
-		cleanupMergedBranchState(a.stdout, state, branch, base)
+		if err := cleanupMergedBranchState(a.stdout, state, branch, base); err != nil {
+			a.printf("%s -> %v\n", branch, err)
+			return
+		}
 		a.printf("%s -> deleted local merged branch\n", branch)
 		return
 	}
@@ -160,7 +163,10 @@ func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClie
 		a.printf("%s -> %v\n", branch, err)
 		return
 	}
-	cleanupMergedBranchState(a.stdout, state, branch, base)
+	if err := cleanupMergedBranchState(a.stdout, state, branch, base); err != nil {
+		a.printf("%s -> %v\n", branch, err)
+		return
+	}
 	a.printf("%s -> deleted local merged branch\n", branch)
 }
 
