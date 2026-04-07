@@ -124,26 +124,11 @@ func branchTimestamp(branch string) (int64, error) {
 
 func pushBranch(branch string) error {
 	refspec := fmt.Sprintf("%s:%s", branch, branch)
-	result, err := runCommand("git", []string{"push", "-u", "origin", refspec}, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways})
-	out := combineCommandOutput(result)
-	if err == nil {
-		return nil
+	result, err := runCommand("git", []string{"push", "--force-with-lease", "-u", "origin", refspec}, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways})
+	if err != nil {
+		return commandRunError(result, err)
 	}
-	if shouldRetryPushWithLease(out) {
-		result, forceErr := runCommand("git", []string{"push", "--force-with-lease", "-u", "origin", refspec}, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways})
-		if forceErr == nil {
-			return nil
-		}
-		return commandRunError(result, forceErr)
-	}
-	return commandRunError(result, err)
-}
-
-func shouldRetryPushWithLease(output string) bool {
-	msg := strings.ToLower(output)
-	return strings.Contains(msg, "non-fast-forward") ||
-		strings.Contains(msg, "behind its remote") ||
-		strings.Contains(msg, "behind its remote counterpart")
+	return nil
 }
 
 func remoteBranchExists(branch string) (bool, error) {
