@@ -420,7 +420,9 @@ func cleanupMergedBranchForRefreshAdvance(out io.Writer, state *State, candidate
 	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, switchTarget); err != nil {
 		return err
 	}
-	cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base)
+	if err := cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
+		return err
+	}
 	return nil
 }
 
