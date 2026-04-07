@@ -139,6 +139,9 @@ func (a *App) cmdAdvance(next string) error {
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
+	if err := syncLocalTrunkToFetchedRemote(state.Trunk); err != nil {
+		return err
+	}
 
 	if err := a.cmdRestack("", false, false); err != nil {
 		return err
@@ -324,6 +327,53 @@ func advanceSubmitQueue(state *State, roots []string) []string {
 		visit(root)
 	}
 	return selected
+}
+
+func syncLocalTrunkToFetchedRemote(trunk string) error {
+	trunk = strings.TrimSpace(trunk)
+	if trunk == "" {
+		return nil
+	}
+	remoteRef := "origin/" + trunk
+	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/remotes/origin/"+trunk) != nil {
+		return nil
+	}
+	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+trunk) != nil {
+		return nil
+	}
+	localCommit, err := resolveBranchRef(trunk)
+	if err != nil {
+		return err
+	}
+	remoteCommit, err := resolveBranchRef(remoteRef)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(localCommit) == strings.TrimSpace(remoteCommit) {
+		return nil
+	}
+	canFastForward, err := commitIsAncestor(localCommit, remoteCommit)
+	if err != nil {
+		return err
+	}
+	if !canFastForward {
+		return nil
+	}
+	current, err := currentBranch()
+	if err != nil {
+		return err
+	}
+	if current == trunk {
+		return gitRun("merge", "--ff-only", remoteRef)
+	}
+	if err := gitRunQuiet("switch", trunk); err != nil {
+		return err
+	}
+	if err := gitRun("merge", "--ff-only", remoteRef); err != nil {
+		_ = gitRunQuiet("switch", current)
+		return err
+	}
+	return gitRunQuiet("switch", current)
 }
 
 func syncAdvanceStackBodies(state *State, roots []string) error {

@@ -284,5 +284,13 @@ func TestAdvanceUsesFetchedRemoteTrunkWhenLocalTrunkIsStale(t *testing.T) {
 		if !strings.Contains(out, "advance completed") {
 			t.Fatalf("expected advance completion output, got:\n%s", out)
 		}
+		remaining, err := gitOutput("log", "--format=%s", "origin/main..feat-two")
+		if err != nil {
+			t.Fatalf("inspect feat-two commits after advance: %v", err)
+		}
+		trimmed := strings.TrimSpace(remaining)
+		if trimmed != "feat two" {
+			t.Fatalf("expected feat-two to restack onto fetched trunk without carrying merged parent commits, got:\n%s", trimmed)
+		}
 	})
 }
