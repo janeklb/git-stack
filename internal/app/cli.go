@@ -64,7 +64,8 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	var initPrefixIndex bool
 	initCmd := &cobra.Command{
 		Use:   "init",
-		Short: "Initialize stack state",
+		Short: "Initialize or repair stack state",
+		Long:  "Initialize or repair persisted stack state. This is a migration/repair command; normal mutating workflows should auto-bootstrap state when possible.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdInit(initTrunk, initMode, initTemplate, initPrefixIndex)
