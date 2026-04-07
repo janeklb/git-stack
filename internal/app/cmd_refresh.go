@@ -130,6 +130,11 @@ func (a *App) cmdAdvance(next string) error {
 	if err != nil {
 		return err
 	}
+	if len(candidate.Children) > 0 && strings.TrimSpace(candidate.Base) == strings.TrimSpace(state.Trunk) {
+		if err := syncLocalTrunkToFetchedRemote(state.Trunk); err != nil {
+			return err
+		}
+	}
 
 	a.printf("advance: cleanup %s, switch to %s, restack, submit all\n", candidate.Branch, target)
 	if err := cleanupMergedBranchForRefreshAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
@@ -137,9 +142,6 @@ func (a *App) cmdAdvance(next string) error {
 	}
 
 	if err := saveState(repoRoot, state); err != nil {
-		return err
-	}
-	if err := syncLocalTrunkToFetchedRemote(state.Trunk); err != nil {
 		return err
 	}
 
@@ -357,7 +359,7 @@ func syncLocalTrunkToFetchedRemote(trunk string) error {
 		return err
 	}
 	if !canFastForward {
-		return nil
+		return fmt.Errorf("local trunk %s has diverged from fetched %s; update it before advancing", trunk, remoteRef)
 	}
 	current, err := currentBranch()
 	if err != nil {
