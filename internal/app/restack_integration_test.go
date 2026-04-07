@@ -75,7 +75,16 @@ func TestRestackWithoutInitializedStateUsesInferredStack(t *testing.T) {
 		mustGit(t, repo, "commit", "-m", "base update")
 
 		mustGit(t, repo, "switch", "feat-two")
-		mustRunCLI(t, cli, []string{"restack"})
+		out, code := runCLIAndCapture(t, cli, []string{"restack"})
+		if code != 0 {
+			t.Fatalf("restack failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "initialized stack state") {
+			t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
+		}
+		if _, err := loadState(repo); err != nil {
+			t.Fatalf("expected state file to be persisted, got: %v", err)
+		}
 
 		mustGit(t, repo, "merge-base", "--is-ancestor", "main", "feat-one")
 		mustGit(t, repo, "merge-base", "--is-ancestor", "feat-one", "feat-two")

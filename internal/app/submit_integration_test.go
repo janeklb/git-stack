@@ -37,6 +37,12 @@ func TestSubmitWithoutInitializedStateIsNoop(t *testing.T) {
 		if !strings.Contains(out, "nothing to submit") {
 			t.Fatalf("expected noop submit message, got:\n%s", out)
 		}
+		if !strings.Contains(out, "initialized stack state") {
+			t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
+		}
+		if _, err := loadState(repo); err != nil {
+			t.Fatalf("expected state file to be persisted, got: %v", err)
+		}
 	})
 }
 

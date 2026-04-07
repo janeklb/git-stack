@@ -11,6 +11,19 @@ import (
 
 var errStateNotInitialized = errors.New("stack state not initialized; run stack init")
 
+func ensurePersistedState(repoRoot string, state *State, persisted bool, out func(string, ...any)) (bool, error) {
+	if persisted {
+		return false, nil
+	}
+	if out != nil {
+		out("initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode)
+	}
+	if err := saveState(repoRoot, state); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func loadStateFromRepo() (string, *State, error) {
 	repoRoot, err := repoRoot()
 	if err != nil {

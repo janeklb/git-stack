@@ -51,6 +51,9 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 	if err != nil {
 		return err
 	}
+	if _, err := ensurePersistedState(repoRoot, state, persisted, a.printf); err != nil {
+		return err
+	}
 
 	args := []string{}
 	if branch != "" {
