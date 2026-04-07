@@ -207,6 +207,18 @@ func TestBuildRefreshAdvanceCandidateRequiresRemoteDeletion(t *testing.T) {
 	}
 }
 
+func TestAdvanceRebaseBasesAssignsOldBaseToRoots(t *testing.T) {
+	t.Parallel()
+
+	bases := advanceRebaseBases([]string{"feat-two", "feat-three"}, "abc123")
+	if len(bases) != 2 {
+		t.Fatalf("expected two roots, got %#v", bases)
+	}
+	if bases["feat-two"] != "abc123" || bases["feat-three"] != "abc123" {
+		t.Fatalf("expected shared old base for roots, got %#v", bases)
+	}
+}
+
 func TestCleanupMergedBranchForRefreshReturnsErrorWhenStateCleanupFails(t *testing.T) {
 	t.Parallel()
 

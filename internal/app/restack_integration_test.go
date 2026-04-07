@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -136,6 +137,61 @@ func TestRestackRecoversFromManualRebaseContinue(t *testing.T) {
 		}
 		if op != nil {
 			t.Fatalf("expected operation to be cleared after recovery")
+		}
+	})
+}
+
+func TestRestackUsesExplicitOldBaseToDropMergedParentCommits(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+		mustRunCLI(t, cli, []string{"new", "feat-one"})
+		mustWriteFile(t, filepath.Join(repo, "one.txt"), "one\n")
+		mustGit(t, repo, "add", "one.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+
+		mustRunCLI(t, cli, []string{"new", "feat-two"})
+		mustWriteFile(t, filepath.Join(repo, "two.txt"), "two\n")
+		mustGit(t, repo, "add", "two.txt")
+		mustGit(t, repo, "commit", "-m", "feat two")
+
+		mustGit(t, repo, "switch", "feat-one")
+		mustWriteFile(t, filepath.Join(repo, "one-followup.txt"), "followup\n")
+		mustGit(t, repo, "add", "one-followup.txt")
+		mustGit(t, repo, "commit", "-m", "feat one followup")
+		oldParentHead, err := gitOutput("rev-parse", "feat-one")
+		if err != nil {
+			t.Fatalf("resolve feat-one head: %v", err)
+		}
+
+		mustGit(t, repo, "switch", "feat-two")
+		mustRunCLI(t, cli, []string{"restack"})
+
+		mustGit(t, repo, "switch", "main")
+		mustGit(t, repo, "merge", "--no-ff", "feat-one", "-m", "merge feat one")
+
+		state, err := loadState(repo)
+		if err != nil {
+			t.Fatalf("load state: %v", err)
+		}
+		if err := cleanupMergedBranchState(io.Discard, state, "feat-one", "main"); err != nil {
+			t.Fatalf("cleanup merged parent state: %v", err)
+		}
+
+		mustGit(t, repo, "switch", "feat-two")
+		if err := runRestackQueue(repo, state, "rebase", []string{"feat-two"}, map[string]string{"feat-two": strings.TrimSpace(oldParentHead)}, io.Discard); err != nil {
+			t.Fatalf("runRestackQueue returned error: %v", err)
+		}
+
+		remaining, err := gitOutput("log", "--format=%s", "main..feat-two")
+		if err != nil {
+			t.Fatalf("inspect feat-two commits after restack: %v", err)
+		}
+		if trimmed := strings.TrimSpace(remaining); trimmed != "feat two" {
+			t.Fatalf("expected only feat-two commit after restack, got:\n%s", trimmed)
 		}
 	})
 }

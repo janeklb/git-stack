@@ -58,11 +58,13 @@ type PRMeta struct {
 }
 
 type RestackOperation struct {
-	Type           string   `json:"type"`
-	Mode           string   `json:"mode"`
-	OriginalBranch string   `json:"originalBranch"`
-	Queue          []string `json:"queue"`
-	Index          int      `json:"index"`
+	Type           string            `json:"type"`
+	Mode           string            `json:"mode"`
+	OriginalBranch string            `json:"originalBranch"`
+	Queue          []string          `json:"queue"`
+	Index          int               `json:"index"`
+	OriginalHeads  map[string]string `json:"originalHeads,omitempty"`
+	RebaseBases    map[string]string `json:"rebaseBases,omitempty"`
 }
 
 type GhPR struct {

@@ -137,18 +137,23 @@ func (a *App) cmdAdvance(next string) error {
 			return err
 		}
 	}
+	mergedBranchHead, err := resolveBranchRef(candidate.Branch)
+	if err != nil {
+		return err
+	}
 
 	a.printf("advance: cleanup %s, switch to %s, restack, submit all\n", candidate.Branch, target)
 	if err := cleanupMergedBranchForRefreshAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
 		return err
 	}
 	restackQueue := advanceRestackQueue(state, candidate.Children)
+	rebaseBases := advanceRebaseBases(candidate.Children, mergedBranchHead)
 
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
 
-	if err := runRestackQueue(repoRoot, state, state.RestackMode, restackQueue, a.stdout); err != nil {
+	if err := runRestackQueue(repoRoot, state, state.RestackMode, restackQueue, rebaseBases, a.stdout); err != nil {
 		return err
 	}
 	if err := a.cmdSubmitWithDeps(false, "", submitDeps{
@@ -308,6 +313,25 @@ func advanceSubmitQueue(state *State, roots []string) []string {
 
 func advanceRestackQueue(state *State, roots []string) []string {
 	return advanceDescendantQueue(state, roots)
+}
+
+func advanceRebaseBases(roots []string, oldBase string) map[string]string {
+	oldBase = strings.TrimSpace(oldBase)
+	if len(roots) == 0 || oldBase == "" {
+		return nil
+	}
+	bases := map[string]string{}
+	for _, branch := range roots {
+		branch = strings.TrimSpace(branch)
+		if branch == "" {
+			continue
+		}
+		bases[branch] = oldBase
+	}
+	if len(bases) == 0 {
+		return nil
+	}
+	return bases
 }
 
 func advanceDescendantQueue(state *State, roots []string) []string {
