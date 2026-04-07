@@ -27,6 +27,8 @@ type pruneGHClient interface {
 type submitGitClient interface {
 	PushBranch(branch string) error
 	RemoteBranchExists(branch string) (bool, error)
+	LocalBranchExists(branch string) bool
+	BranchHasCommitsSince(base, branch string) (bool, error)
 	CurrentBranch() (string, error)
 	Run(args ...string) error
 	DeleteLocalBranch(branch string) error
@@ -77,6 +79,10 @@ func (defaultGitClient) PushBranch(branch string) error {
 
 func (defaultGitClient) BranchFullyIntegrated(branch, base string) (bool, error) {
 	return branchFullyIntegrated(branch, base)
+}
+
+func (defaultGitClient) BranchHasCommitsSince(base, branch string) (bool, error) {
+	return branchHasCommitsSince(base, branch)
 }
 
 type defaultGHClient struct{}

@@ -90,6 +90,18 @@ func (a *App) cmdSubmitWithDeps(all bool, branch string, deps submitDeps) error 
 		if parent == "" {
 			parent = state.Trunk
 		}
+		if !deps.git.LocalBranchExists(branch) {
+			a.printf("%s -> skipped: local branch no longer exists\n", branch)
+			continue
+		}
+		hasCommits, err := deps.git.BranchHasCommitsSince(parent, branch)
+		if err != nil {
+			return fmt.Errorf("check submit range %s..%s: %w", parent, branch, err)
+		}
+		if !hasCommits {
+			a.printf("%s -> skipped: no commits beyond %s\n", branch, parent)
+			continue
+		}
 		if err := deps.git.PushBranch(branch); err != nil {
 			return fmt.Errorf("push %s: %w", branch, err)
 		}
