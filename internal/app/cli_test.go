@@ -59,6 +59,13 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	if reparent.Flags().Lookup("preserve-lineage") == nil {
 		t.Fatalf("expected reparent preserve-lineage flag to exist")
 	}
+	newCmd, _, err := root.Find([]string{"new"})
+	if err != nil {
+		t.Fatalf("find new command: %v", err)
+	}
+	if newCmd.Flags().Lookup("adopt") == nil {
+		t.Fatalf("expected new adopt flag to exist")
+	}
 }
 
 func TestStatusHasStatAlias(t *testing.T) {
