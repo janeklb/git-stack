@@ -7,6 +7,7 @@ type fakePruneGit struct {
 	remoteBranchExistsFn func(string) (bool, error)
 	branchAtOrBehindFn   func(string, string) (bool, error)
 	baseContainsCommitFn func(string, string) (bool, error)
+	branchIntegratedFn   func(string, string) (bool, error)
 }
 
 func (f fakePruneGit) ListLocalBranches() ([]string, error) {
@@ -23,6 +24,13 @@ func (f fakePruneGit) BranchAtOrBehindCommit(branch, commit string) (bool, error
 
 func (f fakePruneGit) BaseContainsCommit(base, commit string) (bool, error) {
 	return f.baseContainsCommitFn(base, commit)
+}
+
+func (f fakePruneGit) BranchFullyIntegrated(branch, base string) (bool, error) {
+	if f.branchIntegratedFn == nil {
+		return false, nil
+	}
+	return f.branchIntegratedFn(branch, base)
 }
 
 type fakePruneGH struct {
@@ -182,5 +190,60 @@ func TestCleanupTrackedScopeAllSelectsAllTrackedBranches(t *testing.T) {
 	selected := cleanupTrackedScope(state, "stack-a-1", true)
 	if !selected["stack-a-1"] || !selected["stack-b-1"] {
 		t.Fatalf("expected all tracked branches selected, got %#v", selected)
+	}
+}
+
+func TestBuildPruneLocalPlanStrictPolicySkipsBranchWithoutMergeCommit(t *testing.T) {
+	t.Parallel()
+
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "tracked"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			branchAtOrBehindFn:   func(string, string) (bool, error) { return true, nil },
+			baseContainsCommitFn: func(string, string) (bool, error) { return false, nil },
+			branchIntegratedFn:   func(string, string) (bool, error) { return true, nil },
+		},
+		gh: fakePruneGH{findMergedByHeadFn: func(string) (*GhPR, error) {
+			return &GhPR{Number: 10, URL: "https://example.invalid/pr/10", BaseRefName: "main", HeadRefOID: "h0"}, nil
+		}},
+	}
+
+	state := &State{Trunk: "main", Cleanup: CleanupConfig{MergeDetection: cleanupMergeDetectionStrict}, Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state), mergeDetection: cleanupMergeDetectionStrict})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 0 {
+		t.Fatalf("expected no deletions under strict policy, got %#v", plan.Delete)
+	}
+	if len(plan.Skip) != 1 || plan.Skip[0].Reason != "missing merge commit" {
+		t.Fatalf("expected strict policy to skip missing merge commit, got %#v", plan.Skip)
+	}
+}
+
+func TestBuildPruneLocalPlanIncludeSquashAllowsIntegratedBranchWithoutMergeCommit(t *testing.T) {
+	t.Parallel()
+
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "tracked"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			branchAtOrBehindFn:   func(string, string) (bool, error) { return true, nil },
+			baseContainsCommitFn: func(string, string) (bool, error) { return false, nil },
+			branchIntegratedFn:   func(string, string) (bool, error) { return true, nil },
+		},
+		gh: fakePruneGH{findMergedByHeadFn: func(string) (*GhPR, error) {
+			return &GhPR{Number: 10, URL: "https://example.invalid/pr/10", BaseRefName: "main", HeadRefOID: "h0"}, nil
+		}},
+	}
+
+	state := &State{Trunk: "main", Cleanup: CleanupConfig{MergeDetection: cleanupMergeDetectionStrict}, Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state), mergeDetection: "include-squash"})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "tracked" {
+		t.Fatalf("expected include-squash to allow cleanup, got %#v", plan.Delete)
 	}
 }
