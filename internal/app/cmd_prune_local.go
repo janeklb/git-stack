@@ -138,8 +138,11 @@ func cleanupMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, pol
 }
 
 func (a *App) cmdCleanup(yes bool, all bool, includeSquash bool, untracked bool) error {
-	repoRoot, state, err := loadStateFromRepo()
+	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
+		return err
+	}
+	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
 		return err
 	}
 	return a.runCleanupCommand(repoRoot, state, "cleanup", yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, mergeDetection: cleanupMergeDetectionPolicy(state, includeSquash), includeUntracked: untracked})

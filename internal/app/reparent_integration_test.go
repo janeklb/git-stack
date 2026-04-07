@@ -66,3 +66,32 @@ func TestReparentPreserveLineageKeepsExistingLineageParent(t *testing.T) {
 		mustGit(t, repo, "merge-base", "--is-ancestor", "main", "feat-two")
 	})
 }
+
+func TestReparentWithoutInitializedStateAutoBootstraps(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustGit(t, repo, "switch", "-c", "feat-one")
+		mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+		mustGit(t, repo, "add", "feature1.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+
+		mustGit(t, repo, "switch", "-c", "feat-two")
+		mustWriteFile(t, filepath.Join(repo, "feature2.txt"), "two\n")
+		mustGit(t, repo, "add", "feature2.txt")
+		mustGit(t, repo, "commit", "-m", "feat two")
+
+		out, code := runCLIAndCapture(t, cli, []string{"reparent", "--parent", "main", "feat-two"})
+		if code != 0 {
+			t.Fatalf("reparent failed: exit=%d\n%s", code, out)
+		}
+		if got := readStateFile(t, repo).Branches["feat-two"].Parent; got != "main" {
+			t.Fatalf("expected feat-two parent main after auto-bootstrapped reparent, got %q", got)
+		}
+		if _, err := loadState(repo); err != nil {
+			t.Fatalf("expected state file to be persisted, got: %v", err)
+		}
+	})
+}

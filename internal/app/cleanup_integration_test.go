@@ -190,3 +190,25 @@ func TestCleanupUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 		}
 	})
 }
+
+func TestCleanupWithoutInitializedStateAutoBootstraps(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		out, code := runCLIAndCapture(t, cli, []string{"cleanup"})
+		if code != 0 {
+			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "initialized stack state") {
+			t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
+		}
+		if !strings.Contains(out, "cleanup: nothing to do") {
+			t.Fatalf("expected noop cleanup output, got:\n%s", out)
+		}
+		if _, err := loadState(repo); err != nil {
+			t.Fatalf("expected state file to be persisted, got: %v", err)
+		}
+	})
+}

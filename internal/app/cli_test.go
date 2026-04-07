@@ -82,3 +82,17 @@ func TestStatusHasStatAlias(t *testing.T) {
 		t.Fatalf("expected alias to resolve to status, got %q", cmd.Name())
 	}
 }
+
+func TestInitHelpMarksCommandAsRepairFlow(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"help", "init"})
+	if code != 0 {
+		t.Fatalf("help init failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "Initialize or repair persisted stack state") {
+		t.Fatalf("expected init help to mention repair/config role, got:\n%s", out)
+	}
+	if !strings.Contains(out, "auto-bootstrap state when possible") {
+		t.Fatalf("expected init help to mention auto-bootstrap happy path, got:\n%s", out)
+	}
+}

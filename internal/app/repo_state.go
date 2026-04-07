@@ -3,6 +3,8 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,6 +12,21 @@ import (
 )
 
 var errStateNotInitialized = errors.New("stack state not initialized; run stack init")
+
+func ensurePersistedState(repoRoot string, state *State, persisted bool, out io.Writer) (bool, error) {
+	if persisted {
+		return false, nil
+	}
+	if out != nil {
+		if _, err := fmt.Fprintf(out, "initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode); err != nil {
+			return false, err
+		}
+	}
+	if err := saveState(repoRoot, state); err != nil {
+		return false, err
+	}
+	return true, nil
+}
 
 func loadStateFromRepo() (string, *State, error) {
 	repoRoot, err := repoRoot()

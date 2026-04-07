@@ -20,8 +20,11 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 
 	target = strings.TrimSpace(target)
 	newParent = strings.TrimSpace(newParent)
-	repoRoot, state, _, err := loadStateFromRepoOrInfer()
+	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
+		return err
+	}
+	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
 		return err
 	}
 	meta, ok := state.Branches[target]

@@ -11,7 +11,7 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	if cont && abort {
 		return errors.New("--continue and --abort are mutually exclusive")
 	}
-	repoRoot, state, _, err := loadStateFromRepoOrInfer()
+	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
@@ -24,6 +24,9 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	}
 
 	if err := ensureCleanWorktree(); err != nil {
+		return err
+	}
+	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
 		return err
 	}
 	op, _ := loadOperation(repoRoot)

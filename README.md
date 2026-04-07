@@ -71,6 +71,8 @@ go test ./... -count=1
 
 ## Commands
 
+`stack init` remains available as a repair/config migration command, but it is no longer intended to be part of the normal happy path. Normal mutating commands should auto-bootstrap stack state when that can be done unambiguously.
+
 ```text
 stack init [--trunk <branch>] [--mode rebase|merge]
 stack new <name> [--parent <branch>] [--template <template>] [--prefix-index]
