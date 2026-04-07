@@ -200,16 +200,18 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	root.AddCommand(advanceCmd)
 
 	var cleanupYes bool
+	var cleanupAll bool
 	var cleanupUntracked bool
 	cleanupCmd := &cobra.Command{
 		Use:   "cleanup",
 		Short: "Delete merged local branches and reconcile stack state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdCleanup(cleanupYes, cleanupUntracked)
+			return a.cmdCleanup(cleanupYes, cleanupAll, cleanupUntracked)
 		},
 	}
 	cleanupCmd.Flags().BoolVar(&cleanupYes, "yes", false, "apply without confirmation prompt")
+	cleanupCmd.Flags().BoolVar(&cleanupAll, "all", false, "clean all tracked branches instead of only the current stack")
 	cleanupCmd.Flags().BoolVar(&cleanupUntracked, "untracked", false, "also clean eligible untracked local branches")
 	root.AddCommand(cleanupCmd)
 

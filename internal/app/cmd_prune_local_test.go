@@ -144,3 +144,43 @@ func TestBuildPruneLocalPlanDefaultCleanupExcludesUntrackedBranches(t *testing.T
 		t.Fatalf("expected only tracked branch selected, got %#v", plan.Delete)
 	}
 }
+
+func TestCleanupTrackedScopeUsesCurrentStackByDefault(t *testing.T) {
+	t.Parallel()
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"stack-a-1":    {Parent: "main"},
+			"stack-a-2":    {Parent: "stack-a-1"},
+			"stack-a-3":    {Parent: "stack-a-2"},
+			"stack-a-side": {Parent: "stack-a-1"},
+			"stack-b-1":    {Parent: "main"},
+		},
+	}
+
+	selected := cleanupTrackedScope(state, "stack-a-2", false)
+	if !selected["stack-a-1"] || !selected["stack-a-2"] || !selected["stack-a-3"] || !selected["stack-a-side"] {
+		t.Fatalf("expected current stack selected, got %#v", selected)
+	}
+	if selected["stack-b-1"] {
+		t.Fatalf("did not expect unrelated stack selected, got %#v", selected)
+	}
+}
+
+func TestCleanupTrackedScopeAllSelectsAllTrackedBranches(t *testing.T) {
+	t.Parallel()
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"stack-a-1": {Parent: "main"},
+			"stack-b-1": {Parent: "main"},
+		},
+	}
+
+	selected := cleanupTrackedScope(state, "stack-a-1", true)
+	if !selected["stack-a-1"] || !selected["stack-b-1"] {
+		t.Fatalf("expected all tracked branches selected, got %#v", selected)
+	}
+}

@@ -30,8 +30,10 @@ type pruneLocalPlanDeps struct {
 }
 
 type pruneLocalScope struct {
-	trackedBranches  map[string]bool
-	includeUntracked bool
+	trackedBranches    map[string]bool
+	trackedFromCurrent bool
+	allTracked         bool
+	includeUntracked   bool
 }
 
 func defaultPruneLocalPlanDeps() pruneLocalPlanDeps {
@@ -49,8 +51,15 @@ func allTrackedBranches(state *State) map[string]bool {
 	return tracked
 }
 
-func (a *App) cmdCleanup(yes bool, untracked bool) error {
-	return a.runCleanupCommand("cleanup", yes, pruneLocalScope{includeUntracked: untracked})
+func cleanupTrackedScope(state *State, current string, all bool) map[string]bool {
+	if all {
+		return allTrackedBranches(state)
+	}
+	return branchesInCurrentStack(state, current)
+}
+
+func (a *App) cmdCleanup(yes bool, all bool, untracked bool) error {
+	return a.runCleanupCommand("cleanup", yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, includeUntracked: untracked})
 }
 
 func (a *App) cmdPruneLocal(yes bool) error {
@@ -69,7 +78,15 @@ func (a *App) runCleanupCommand(commandName string, yes bool, scope pruneLocalSc
 		return fmt.Errorf("%s fetch failed: %w", commandName, err)
 	}
 	if scope.trackedBranches == nil {
-		scope.trackedBranches = allTrackedBranches(state)
+		if scope.trackedFromCurrent {
+			current, err := currentBranch()
+			if err != nil {
+				return err
+			}
+			scope.trackedBranches = cleanupTrackedScope(state, current, scope.allTracked)
+		} else {
+			scope.trackedBranches = allTrackedBranches(state)
+		}
 	}
 
 	plan, err := buildPruneLocalPlan(state, scope)
