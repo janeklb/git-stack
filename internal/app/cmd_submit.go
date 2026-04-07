@@ -147,20 +147,26 @@ func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClie
 			a.printf("%s -> keeping local merged branch\n", branch)
 			return
 		}
-		if err := git.Run("switch", target); err != nil {
-			a.printf("%s -> failed to switch to %s before deletion: %v\n", branch, target, err)
+		if err := switchAwayThenDeleteMergedBranch(git, branch, true, target); err != nil {
+			a.printf("%s -> %v\n", branch, err)
 			return
 		}
-	}
-
-	if err := git.DeleteLocalBranch(branch); err != nil {
-		a.printf("%s -> failed to delete local merged branch: %v\n", branch, err)
+		if err := cleanupMergedBranchState(a.stdout, state, branch, base); err != nil {
+			a.printf("%s -> %v\n", branch, err)
+			return
+		}
+		a.printf("%s -> deleted local merged branch\n", branch)
 		return
 	}
-	archiveMergedBranch(state, branch)
-	reparentChildrenAfterMergedDeletion(state, branch, base, a.stdout)
-	delete(state.Branches, branch)
-	pruneArchivedLineage(state)
+
+	if err := switchAwayThenDeleteMergedBranch(git, branch, true, ""); err != nil {
+		a.printf("%s -> %v\n", branch, err)
+		return
+	}
+	if err := cleanupMergedBranchState(a.stdout, state, branch, base); err != nil {
+		a.printf("%s -> %v\n", branch, err)
+		return
+	}
 	a.printf("%s -> deleted local merged branch\n", branch)
 }
 

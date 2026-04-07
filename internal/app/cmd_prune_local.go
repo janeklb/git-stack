@@ -119,10 +119,9 @@ func (a *App) runCleanupCommand(commandName string, yes bool, scope pruneLocalSc
 }
 
 func pruneTrackedBranchFromState(repoRoot string, state *State, candidate pruneLocalCandidate, out io.Writer) error {
-	archiveMergedBranch(state, candidate.Branch)
-	reparentChildrenAfterMergedDeletion(state, candidate.Branch, candidate.Base, out)
-	delete(state.Branches, candidate.Branch)
-	pruneArchivedLineage(state)
+	if err := cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
+		return err
+	}
 	if err := saveState(repoRoot, state); err != nil {
 		return fmt.Errorf("%s -> deleted locally but failed to update stack state: %w", candidate.Branch, err)
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"io"
 	"strings"
 	"testing"
 )
@@ -9,6 +10,9 @@ import (
 type fakeRefreshGit struct {
 	remoteBranchExistsFn func(string) (bool, error)
 	localBranchExistsFn  func(string) bool
+	currentBranchFn      func() (string, error)
+	runFn                func(...string) error
+	deleteLocalBranchFn  func(string) error
 }
 
 func (f fakeRefreshGit) RemoteBranchExists(branch string) (bool, error) {
@@ -20,15 +24,24 @@ func (f fakeRefreshGit) LocalBranchExists(branch string) bool {
 }
 
 func (f fakeRefreshGit) CurrentBranch() (string, error) {
-	panic("not used in planner tests")
+	if f.currentBranchFn == nil {
+		panic("not used in planner tests")
+	}
+	return f.currentBranchFn()
 }
 
 func (f fakeRefreshGit) Run(args ...string) error {
-	panic("not used in planner tests")
+	if f.runFn == nil {
+		panic("not used in planner tests")
+	}
+	return f.runFn(args...)
 }
 
 func (f fakeRefreshGit) DeleteLocalBranch(branch string) error {
-	panic("not used in planner tests")
+	if f.deleteLocalBranchFn == nil {
+		panic("not used in planner tests")
+	}
+	return f.deleteLocalBranchFn(branch)
 }
 
 type fakeRefreshGH struct {
@@ -191,5 +204,22 @@ func TestBuildRefreshAdvanceCandidateRequiresRemoteDeletion(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "origin/feat-a still exists") {
 		t.Fatalf("expected remote deletion guidance, got: %v", err)
+	}
+}
+
+func TestCleanupMergedBranchForRefreshReturnsErrorWhenStateCleanupFails(t *testing.T) {
+	t.Parallel()
+
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
+	err := cleanupMergedBranchForRefresh(io.Discard, state, refreshCleanupCandidate{Branch: "feat-a", Base: "main", HasLocal: false}, fakeRefreshGit{
+		remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+		localBranchExistsFn:  func(string) bool { return false },
+		currentBranchFn:      func() (string, error) { return "main", nil },
+	})
+	if err == nil {
+		t.Fatal("expected cleanupMergedBranchForRefresh to return an error")
+	}
+	if !strings.Contains(err.Error(), "refresh cleanup failed for feat-a") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

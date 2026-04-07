@@ -72,7 +72,9 @@ func (a *App) cmdRefresh(restack bool, publish string) error {
 
 	deps := defaultRefreshPlanDeps()
 	for _, candidate := range plan.Cleanup {
-		cleanupMergedBranchForRefresh(a.stdout, state, candidate, deps.git)
+		if err := cleanupMergedBranchForRefresh(a.stdout, state, candidate, deps.git); err != nil {
+			return err
+		}
 	}
 
 	if persisted {
@@ -415,27 +417,12 @@ func syncAdvanceStackBodies(state *State, roots []string) error {
 }
 
 func cleanupMergedBranchForRefreshAdvance(out io.Writer, state *State, candidate refreshCleanupCandidate, switchTarget string, git refreshGitClient) error {
-	current, err := git.CurrentBranch()
-	if err != nil {
+	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, switchTarget); err != nil {
 		return err
 	}
-	if current == candidate.Branch {
-		if err := git.Run("switch", switchTarget); err != nil {
-			return fmt.Errorf("failed to switch to %s before cleanup: %w", switchTarget, err)
-		}
+	if err := cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
+		return err
 	}
-
-	if candidate.HasLocal {
-		if err := git.DeleteLocalBranch(candidate.Branch); err != nil {
-			return fmt.Errorf("failed to delete local merged branch %s: %w", candidate.Branch, err)
-		}
-	}
-
-	archiveMergedBranch(state, candidate.Branch)
-	reparentChildrenAfterCleanup(out, state, candidate.Branch, candidate.Base)
-	delete(state.Branches, candidate.Branch)
-	pruneArchivedLineage(state)
-	fmt.Fprintf(out, "%s -> cleaned merged branch from local stack state\n", candidate.Branch)
 	return nil
 }
 
@@ -534,50 +521,18 @@ func confirmRefreshApply(in io.Reader, out io.Writer) bool {
 	return answer == "y" || answer == "yes"
 }
 
-func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitClient) {
-	current, err := git.CurrentBranch()
-	if err == nil && current == candidate.Branch {
-		target := state.Trunk
-		if strings.TrimSpace(target) == "" {
-			target = "main"
-		}
-		if switchErr := git.Run("switch", target); switchErr != nil {
-			fmt.Fprintf(out, "%s -> failed to switch to %s before cleanup: %v\n", candidate.Branch, target, switchErr)
-			return
-		}
+func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitClient) error {
+	target := state.Trunk
+	if strings.TrimSpace(target) == "" {
+		target = "main"
 	}
-
-	if candidate.HasLocal {
-		if err := git.DeleteLocalBranch(candidate.Branch); err != nil {
-			fmt.Fprintf(out, "%s -> failed to delete local merged branch: %v\n", candidate.Branch, err)
-			return
-		}
+	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, target); err != nil {
+		return fmt.Errorf("refresh cleanup failed for %s: %w", candidate.Branch, err)
 	}
-
-	archiveMergedBranch(state, candidate.Branch)
-	reparentChildrenAfterCleanup(out, state, candidate.Branch, candidate.Base)
-	delete(state.Branches, candidate.Branch)
-	pruneArchivedLineage(state)
-	fmt.Fprintf(out, "%s -> cleaned merged branch from local stack state\n", candidate.Branch)
-}
-
-func reparentChildrenAfterCleanup(out io.Writer, state *State, removedBranch, replacementParent string) {
-	if strings.TrimSpace(replacementParent) == "" {
-		replacementParent = state.Trunk
+	if err := cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
+		return fmt.Errorf("refresh cleanup failed for %s: %w", candidate.Branch, err)
 	}
-	for name, meta := range state.Branches {
-		if name == removedBranch || meta == nil {
-			continue
-		}
-		if meta.Parent != removedBranch {
-			continue
-		}
-		meta.Parent = replacementParent
-		if meta.PR != nil {
-			meta.PR.Base = replacementParent
-		}
-		fmt.Fprintf(out, "%s -> reparented to %s after merged parent cleanup\n", name, replacementParent)
-	}
+	return nil
 }
 
 func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {
