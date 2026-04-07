@@ -30,8 +30,11 @@ func TestAdvanceSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 		mustGit(t, repo, "push", "-u", "origin", "feat-two")
 
 		mustGit(t, repo, "switch", "main")
-		mustGit(t, repo, "merge", "--squash", "feat-one")
-		mustGit(t, repo, "commit", "-m", "squash feat one")
+		mustGit(t, repo, "merge", "--no-ff", "feat-one", "-m", "merge feat one")
+		mergedMain, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			t.Fatalf("resolve merged main head: %v", err)
+		}
 		mustGit(t, repo, "push", "origin", "main")
 		mustGit(t, repo, "push", "origin", ":feat-one")
 		mustGit(t, repo, "switch", "feat-one")
@@ -48,7 +51,7 @@ func TestAdvanceSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 
 		fakeBin := t.TempDir()
 		ghPath := filepath.Join(fakeBin, "gh")
-		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
+		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergedMain)+"\"}}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
 			t.Fatalf("chmod fake gh: %v", err)
 		}

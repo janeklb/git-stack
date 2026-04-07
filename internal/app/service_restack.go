@@ -45,7 +45,15 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 			return err
 		}
 
-		if err := restackBranch(op.Mode, parent); err != nil {
+		oldBase := ""
+		if op.RebaseBases != nil {
+			oldBase = op.RebaseBases[branch]
+		}
+		if oldBase == "" && op.OriginalHeads != nil {
+			oldBase = op.OriginalHeads[parent]
+		}
+
+		if err := restackBranch(op.Mode, parent, oldBase); err != nil {
 			if saveErr := saveOperation(repoRoot, op); saveErr != nil {
 				return saveErr
 			}
@@ -118,9 +126,12 @@ func abortRestack(repoRoot string, out io.Writer) error {
 	return nil
 }
 
-func restackBranch(mode, parent string) error {
+func restackBranch(mode, parent, oldBase string) error {
 	if mode == "merge" {
 		return gitRun("merge", "--no-edit", "--no-ff", parent)
+	}
+	if oldBase != "" {
+		return gitRun("rebase", "--onto", parent, oldBase)
 	}
 	return gitRun("rebase", parent)
 }
