@@ -54,6 +54,9 @@ func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
 	if cleanup.Flags().Lookup("yes") == nil {
 		t.Fatalf("expected cleanup yes flag to exist")
 	}
+	if cleanup.Flags().Lookup("all") == nil {
+		t.Fatalf("expected cleanup all flag to exist")
+	}
 	if cleanup.Flags().Lookup("untracked") == nil {
 		t.Fatalf("expected cleanup untracked flag to exist")
 	}
