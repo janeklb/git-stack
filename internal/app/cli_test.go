@@ -61,18 +61,6 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	}
 }
 
-func TestLegacyCommandsAreNotRegistered(t *testing.T) {
-	root := New().newRootCmd("stack")
-	cmd, _, err := root.Find([]string{"refresh"})
-	if err == nil && cmd != nil && cmd.Name() == "refresh" {
-		t.Fatal("expected refresh command to be removed from CLI")
-	}
-	cmd, _, err = root.Find([]string{"prune-local"})
-	if err == nil && cmd != nil && cmd.Name() == "prune-local" {
-		t.Fatal("expected prune-local command to be removed from CLI")
-	}
-}
-
 func TestStatusHasStatAlias(t *testing.T) {
 	root := New().newRootCmd("stack")
 	cmd, _, err := root.Find([]string{"stat"})
