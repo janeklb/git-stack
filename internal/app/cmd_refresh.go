@@ -130,7 +130,7 @@ func (a *App) cmdAdvance(next string) error {
 	if err != nil {
 		return err
 	}
-	if len(candidate.Children) > 0 && strings.TrimSpace(candidate.Base) == strings.TrimSpace(state.Trunk) {
+	if strings.TrimSpace(candidate.Base) == strings.TrimSpace(state.Trunk) {
 		if err := syncLocalTrunkToFetchedRemote(state.Trunk); err != nil {
 			return err
 		}

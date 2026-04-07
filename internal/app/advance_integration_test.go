@@ -296,6 +296,75 @@ func TestAdvanceUsesFetchedRemoteTrunkWhenLocalTrunkIsStale(t *testing.T) {
 	})
 }
 
+func TestAdvanceFastForwardsLocalTrunkForMergedLastSlice(t *testing.T) {
+	repo := newTestRepo(t)
+	origin := newBareOrigin(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+		mustRunCLI(t, cli, []string{"new", "feat-one"})
+		mustWriteFile(t, filepath.Join(repo, "one.txt"), "one\n")
+		mustGit(t, repo, "add", "one.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+		mustGit(t, repo, "push", "-u", "origin", "feat-one")
+
+		mustGit(t, repo, "switch", "main")
+		mustGit(t, repo, "merge", "--squash", "feat-one")
+		mustGit(t, repo, "commit", "-m", "squash feat one")
+		mergedMain, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			t.Fatalf("resolve merged main head: %v", err)
+		}
+		mustGit(t, repo, "push", "origin", "main")
+		mustGit(t, repo, "push", "origin", ":feat-one")
+		mustGit(t, repo, "reset", "--hard", "HEAD~1")
+		mustGit(t, repo, "switch", "feat-one")
+
+		state, err := loadState(repo)
+		if err != nil {
+			t.Fatalf("load state: %v", err)
+		}
+		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
+		if err := saveState(repo, state); err != nil {
+			t.Fatalf("save state: %v", err)
+		}
+
+		fakeBin := t.TempDir()
+		ghPath := filepath.Join(fakeBin, "gh")
+		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergedMain)+"\"}}\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
+		if err := os.Chmod(ghPath, 0o755); err != nil {
+			t.Fatalf("chmod fake gh: %v", err)
+		}
+		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		out, code := runCLIAndCapture(t, cli, []string{"advance"})
+		if code != 0 {
+			t.Fatalf("advance failed with stale local trunk: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "advance completed") {
+			t.Fatalf("expected advance completion output, got:\n%s", out)
+		}
+
+		cur, err := currentBranch()
+		if err != nil {
+			t.Fatalf("current branch: %v", err)
+		}
+		if cur != "main" {
+			t.Fatalf("expected advance to switch to main after last-slice cleanup, got %s", cur)
+		}
+		localMain, err := gitOutput("rev-parse", "main")
+		if err != nil {
+			t.Fatalf("resolve local main head: %v", err)
+		}
+		if strings.TrimSpace(localMain) != strings.TrimSpace(mergedMain) {
+			t.Fatalf("expected local main fast-forwarded to fetched origin/main, got %q want %q", strings.TrimSpace(localMain), strings.TrimSpace(mergedMain))
+		}
+	})
+}
+
 func TestAdvanceAbortsBeforeCleanupWhenLocalTrunkDiverged(t *testing.T) {
 	repo := newTestRepo(t)
 	origin := newBareOrigin(t)
