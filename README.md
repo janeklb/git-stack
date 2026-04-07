@@ -57,7 +57,7 @@ Use test-name conventions to run fast unit coverage separately from integration 
 go test ./... -count=1 -skip IntegrationSmoke
 ```
 
-- Integration smoke wiring checks (`submit`, `prune-local`, `status`):
+- Integration smoke wiring checks (`submit`, `cleanup`, `status`):
 
 ```bash
 go test ./internal/app -count=1 -run IntegrationSmoke
@@ -80,7 +80,8 @@ stack status
 stack restack [--mode rebase|merge] [--continue] [--abort]
 stack submit [--all] [branch]
 stack reparent <branch> --parent <new-parent>
-stack prune-local [--yes]
+stack cleanup [--all] [--yes] [--include-squash] [--untracked]
+stack advance [--next <branch>]
 stack doctor
 stack completion [bash|zsh|fish|powershell]
 ```

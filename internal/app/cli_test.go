@@ -27,19 +27,8 @@ func TestCompletionBashOutputsScript(t *testing.T) {
 	}
 }
 
-func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
+func TestKeyCommandFlagsExist(t *testing.T) {
 	root := New().newRootCmd("stack")
-	refresh, _, err := root.Find([]string{"refresh"})
-	if err != nil {
-		t.Fatalf("find refresh command: %v", err)
-	}
-	flag := refresh.Flags().Lookup("publish")
-	if flag == nil {
-		t.Fatalf("expected publish flag to exist")
-	}
-	if flag.NoOptDefVal != "current" {
-		t.Fatalf("expected publish no-opt default current, got %q", flag.NoOptDefVal)
-	}
 	advance, _, err := root.Find([]string{"advance"})
 	if err != nil {
 		t.Fatalf("find advance command: %v", err)
@@ -69,6 +58,18 @@ func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
 	}
 	if reparent.Flags().Lookup("preserve-lineage") == nil {
 		t.Fatalf("expected reparent preserve-lineage flag to exist")
+	}
+}
+
+func TestLegacyCommandsAreNotRegistered(t *testing.T) {
+	root := New().newRootCmd("stack")
+	cmd, _, err := root.Find([]string{"refresh"})
+	if err == nil && cmd != nil && cmd.Name() == "refresh" {
+		t.Fatal("expected refresh command to be removed from CLI")
+	}
+	cmd, _, err = root.Find([]string{"prune-local"})
+	if err == nil && cmd != nil && cmd.Name() == "prune-local" {
+		t.Fatal("expected prune-local command to be removed from CLI")
 	}
 }
 
