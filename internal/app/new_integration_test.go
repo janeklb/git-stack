@@ -1,0 +1,62 @@
+package app
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+func TestNewAdoptTracksCurrentExistingBranchAfterStateExists(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+		mustGit(t, repo, "switch", "-c", "manual-branch")
+		mustWriteFile(t, filepath.Join(repo, "manual.txt"), "manual\n")
+		mustGit(t, repo, "add", "manual.txt")
+		mustGit(t, repo, "commit", "-m", "manual branch")
+
+		out, code := runCLIAndCapture(t, cli, []string{"new", "--adopt"})
+		if code != 0 {
+			t.Fatalf("new --adopt failed: exit=%d\n%s", code, out)
+		}
+		state := readStateFile(t, repo)
+		meta, ok := state.Branches["manual-branch"]
+		if !ok {
+			t.Fatal("expected manual-branch to be tracked after adopt")
+		}
+		if meta.Parent != "main" {
+			t.Fatalf("expected adopted branch parent main, got %q", meta.Parent)
+		}
+	})
+}
+
+func TestNewAdoptAllowsExplicitParentOverride(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+		mustRunCLI(t, cli, []string{"new", "base"})
+		mustGit(t, repo, "switch", "main")
+		mustGit(t, repo, "switch", "-c", "manual-branch")
+		mustWriteFile(t, filepath.Join(repo, "manual.txt"), "manual\n")
+		mustGit(t, repo, "add", "manual.txt")
+		mustGit(t, repo, "commit", "-m", "manual branch")
+
+		out, code := runCLIAndCapture(t, cli, []string{"new", "--adopt", "--parent", "base"})
+		if code != 0 {
+			t.Fatalf("new --adopt --parent failed: exit=%d\n%s", code, out)
+		}
+		state := readStateFile(t, repo)
+		meta, ok := state.Branches["manual-branch"]
+		if !ok {
+			t.Fatal("expected manual-branch to be tracked after adopt")
+		}
+		if meta.Parent != "base" || meta.LineageParent != "base" {
+			t.Fatalf("expected adopted branch parent/lineage to be base, got %+v", meta)
+		}
+	})
+}

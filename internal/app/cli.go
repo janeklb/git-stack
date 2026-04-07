@@ -80,21 +80,23 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	var newParent string
 	var newTemplate string
 	var newPrefixIndex bool
+	var newAdopt bool
 	newCmd := &cobra.Command{
 		Use:   "new [name]",
-		Short: "Create a new branch in stack",
+		Short: "Create or adopt a branch in stack",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := ""
 			if len(args) > 0 {
 				name = args[0]
 			}
-			return a.cmdNew(name, newParent, newTemplate, newPrefixIndex)
+			return a.cmdNew(name, newParent, newTemplate, newPrefixIndex, newAdopt)
 		},
 	}
 	newCmd.Flags().StringVar(&newParent, "parent", "", "parent branch")
 	newCmd.Flags().StringVar(&newTemplate, "template", "", "override naming template")
 	newCmd.Flags().BoolVar(&newPrefixIndex, "prefix-index", false, "prefix generated name with incrementing index")
+	newCmd.Flags().BoolVar(&newAdopt, "adopt", false, "track the current existing branch instead of creating a new one")
 	root.AddCommand(newCmd)
 
 	var statusAll bool

@@ -7,7 +7,20 @@ import (
 	"time"
 )
 
-func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
+func adoptExistingBranch(state *State, branch, parent string) error {
+	branch = strings.TrimSpace(branch)
+	parent = strings.TrimSpace(parent)
+	if branch == "" {
+		return errors.New("branch name cannot be empty")
+	}
+	if parent == "" {
+		return errors.New("parent branch cannot be empty")
+	}
+	state.Branches[branch] = &BranchRef{Parent: parent, LineageParent: parent}
+	return nil
+}
+
+func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
@@ -20,11 +33,12 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
 	}
 
 	name = strings.TrimSpace(name)
-	if name == "" {
+	if name == "" && !adopt {
 		name = fmt.Sprintf("change-%d", time.Now().Unix())
 	}
 
 	parentBranch := strings.TrimSpace(parent)
+	parentProvided := parentBranch != ""
 	if parentBranch == "" {
 		parentBranch, err = currentBranch()
 		if err != nil {
@@ -39,6 +53,39 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
 	if err != nil {
 		return err
 	}
+	if adopt {
+		branchName := cur
+		if strings.TrimSpace(name) != "" {
+			if strings.TrimSpace(name) != strings.TrimSpace(cur) {
+				return fmt.Errorf("adopt expects the current branch or no explicit name, got: %s", name)
+			}
+			branchName = strings.TrimSpace(name)
+		}
+		if !parentProvided {
+			branches, err := listLocalBranches()
+			if err != nil {
+				return err
+			}
+			parentBranch, err = inferParent(branchName, branches, state.Trunk)
+			if err != nil {
+				return err
+			}
+		}
+		if _, tracked := state.Branches[branchName]; tracked {
+			return fmt.Errorf("branch already tracked in stack: %s", branchName)
+		}
+		if err := adoptExistingBranch(state, branchName, parentBranch); err != nil {
+			return err
+		}
+		if !persisted {
+			a.printf("initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode)
+		}
+		if err := saveState(repoRoot, state); err != nil {
+			return err
+		}
+		a.printf("adopted %s (parent=%s)\n", branchName, parentBranch)
+		return nil
+	}
 	if parentBranch == cur && cur != state.Trunk {
 		if _, tracked := state.Branches[cur]; !tracked {
 			branches, err := listLocalBranches()
@@ -52,7 +99,6 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool) error {
 			state.Branches[cur] = &BranchRef{Parent: inferredParent, LineageParent: inferredParent}
 		}
 	}
-
 	slug := slugify(name)
 	if slug == "" {
 		return errors.New("branch name cannot be empty")
