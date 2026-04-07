@@ -27,19 +27,8 @@ func TestCompletionBashOutputsScript(t *testing.T) {
 	}
 }
 
-func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
+func TestKeyCommandFlagsExist(t *testing.T) {
 	root := New().newRootCmd("stack")
-	refresh, _, err := root.Find([]string{"refresh"})
-	if err != nil {
-		t.Fatalf("find refresh command: %v", err)
-	}
-	flag := refresh.Flags().Lookup("publish")
-	if flag == nil {
-		t.Fatalf("expected publish flag to exist")
-	}
-	if flag.NoOptDefVal != "current" {
-		t.Fatalf("expected publish no-opt default current, got %q", flag.NoOptDefVal)
-	}
 	advance, _, err := root.Find([]string{"advance"})
 	if err != nil {
 		t.Fatalf("find advance command: %v", err)

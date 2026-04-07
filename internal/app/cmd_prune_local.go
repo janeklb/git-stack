@@ -145,23 +145,15 @@ func (a *App) cmdCleanup(yes bool, all bool, includeSquash bool, untracked bool)
 	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
 		return err
 	}
-	return a.runCleanupCommand(repoRoot, state, "cleanup", yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, mergeDetection: cleanupMergeDetectionPolicy(state, includeSquash), includeUntracked: untracked})
+	return a.runCleanupCommand(repoRoot, state, yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, mergeDetection: cleanupMergeDetectionPolicy(state, includeSquash), includeUntracked: untracked})
 }
 
-func (a *App) cmdPruneLocal(yes bool) error {
-	repoRoot, state, err := loadStateFromRepo()
-	if err != nil {
-		return err
-	}
-	return a.runCleanupCommand(repoRoot, state, "prune-local", yes, pruneLocalScope{mergeDetection: cleanupMergeDetectionPolicy(state, false), includeUntracked: true})
-}
-
-func (a *App) runCleanupCommand(repoRoot string, state *State, commandName string, yes bool, scope pruneLocalScope) error {
+func (a *App) runCleanupCommand(repoRoot string, state *State, yes bool, scope pruneLocalScope) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
 	if err := gitRun("fetch", "--prune", "origin"); err != nil {
-		return fmt.Errorf("%s fetch failed: %w", commandName, err)
+		return fmt.Errorf("cleanup fetch failed: %w", err)
 	}
 	if scope.trackedBranches == nil {
 		if scope.trackedFromCurrent {
@@ -180,13 +172,13 @@ func (a *App) runCleanupCommand(repoRoot string, state *State, commandName strin
 		return err
 	}
 	if len(plan.Delete) == 0 {
-		a.println(commandName + ": nothing to do")
+		a.println("cleanup: nothing to do")
 		return nil
 	}
 
-	printCleanupPlan(a.stdout, commandName, plan)
-	if !yes && !confirmCleanupApply(a.in, a.stdout, commandName) {
-		a.println(commandName + " cancelled")
+	printCleanupPlan(a.stdout, plan)
+	if !yes && !confirmCleanupApply(a.in, a.stdout) {
+		a.println("cleanup cancelled")
 		return nil
 	}
 
@@ -217,7 +209,7 @@ func (a *App) runCleanupCommand(repoRoot string, state *State, commandName strin
 		a.printf("%s -> deleted local branch (merged PR #%d)\n", candidate.Branch, candidate.PR.Number)
 	}
 
-	a.println(commandName + " completed")
+	a.println("cleanup completed")
 	return nil
 }
 
@@ -292,8 +284,8 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 	return plan, nil
 }
 
-func printCleanupPlan(out io.Writer, commandName string, plan *pruneLocalPlan) {
-	fmt.Fprintf(out, "%s plan:\n", commandName)
+func printCleanupPlan(out io.Writer, plan *pruneLocalPlan) {
+	fmt.Fprintln(out, "cleanup plan:")
 	for _, candidate := range plan.Delete {
 		fmt.Fprintf(out, "- delete: %s (PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
 	}
@@ -302,9 +294,9 @@ func printCleanupPlan(out io.Writer, commandName string, plan *pruneLocalPlan) {
 	}
 }
 
-func confirmCleanupApply(in io.Reader, out io.Writer, commandName string) bool {
+func confirmCleanupApply(in io.Reader, out io.Writer) bool {
 	reader := bufio.NewReader(in)
-	fmt.Fprintf(out, "apply %s plan? [y/N]: ", commandName)
+	fmt.Fprint(out, "apply cleanup plan? [y/N]: ")
 	answer, err := readPromptLine(reader)
 	if err != nil {
 		return false

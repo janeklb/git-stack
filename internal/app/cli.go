@@ -171,23 +171,6 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	}
 	root.AddCommand(doctorCmd)
 
-	var refreshRestack bool
-	var refreshPublish string
-	refreshCmd := &cobra.Command{
-		Use:   "refresh",
-		Short: "Fetch, clean merged branches, and reconcile stack state",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdRefresh(refreshRestack, refreshPublish)
-		},
-	}
-	refreshCmd.Flags().BoolVar(&refreshRestack, "restack", false, "run restack after cleanup")
-	refreshCmd.Flags().StringVar(&refreshPublish, "publish", "", "refresh PR metadata scope: current or all")
-	if publishFlag := refreshCmd.Flags().Lookup("publish"); publishFlag != nil {
-		publishFlag.NoOptDefVal = "current"
-	}
-	root.AddCommand(refreshCmd)
-
 	var advanceNext string
 	advanceCmd := &cobra.Command{
 		Use:   "advance",
@@ -217,18 +200,6 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	cleanupCmd.Flags().BoolVar(&cleanupIncludeSquash, "include-squash", false, "allow cleanup for squash-integrated branches")
 	cleanupCmd.Flags().BoolVar(&cleanupUntracked, "untracked", false, "also clean eligible untracked local branches")
 	root.AddCommand(cleanupCmd)
-
-	var pruneLocalYes bool
-	pruneLocalCmd := &cobra.Command{
-		Use:   "prune-local",
-		Short: "Delete merged local branches not tracked in stack state",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdPruneLocal(pruneLocalYes)
-		},
-	}
-	pruneLocalCmd.Flags().BoolVar(&pruneLocalYes, "yes", false, "apply without confirmation prompt")
-	root.AddCommand(pruneLocalCmd)
 
 	return root
 }
