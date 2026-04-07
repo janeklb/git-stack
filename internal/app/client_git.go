@@ -183,6 +183,25 @@ func branchAtOrBehindCommit(branch, commit string) (bool, error) {
 	return commitIsAncestor(branchRef, strings.TrimSpace(commit))
 }
 
+func branchHasCommitsSince(base, branch string) (bool, error) {
+	baseRef, err := resolveBranchRef(base)
+	if err != nil {
+		return false, err
+	}
+	branchRef, err := resolveBranchRef(branch)
+	if err != nil {
+		return false, err
+	}
+	if baseRef == branchRef {
+		return false, nil
+	}
+	out, err := gitOutput("rev-list", "--count", baseRef+".."+branchRef)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "0", nil
+}
+
 func resolveBranchRef(branch string) (string, error) {
 	if strings.TrimSpace(branch) == "" {
 		return "", errors.New("empty branch")

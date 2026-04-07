@@ -9,6 +9,8 @@ import (
 
 type fakeSubmitGitClient struct {
 	pushCalls []string
+	local     map[string]bool
+	ahead     map[string]bool
 }
 
 func (f *fakeSubmitGitClient) PushBranch(branch string) error {
@@ -18,6 +20,21 @@ func (f *fakeSubmitGitClient) PushBranch(branch string) error {
 
 func (f *fakeSubmitGitClient) RemoteBranchExists(string) (bool, error) {
 	return false, nil
+}
+
+func (f *fakeSubmitGitClient) LocalBranchExists(branch string) bool {
+	if f.local == nil {
+		return true
+	}
+	return f.local[branch]
+}
+
+func (f *fakeSubmitGitClient) BranchHasCommitsSince(base, branch string) (bool, error) {
+	_ = base
+	if f.ahead == nil {
+		return true, nil
+	}
+	return f.ahead[branch], nil
 }
 
 func (f *fakeSubmitGitClient) CurrentBranch() (string, error) {
@@ -217,5 +234,79 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	}
 	if state.Branches["feat-one"].PR == nil || state.Branches["feat-one"].PR.Number != 11 {
 		t.Fatalf("expected state PR metadata to be updated, got %+v", state.Branches["feat-one"].PR)
+	}
+}
+
+func TestCmdSubmitSkipsMissingLocalBranch(t *testing.T) {
+	var out strings.Builder
+	app := NewWithIO(strings.NewReader(""), &out, io.Discard)
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"feat-one": {Parent: "main", PR: nil},
+	}}
+	git := &fakeSubmitGitClient{local: map[string]bool{"feat-one": false}}
+
+	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
+		git:                 git,
+		gh:                  fakeSubmitGHClient{},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, false, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+			t.Fatal("ensurePR should not run for missing local branch")
+			return nil, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error { return nil },
+		saveState:            func(string, *State) error { return nil },
+		cleanupMergedBranch:  func(*State, string) {},
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if len(git.pushCalls) != 0 {
+		t.Fatalf("expected no pushes, got %v", git.pushCalls)
+	}
+	if !strings.Contains(out.String(), "feat-one -> skipped: local branch no longer exists") {
+		t.Fatalf("expected missing-branch skip output, got:\n%s", out.String())
+	}
+}
+
+func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
+	var out strings.Builder
+	app := NewWithIO(strings.NewReader(""), &out, io.Discard)
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"feat-one": {Parent: "main", PR: nil},
+	}}
+	git := &fakeSubmitGitClient{local: map[string]bool{"feat-one": true}, ahead: map[string]bool{"feat-one": false}}
+
+	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
+		git:                 git,
+		gh:                  fakeSubmitGHClient{},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, false, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+			t.Fatal("ensurePR should not run when branch has no commits beyond parent")
+			return nil, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error { return nil },
+		saveState:            func(string, *State) error { return nil },
+		cleanupMergedBranch:  func(*State, string) {},
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if len(git.pushCalls) != 0 {
+		t.Fatalf("expected no pushes, got %v", git.pushCalls)
+	}
+	if !strings.Contains(out.String(), "feat-one -> skipped: no commits beyond main") {
+		t.Fatalf("expected empty-range skip output, got:\n%s", out.String())
 	}
 }
