@@ -33,6 +33,7 @@ type pruneLocalScope struct {
 	trackedBranches    map[string]bool
 	trackedFromCurrent bool
 	allTracked         bool
+	mergeDetection     string
 	includeUntracked   bool
 }
 
@@ -58,20 +59,83 @@ func cleanupTrackedScope(state *State, current string, all bool) map[string]bool
 	return branchesInCurrentStack(state, current)
 }
 
-func (a *App) cmdCleanup(yes bool, all bool, untracked bool) error {
-	return a.runCleanupCommand("cleanup", yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, includeUntracked: untracked})
+func cleanupMergeDetectionPolicy(state *State, includeSquash bool) string {
+	if includeSquash {
+		return "include-squash"
+	}
+	policy := strings.TrimSpace(state.Cleanup.MergeDetection)
+	if policy == "" {
+		return cleanupMergeDetectionStrict
+	}
+	return policy
+}
+
+func cleanupMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, policy string) (bool, string) {
+	if strings.TrimSpace(policy) == "" {
+		policy = cleanupMergeDetectionStrict
+	}
+	head := strings.TrimSpace(pr.HeadRefOID)
+	if head == "" {
+		return false, "missing PR head commit"
+	}
+	atOrBehind, headErr := git.BranchAtOrBehindCommit(branch, head)
+	if headErr != nil {
+		return false, "head ancestry check failed"
+	}
+	if !atOrBehind {
+		return false, "local commits ahead of PR head"
+	}
+
+	mergeCommit := ""
+	if pr.MergeCommit != nil {
+		mergeCommit = strings.TrimSpace(pr.MergeCommit.OID)
+	}
+	if mergeCommit != "" {
+		contains, containsErr := git.BaseContainsCommit(base, mergeCommit)
+		if containsErr != nil {
+			return false, "merge containment check failed"
+		}
+		if contains {
+			return true, ""
+		}
+		if policy == cleanupMergeDetectionStrict {
+			return false, "merge commit not in trunk"
+		}
+	} else if policy == cleanupMergeDetectionStrict {
+		return false, "missing merge commit"
+	}
+
+	if policy != "include-squash" {
+		return false, "unsupported cleanup merge detection policy"
+	}
+	integrated, integratedErr := git.BranchFullyIntegrated(branch, base)
+	if integratedErr != nil {
+		return false, "integration check failed"
+	}
+	if !integrated {
+		return false, "branch not fully integrated into trunk"
+	}
+	return true, ""
+}
+
+func (a *App) cmdCleanup(yes bool, all bool, includeSquash bool, untracked bool) error {
+	repoRoot, state, err := loadStateFromRepo()
+	if err != nil {
+		return err
+	}
+	return a.runCleanupCommand(repoRoot, state, "cleanup", yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, mergeDetection: cleanupMergeDetectionPolicy(state, includeSquash), includeUntracked: untracked})
 }
 
 func (a *App) cmdPruneLocal(yes bool) error {
-	return a.runCleanupCommand("prune-local", yes, pruneLocalScope{includeUntracked: true})
-}
-
-func (a *App) runCleanupCommand(commandName string, yes bool, scope pruneLocalScope) error {
-	if err := ensureCleanWorktree(); err != nil {
-		return err
-	}
 	repoRoot, state, err := loadStateFromRepo()
 	if err != nil {
+		return err
+	}
+	return a.runCleanupCommand(repoRoot, state, "prune-local", yes, pruneLocalScope{mergeDetection: cleanupMergeDetectionPolicy(state, false), includeUntracked: true})
+}
+
+func (a *App) runCleanupCommand(repoRoot string, state *State, commandName string, yes bool, scope pruneLocalScope) error {
+	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
 	if err := gitRun("fetch", "--prune", "origin"); err != nil {
@@ -150,6 +214,9 @@ func buildPruneLocalPlan(state *State, scope pruneLocalScope) (*pruneLocalPlan, 
 }
 
 func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pruneLocalScope) (*pruneLocalPlan, error) {
+	if strings.TrimSpace(scope.mergeDetection) == "" {
+		scope.mergeDetection = cleanupMergeDetectionStrict
+	}
 	branches, err := deps.git.ListLocalBranches()
 	if err != nil {
 		return nil, err
@@ -198,36 +265,9 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 			continue
 		}
 
-		head := strings.TrimSpace(pr.HeadRefOID)
-		if head == "" {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "missing PR head commit"})
-			continue
-		}
-		atOrBehind, headErr := deps.git.BranchAtOrBehindCommit(branch, head)
-		if headErr != nil {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "head ancestry check failed"})
-			continue
-		}
-		if !atOrBehind {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "local commits ahead of PR head"})
-			continue
-		}
-
-		mergeCommit := ""
-		if pr.MergeCommit != nil {
-			mergeCommit = strings.TrimSpace(pr.MergeCommit.OID)
-		}
-		if mergeCommit == "" {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "missing merge commit"})
-			continue
-		}
-		contains, containsErr := deps.git.BaseContainsCommit(base, mergeCommit)
-		if containsErr != nil {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merge containment check failed"})
-			continue
-		}
-		if !contains {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merge commit not in trunk"})
+		eligible, reason := cleanupMergeEligible(deps.git, branch, base, pr, scope.mergeDetection)
+		if !eligible {
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: reason})
 			continue
 		}
 

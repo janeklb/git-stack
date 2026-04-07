@@ -17,6 +17,7 @@ type pruneGitClient interface {
 	RemoteBranchExists(branch string) (bool, error)
 	BranchAtOrBehindCommit(branch, commit string) (bool, error)
 	BaseContainsCommit(base, commit string) (bool, error)
+	BranchFullyIntegrated(branch, base string) (bool, error)
 }
 
 type pruneGHClient interface {
