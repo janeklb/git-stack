@@ -57,6 +57,13 @@ func TestRefreshPublishFlagNoOptDefaultIsCurrent(t *testing.T) {
 	if cleanup.Flags().Lookup("untracked") == nil {
 		t.Fatalf("expected cleanup untracked flag to exist")
 	}
+	reparent, _, err := root.Find([]string{"reparent"})
+	if err != nil {
+		t.Fatalf("find reparent command: %v", err)
+	}
+	if reparent.Flags().Lookup("preserve-lineage") == nil {
+		t.Fatalf("expected reparent preserve-lineage flag to exist")
+	}
 }
 
 func TestStatusHasStatAlias(t *testing.T) {

@@ -146,15 +146,17 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	root.AddCommand(submitCmd)
 
 	var reparentParent string
+	var reparentPreserveLineage bool
 	reparentCmd := &cobra.Command{
 		Use:   "reparent <branch>",
 		Short: "Change the parent branch for a stack branch",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdReparent(args[0], reparentParent)
+			return a.cmdReparent(args[0], reparentParent, reparentPreserveLineage)
 		},
 	}
 	reparentCmd.Flags().StringVar(&reparentParent, "parent", "", "new parent branch")
+	reparentCmd.Flags().BoolVar(&reparentPreserveLineage, "preserve-lineage", false, "keep the existing lineage parent")
 	_ = reparentCmd.MarkFlagRequired("parent")
 	root.AddCommand(reparentCmd)
 

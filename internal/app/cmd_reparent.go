@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (a *App) cmdReparent(target, newParent string) error {
+func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error {
 	if strings.TrimSpace(target) == "" {
 		return errors.New("usage: stack reparent <branch> --parent <new-parent>")
 	}
@@ -51,7 +51,9 @@ func (a *App) cmdReparent(target, newParent string) error {
 	}
 
 	meta.Parent = newParent
-	meta.LineageParent = newParent
+	if !preserveLineage {
+		meta.LineageParent = newParent
+	}
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}

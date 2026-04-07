@@ -16,7 +16,8 @@ type testState struct {
 }
 
 type testBranchReference struct {
-	Parent string `json:"parent"`
+	Parent        string `json:"parent"`
+	LineageParent string `json:"lineageParent"`
 }
 
 func newTestRepo(t *testing.T) string {
