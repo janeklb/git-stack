@@ -22,9 +22,17 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 		if err := gitRun(contArgs...); err != nil {
 			return fmt.Errorf("failed to continue %s: %w", op.Mode, err)
 		}
-		op.Index++
-		if err := saveOperation(repoRoot, op); err != nil {
+		active, err := restackGitOperationInProgress(op.Mode)
+		if err != nil {
 			return err
+		}
+		completed, err := recordRestackContinueProgress(repoRoot, op, !active)
+		if err != nil {
+			return err
+		}
+		if !completed {
+			fmt.Fprintf(out, "%s still in progress on %s; resolve remaining steps then run stack restack --continue again\n", op.Mode, op.Queue[op.Index])
+			return nil
 		}
 	}
 
@@ -74,6 +82,16 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 	}
 	fmt.Fprintln(out, "restack completed")
 	return nil
+}
+
+func recordRestackContinueProgress(repoRoot string, op *RestackOperation, completed bool) (bool, error) {
+	if completed {
+		op.Index++
+	}
+	if err := saveOperation(repoRoot, op); err != nil {
+		return false, err
+	}
+	return completed, nil
 }
 
 func continueRestack(repoRoot string, state *State, out io.Writer) error {
