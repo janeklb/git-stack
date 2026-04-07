@@ -130,6 +130,11 @@ func (a *App) cmdAdvance(next string) error {
 	if err != nil {
 		return err
 	}
+	if len(candidate.Children) > 0 && strings.TrimSpace(candidate.Base) == strings.TrimSpace(state.Trunk) {
+		if err := syncLocalTrunkToFetchedRemote(state.Trunk); err != nil {
+			return err
+		}
+	}
 
 	a.printf("advance: cleanup %s, switch to %s, restack, submit all\n", candidate.Branch, target)
 	if err := cleanupMergedBranchForRefreshAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
@@ -336,6 +341,53 @@ func advanceDescendantQueue(state *State, roots []string) []string {
 		visit(root)
 	}
 	return selected
+}
+
+func syncLocalTrunkToFetchedRemote(trunk string) error {
+	trunk = strings.TrimSpace(trunk)
+	if trunk == "" {
+		return nil
+	}
+	remoteRef := "origin/" + trunk
+	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/remotes/origin/"+trunk) != nil {
+		return nil
+	}
+	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+trunk) != nil {
+		return nil
+	}
+	localCommit, err := resolveBranchRef(trunk)
+	if err != nil {
+		return err
+	}
+	remoteCommit, err := resolveBranchRef(remoteRef)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(localCommit) == strings.TrimSpace(remoteCommit) {
+		return nil
+	}
+	canFastForward, err := commitIsAncestor(localCommit, remoteCommit)
+	if err != nil {
+		return err
+	}
+	if !canFastForward {
+		return fmt.Errorf("local trunk %s has diverged from fetched %s; update it before advancing", trunk, remoteRef)
+	}
+	current, err := currentBranch()
+	if err != nil {
+		return err
+	}
+	if current == trunk {
+		return gitRun("merge", "--ff-only", remoteRef)
+	}
+	if err := gitRunQuiet("switch", trunk); err != nil {
+		return err
+	}
+	if err := gitRun("merge", "--ff-only", remoteRef); err != nil {
+		_ = gitRunQuiet("switch", current)
+		return err
+	}
+	return gitRunQuiet("switch", current)
 }
 
 func syncAdvanceStackBodies(state *State, roots []string) error {
