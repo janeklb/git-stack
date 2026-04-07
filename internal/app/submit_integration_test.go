@@ -234,6 +234,9 @@ func TestSubmitForcePushesWithLeaseAfterHistoryRewrite(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("submit failed: exit=%d\n%s", code, out)
 		}
+		if strings.Contains(out, "failed to push some refs") {
+			t.Fatalf("expected single force-with-lease push without retry noise, got:\n%s", out)
+		}
 
 		localHead, err := gitOutput("rev-parse", "feat-one")
 		if err != nil {
