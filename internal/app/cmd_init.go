@@ -60,6 +60,7 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
+	a.println("note: stack init is a repair/reconfiguration command; normal mutating workflows should auto-bootstrap state when possible")
 	a.printf("initialized stack state (trunk=%s, mode=%s)\n", detectedTrunk, mode)
 	return nil
 }
