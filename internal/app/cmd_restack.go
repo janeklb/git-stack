@@ -26,7 +26,7 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
-	if _, err := ensurePersistedState(repoRoot, state, persisted, a.printf); err != nil {
+	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
 		return err
 	}
 	op, _ := loadOperation(repoRoot)

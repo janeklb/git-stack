@@ -24,7 +24,7 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 	if err != nil {
 		return err
 	}
-	if _, err := ensurePersistedState(repoRoot, state, persisted, a.printf); err != nil {
+	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
 		return err
 	}
 	meta, ok := state.Branches[target]

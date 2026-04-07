@@ -142,7 +142,7 @@ func (a *App) cmdCleanup(yes bool, all bool, includeSquash bool, untracked bool)
 	if err != nil {
 		return err
 	}
-	if _, err := ensurePersistedState(repoRoot, state, persisted, a.printf); err != nil {
+	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
 		return err
 	}
 	return a.runCleanupCommand(repoRoot, state, "cleanup", yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, mergeDetection: cleanupMergeDetectionPolicy(state, includeSquash), includeUntracked: untracked})
