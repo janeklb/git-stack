@@ -77,13 +77,13 @@ func (a *App) runCleanupCommand(commandName string, yes bool, scope pruneLocalSc
 		return err
 	}
 	if len(plan.Delete) == 0 {
-		a.printf("%s: nothing to do\n", commandName)
+		a.println(commandName + ": nothing to do")
 		return nil
 	}
 
 	printCleanupPlan(a.stdout, commandName, plan)
 	if !yes && !confirmCleanupApply(a.in, a.stdout, commandName) {
-		a.printf("%s cancelled\n", commandName)
+		a.println(commandName + " cancelled")
 		return nil
 	}
 
@@ -114,7 +114,7 @@ func (a *App) runCleanupCommand(commandName string, yes bool, scope pruneLocalSc
 		a.printf("%s -> deleted local branch (merged PR #%d)\n", candidate.Branch, candidate.PR.Number)
 	}
 
-	a.printf("%s completed\n", commandName)
+	a.println(commandName + " completed")
 	return nil
 }
 
