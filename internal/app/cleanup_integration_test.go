@@ -99,3 +99,94 @@ func TestCleanupDefaultsToCurrentStackScope(t *testing.T) {
 		}
 	})
 }
+
+func TestCleanupUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
+	repo := newTestRepo(t)
+	origin := newBareOrigin(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+
+		mustRunCLI(t, cli, []string{"new", "tracked-a"})
+		mustWriteFile(t, filepath.Join(repo, "tracked-a.txt"), "tracked-a\n")
+		mustGit(t, repo, "add", "tracked-a.txt")
+		mustGit(t, repo, "commit", "-m", "tracked a")
+		headA, err := gitOutput("rev-parse", "tracked-a")
+		if err != nil {
+			t.Fatalf("resolve tracked-a head: %v", err)
+		}
+		mustGit(t, repo, "push", "-u", "origin", "tracked-a")
+
+		mustRunCLI(t, cli, []string{"new", "active-child", "--parent", "tracked-a"})
+		mustWriteFile(t, filepath.Join(repo, "active-child.txt"), "active-child\n")
+		mustGit(t, repo, "add", "active-child.txt")
+		mustGit(t, repo, "commit", "-m", "active child")
+
+		mustGit(t, repo, "switch", "main")
+		mustRunCLI(t, cli, []string{"new", "tracked-b", "--parent", "main"})
+		mustWriteFile(t, filepath.Join(repo, "tracked-b.txt"), "tracked-b\n")
+		mustGit(t, repo, "add", "tracked-b.txt")
+		mustGit(t, repo, "commit", "-m", "tracked b")
+		headB, err := gitOutput("rev-parse", "tracked-b")
+		if err != nil {
+			t.Fatalf("resolve tracked-b head: %v", err)
+		}
+		mustGit(t, repo, "push", "-u", "origin", "tracked-b")
+
+		mustGit(t, repo, "switch", "main")
+		mustGit(t, repo, "switch", "-c", "untracked-old")
+		mustWriteFile(t, filepath.Join(repo, "untracked-old.txt"), "untracked-old\n")
+		mustGit(t, repo, "add", "untracked-old.txt")
+		mustGit(t, repo, "commit", "-m", "untracked old")
+		headUntracked, err := gitOutput("rev-parse", "untracked-old")
+		if err != nil {
+			t.Fatalf("resolve untracked-old head: %v", err)
+		}
+
+		mustGit(t, repo, "switch", "main")
+		mustGit(t, repo, "merge", "--no-ff", "tracked-a", "-m", "merge tracked-a")
+		mergeA, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			t.Fatalf("resolve tracked-a merge commit: %v", err)
+		}
+		mustGit(t, repo, "merge", "--no-ff", "tracked-b", "-m", "merge tracked-b")
+		mergeB, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			t.Fatalf("resolve tracked-b merge commit: %v", err)
+		}
+		mustGit(t, repo, "merge", "--no-ff", "untracked-old", "-m", "merge untracked-old")
+		mergeUntracked, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			t.Fatalf("resolve untracked-old merge commit: %v", err)
+		}
+		mustGit(t, repo, "push", "origin", "main")
+		mustGit(t, repo, "push", "origin", ":tracked-a")
+		mustGit(t, repo, "push", "origin", ":tracked-b")
+		mustGit(t, repo, "switch", "active-child")
+
+		fakeBin := t.TempDir()
+		ghPath := filepath.Join(fakeBin, "gh")
+		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ] && [ \"$3\" = \"--head\" ]; then\n  if [ \"$4\" = \"tracked-a\" ]; then\n    cat <<'EOF'\n[{\"number\":31,\"url\":\"https://example.invalid/pr/31\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headA)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeA)+"\"}}]\nEOF\n    exit 0\n  fi\n  if [ \"$4\" = \"tracked-b\" ]; then\n    cat <<'EOF'\n[{\"number\":32,\"url\":\"https://example.invalid/pr/32\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headB)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeB)+"\"}}]\nEOF\n    exit 0\n  fi\n  if [ \"$4\" = \"untracked-old\" ]; then\n    cat <<'EOF'\n[{\"number\":33,\"url\":\"https://example.invalid/pr/33\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headUntracked)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeUntracked)+"\"}}]\nEOF\n    exit 0\n  fi\n  echo '[]'\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
+		if err := os.Chmod(ghPath, 0o755); err != nil {
+			t.Fatalf("chmod fake gh: %v", err)
+		}
+		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		out, code := runCLIAndCapture(t, cli, []string{"cleanup", "--yes", "--untracked"})
+		if code != 0 {
+			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "tracked-a -> deleted local branch") {
+			t.Fatalf("expected tracked-a cleanup output, got:\n%s", out)
+		}
+		if strings.Contains(out, "tracked-b -> deleted local branch") {
+			t.Fatalf("did not expect unrelated tracked stack cleanup, got:\n%s", out)
+		}
+		if !strings.Contains(out, "untracked-old -> deleted local branch") {
+			t.Fatalf("expected global untracked cleanup output, got:\n%s", out)
+		}
+	})
+}

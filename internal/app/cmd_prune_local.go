@@ -37,6 +37,25 @@ type pruneLocalScope struct {
 	includeUntracked   bool
 }
 
+func cleanupDiscoveryBranches(state *State, branches []string, scope pruneLocalScope) []string {
+	selected := []string{}
+	for _, branch := range branches {
+		if branch == "" || branch == state.Trunk {
+			continue
+		}
+		_, tracked := state.Branches[branch]
+		if tracked {
+			if scope.trackedBranches != nil && !scope.trackedBranches[branch] {
+				continue
+			}
+		} else if !scope.includeUntracked {
+			continue
+		}
+		selected = append(selected, branch)
+	}
+	return selected
+}
+
 func defaultPruneLocalPlanDeps() pruneLocalPlanDeps {
 	return pruneLocalPlanDeps{
 		git: defaultGitClient{},
@@ -222,20 +241,7 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 		return nil, err
 	}
 	plan := &pruneLocalPlan{}
-	for _, branch := range branches {
-		if branch == "" || branch == state.Trunk {
-			continue
-		}
-
-		_, tracked := state.Branches[branch]
-		if tracked {
-			if scope.trackedBranches != nil && !scope.trackedBranches[branch] {
-				continue
-			}
-		} else if !scope.includeUntracked {
-			continue
-		}
-
+	for _, branch := range cleanupDiscoveryBranches(state, branches, scope) {
 		remoteExists, remoteErr := deps.git.RemoteBranchExists(branch)
 		if remoteErr != nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "remote check failed"})

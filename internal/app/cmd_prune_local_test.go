@@ -153,6 +153,32 @@ func TestBuildPruneLocalPlanDefaultCleanupExcludesUntrackedBranches(t *testing.T
 	}
 }
 
+func TestCleanupDiscoveryBranchesUsesTrackedScopeAndOptionalGlobalUntracked(t *testing.T) {
+	t.Parallel()
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"tracked-in":  {Parent: "main"},
+			"tracked-out": {Parent: "main"},
+		},
+	}
+	branches := []string{"main", "tracked-in", "tracked-out", "untracked-a", "untracked-b"}
+
+	withoutUntracked := cleanupDiscoveryBranches(state, branches, pruneLocalScope{trackedBranches: map[string]bool{"tracked-in": true}})
+	if len(withoutUntracked) != 1 || withoutUntracked[0] != "tracked-in" {
+		t.Fatalf("expected only in-scope tracked branch without --untracked, got %#v", withoutUntracked)
+	}
+
+	withUntracked := cleanupDiscoveryBranches(state, branches, pruneLocalScope{trackedBranches: map[string]bool{"tracked-in": true}, includeUntracked: true})
+	if len(withUntracked) != 3 {
+		t.Fatalf("expected tracked scope plus global untracked branches, got %#v", withUntracked)
+	}
+	if withUntracked[0] != "tracked-in" || withUntracked[1] != "untracked-a" || withUntracked[2] != "untracked-b" {
+		t.Fatalf("unexpected discovery ordering/content: %#v", withUntracked)
+	}
+}
+
 func TestCleanupTrackedScopeUsesCurrentStackByDefault(t *testing.T) {
 	t.Parallel()
 
