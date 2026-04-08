@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 )
 
@@ -51,4 +52,85 @@ func cleanupMergedBranchState(out io.Writer, state *State, branch, replacementPa
 		return fmt.Errorf("failed to write cleanup output for %s: %w", branch, err)
 	}
 	return nil
+}
+
+func archiveMergedBranch(state *State, branch string) {
+	meta := state.Branches[branch]
+	if meta == nil {
+		return
+	}
+	if state.Archived == nil {
+		state.Archived = map[string]*ArchivedRef{}
+	}
+	parent := strings.TrimSpace(meta.LineageParent)
+	if parent == "" {
+		parent = strings.TrimSpace(meta.Parent)
+	}
+	state.Archived[branch] = &ArchivedRef{Parent: parent, PR: meta.PR}
+}
+
+func pruneArchivedLineage(state *State) {
+	if len(state.Archived) == 0 {
+		return
+	}
+	keep := map[string]bool{}
+	for _, meta := range state.Branches {
+		lineageParent := strings.TrimSpace(meta.LineageParent)
+		if lineageParent == "" {
+			lineageParent = strings.TrimSpace(meta.Parent)
+		}
+		cur := lineageParent
+		seen := map[string]bool{}
+		for cur != "" && cur != state.Trunk {
+			if seen[cur] {
+				break
+			}
+			seen[cur] = true
+			archived, ok := state.Archived[cur]
+			if !ok || archived == nil {
+				break
+			}
+			keep[cur] = true
+			cur = strings.TrimSpace(archived.Parent)
+		}
+	}
+	for branch := range state.Archived {
+		if keep[branch] {
+			continue
+		}
+		delete(state.Archived, branch)
+	}
+}
+
+func reparentChildrenAfterMergedDeletion(state *State, deletedBranch, replacementParent string, out io.Writer) {
+	if strings.TrimSpace(replacementParent) == "" {
+		replacementParent = state.Trunk
+	}
+	for name, meta := range state.Branches {
+		if name == deletedBranch || meta == nil {
+			continue
+		}
+		if meta.Parent != deletedBranch {
+			continue
+		}
+		meta.Parent = replacementParent
+		if meta.PR != nil {
+			meta.PR.Base = replacementParent
+		}
+		fmt.Fprintf(out, "%s -> reparented to %s after merged parent cleanup\n", name, replacementParent)
+	}
+}
+
+func mergedBranchChildren(state *State, branch string) []string {
+	children := []string{}
+	for name, meta := range state.Branches {
+		if name == branch || meta == nil {
+			continue
+		}
+		if meta.Parent == branch {
+			children = append(children, name)
+		}
+	}
+	sort.Strings(children)
+	return children
 }
