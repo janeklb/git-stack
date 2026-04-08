@@ -10,100 +10,27 @@ import (
 	"strings"
 )
 
-type refreshCleanupCandidate struct {
+type advanceCleanupCandidate struct {
 	Branch   string
 	Base     string
 	HasLocal bool
 	Children []string
 }
 
-type refreshPlan struct {
-	Cleanup []refreshCleanupCandidate
-}
-
-type refreshPlanDeps struct {
-	git                     refreshGitClient
-	gh                      refreshGHClient
+type advanceDeps struct {
+	git                     advanceGitClient
+	gh                      advanceGHClient
 	mergedCleanupIntegrated func(string, string, *GhPR) (bool, error)
 	mergedBranchChildren    func(*State, string) []string
 }
 
-func defaultRefreshPlanDeps() refreshPlanDeps {
-	return refreshPlanDeps{
+func defaultAdvanceDeps() advanceDeps {
+	return advanceDeps{
 		git:                     defaultGitClient{},
 		gh:                      defaultGHClient{},
 		mergedCleanupIntegrated: mergedCleanupIntegrated,
 		mergedBranchChildren:    mergedBranchChildren,
 	}
-}
-
-func (a *App) cmdRefresh(restack bool, publish string) error {
-	publish = strings.TrimSpace(strings.ToLower(publish))
-	if publish != "" && publish != "current" && publish != "all" {
-		return errors.New("--publish must be one of: current, all")
-	}
-	if err := gitRun("fetch", "--prune", "origin"); err != nil {
-		return fmt.Errorf("refresh fetch failed: %w", err)
-	}
-	if err := ensureCleanWorktree(); err != nil {
-		return err
-	}
-
-	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
-	if err != nil {
-		return err
-	}
-
-	plan, err := buildRefreshPlan(state)
-	if err != nil {
-		return err
-	}
-	if len(plan.Cleanup) == 0 && !restack && publish == "" {
-		a.println("refresh: nothing to do")
-		return nil
-	}
-
-	current, _ := currentBranch()
-	printRefreshPlan(a.stdout, plan, restack, publish, current)
-	if !confirmRefreshApply(a.in, a.stdout) {
-		a.println("refresh cancelled")
-		return nil
-	}
-
-	deps := defaultRefreshPlanDeps()
-	for _, candidate := range plan.Cleanup {
-		if err := cleanupMergedBranchForRefresh(a.stdout, state, candidate, deps.git); err != nil {
-			return err
-		}
-	}
-
-	if persisted {
-		if err := saveState(repoRoot, state); err != nil {
-			return err
-		}
-	}
-
-	if restack {
-		if err := a.cmdRestack("", false, false); err != nil {
-			return err
-		}
-	}
-
-	if publish == "all" {
-		if err := syncCurrentStackBodies(state, true, ""); err != nil {
-			return err
-		}
-	} else if publish == "current" {
-		if _, ok := state.Branches[current]; !ok {
-			current = ""
-		}
-		if err := syncCurrentStackBodies(state, false, current); err != nil {
-			return err
-		}
-	}
-
-	a.println("refresh completed")
-	return nil
 }
 
 func (a *App) cmdAdvance(next string) error {
@@ -123,12 +50,12 @@ func (a *App) cmdAdvance(next string) error {
 		return err
 	}
 
-	deps := defaultRefreshPlanDeps()
-	candidate, err := buildRefreshAdvanceCandidateWithDeps(state, current, deps)
+	deps := defaultAdvanceDeps()
+	candidate, err := buildAdvanceCandidateWithDeps(state, current, deps)
 	if err != nil {
 		return err
 	}
-	target, err := chooseRefreshAdvanceTarget(a.in, a.stdout, state, candidate, next, deps.git)
+	target, err := chooseAdvanceTarget(a.in, a.stdout, state, candidate, next, deps.git)
 	if err != nil {
 		return err
 	}
@@ -143,7 +70,7 @@ func (a *App) cmdAdvance(next string) error {
 	}
 
 	a.printf("advance: cleanup %s, switch to %s, restack, submit all\n", candidate.Branch, target)
-	if err := cleanupMergedBranchForRefreshAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
+	if err := cleanupMergedBranchForAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
 		return err
 	}
 	restackQueue := advanceRestackQueue(state, candidate.Children)
@@ -180,29 +107,29 @@ func (a *App) cmdAdvance(next string) error {
 	return nil
 }
 
-func buildRefreshAdvanceCandidateWithDeps(state *State, current string, deps refreshPlanDeps) (refreshCleanupCandidate, error) {
+func buildAdvanceCandidateWithDeps(state *State, current string, deps advanceDeps) (advanceCleanupCandidate, error) {
 	meta := state.Branches[current]
 	if meta == nil {
-		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current branch to be tracked in stack state: %s", current)
+		return advanceCleanupCandidate{}, fmt.Errorf("advance requires current branch to be tracked in stack state: %s", current)
 	}
 	if meta.PR == nil || meta.PR.Number <= 0 {
-		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current branch to have PR metadata: %s", current)
+		return advanceCleanupCandidate{}, fmt.Errorf("advance requires current branch to have PR metadata: %s", current)
 	}
 
 	pr, err := deps.gh.View(meta.PR.Number)
 	if err != nil {
-		return refreshCleanupCandidate{}, fmt.Errorf("advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+		return advanceCleanupCandidate{}, fmt.Errorf("advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
 	}
 	if !strings.EqualFold(pr.State, "MERGED") {
-		return refreshCleanupCandidate{}, fmt.Errorf("advance requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
+		return advanceCleanupCandidate{}, fmt.Errorf("advance requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
 	}
 
 	remoteExists, err := deps.git.RemoteBranchExists(current)
 	if err != nil {
-		return refreshCleanupCandidate{}, fmt.Errorf("advance failed to check remote branch %s: %w", current, err)
+		return advanceCleanupCandidate{}, fmt.Errorf("advance failed to check remote branch %s: %w", current, err)
 	}
 	if remoteExists {
-		return refreshCleanupCandidate{}, fmt.Errorf("advance aborted: origin/%s still exists; delete the remote branch first", current)
+		return advanceCleanupCandidate{}, fmt.Errorf("advance aborted: origin/%s still exists; delete the remote branch first", current)
 	}
 
 	base := state.Trunk
@@ -216,13 +143,13 @@ func buildRefreshAdvanceCandidateWithDeps(state *State, current string, deps ref
 
 	integrated, err := deps.mergedCleanupIntegrated(current, base, pr)
 	if err != nil {
-		return refreshCleanupCandidate{}, fmt.Errorf("advance integration check failed for %s against %s: %w", current, base, err)
+		return advanceCleanupCandidate{}, fmt.Errorf("advance integration check failed for %s against %s: %w", current, base, err)
 	}
 	if !integrated {
-		return refreshCleanupCandidate{}, fmt.Errorf("advance aborted: %s has local commits not fully integrated into %s", current, base)
+		return advanceCleanupCandidate{}, fmt.Errorf("advance aborted: %s has local commits not fully integrated into %s", current, base)
 	}
 
-	return refreshCleanupCandidate{
+	return advanceCleanupCandidate{
 		Branch:   current,
 		Base:     base,
 		HasLocal: deps.git.LocalBranchExists(current),
@@ -230,7 +157,7 @@ func buildRefreshAdvanceCandidateWithDeps(state *State, current string, deps ref
 	}, nil
 }
 
-func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candidate refreshCleanupCandidate, next string, git refreshGitClient) (string, error) {
+func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, candidate advanceCleanupCandidate, next string, git advanceGitClient) (string, error) {
 	if next != "" {
 		if next == candidate.Branch {
 			return "", fmt.Errorf("advance --next cannot be the branch being cleaned: %s", next)
@@ -293,7 +220,7 @@ func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candi
 	return target, nil
 }
 
-func advanceTargetExists(git refreshGitClient, branch string) (bool, error) {
+func advanceTargetExists(git advanceGitClient, branch string) (bool, error) {
 	if git.LocalBranchExists(branch) {
 		return true, nil
 	}
@@ -440,7 +367,7 @@ func syncAdvanceStackBodies(state *State, roots []string) error {
 	return applyStackBodyUpdates(lines, updates)
 }
 
-func cleanupMergedBranchForRefreshAdvance(out io.Writer, state *State, candidate refreshCleanupCandidate, switchTarget string, git refreshGitClient) error {
+func cleanupMergedBranchForAdvance(out io.Writer, state *State, candidate advanceCleanupCandidate, switchTarget string, git advanceGitClient) error {
 	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, switchTarget); err != nil {
 		return err
 	}
@@ -449,116 +376,6 @@ func cleanupMergedBranchForRefreshAdvance(out io.Writer, state *State, candidate
 	}
 	return nil
 }
-
-func buildRefreshPlan(state *State) (*refreshPlan, error) {
-	return buildRefreshPlanWithDeps(state, defaultRefreshPlanDeps())
-}
-
-func buildRefreshPlanWithDeps(state *State, deps refreshPlanDeps) (*refreshPlan, error) {
-	plan := &refreshPlan{Cleanup: []refreshCleanupCandidate{}}
-	branches := topoOrder(state)
-	for _, branch := range branches {
-		meta := state.Branches[branch]
-		if meta == nil || meta.PR == nil || meta.PR.Number <= 0 {
-			continue
-		}
-		pr, err := deps.gh.View(meta.PR.Number)
-		if err != nil || !strings.EqualFold(pr.State, "MERGED") {
-			continue
-		}
-
-		remoteExists, remoteErr := deps.git.RemoteBranchExists(branch)
-		if remoteErr != nil || remoteExists {
-			continue
-		}
-
-		base := state.Trunk
-		if meta.PR.Base != "" {
-			base = meta.PR.Base
-		} else if meta.Parent != "" {
-			base = meta.Parent
-		}
-
-		hasLocal := deps.git.LocalBranchExists(branch)
-		if hasLocal {
-			integrated, err := deps.mergedCleanupIntegrated(branch, base, pr)
-			if err != nil || !integrated {
-				continue
-			}
-		}
-
-		plan.Cleanup = append(plan.Cleanup, refreshCleanupCandidate{
-			Branch:   branch,
-			Base:     base,
-			HasLocal: hasLocal,
-			Children: deps.mergedBranchChildren(state, branch),
-		})
-	}
-
-	sort.Slice(plan.Cleanup, func(i, j int) bool {
-		return plan.Cleanup[i].Branch < plan.Cleanup[j].Branch
-	})
-	return plan, nil
-}
-
-func printRefreshPlan(out io.Writer, plan *refreshPlan, restack bool, publish, current string) {
-	fmt.Fprintln(out, "refresh plan:")
-	if len(plan.Cleanup) == 0 {
-		fmt.Fprintln(out, "- cleanup: none")
-	} else {
-		for _, candidate := range plan.Cleanup {
-			kind := "state-only"
-			if candidate.HasLocal {
-				kind = "delete-local+state"
-			}
-			fmt.Fprintf(out, "- cleanup: %s (%s)\n", candidate.Branch, kind)
-			if len(candidate.Children) > 0 {
-				fmt.Fprintf(out, "  reparent children -> %s: %s\n", candidate.Base, strings.Join(candidate.Children, ", "))
-			}
-		}
-	}
-	if restack {
-		fmt.Fprintln(out, "- restack: enabled")
-	} else {
-		fmt.Fprintln(out, "- restack: disabled")
-	}
-	if publish == "all" {
-		fmt.Fprintln(out, "- publish: all tracked branches")
-	} else if publish == "current" {
-		if strings.TrimSpace(current) == "" {
-			fmt.Fprintln(out, "- publish: current stack (auto) ")
-		} else {
-			fmt.Fprintf(out, "- publish: current stack from %s\n", current)
-		}
-	} else {
-		fmt.Fprintln(out, "- publish: disabled")
-	}
-}
-
-func confirmRefreshApply(in io.Reader, out io.Writer) bool {
-	reader := bufio.NewReader(in)
-	fmt.Fprint(out, "apply refresh plan? [y/N]: ")
-	answer, err := readPromptLine(reader)
-	if err != nil {
-		return false
-	}
-	return answer == "y" || answer == "yes"
-}
-
-func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitClient) error {
-	target := state.Trunk
-	if target == "" {
-		target = "main"
-	}
-	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, target); err != nil {
-		return fmt.Errorf("refresh cleanup failed for %s: %w", candidate.Branch, err)
-	}
-	if err := cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
-		return fmt.Errorf("refresh cleanup failed for %s: %w", candidate.Branch, err)
-	}
-	return nil
-}
-
 func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {
 	integrated, err := branchFullyIntegrated(branch, base)
 	if err != nil {

@@ -1,6 +1,6 @@
 package app
 
-type refreshGitClient interface {
+type advanceGitClient interface {
 	RemoteBranchExists(branch string) (bool, error)
 	LocalBranchExists(branch string) bool
 	CurrentBranch() (string, error)
@@ -8,7 +8,7 @@ type refreshGitClient interface {
 	DeleteLocalBranch(branch string) error
 }
 
-type refreshGHClient interface {
+type advanceGHClient interface {
 	View(number int) (*GhPR, error)
 }
 
