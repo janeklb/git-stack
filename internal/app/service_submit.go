@@ -213,7 +213,7 @@ func orderedSelectedLineageBranches(state *State, selected map[string]bool) []st
 		if !included[branch] || meta == nil {
 			continue
 		}
-		parent := strings.TrimSpace(meta.Parent)
+		parent := meta.Parent
 		if parent == "" {
 			parent = state.Trunk
 		}
@@ -262,13 +262,13 @@ func collectLineageAncestors(state *State, branch string, included map[string]bo
 
 func lineageParent(state *State, branch string) string {
 	if meta := state.Branches[branch]; meta != nil {
-		if strings.TrimSpace(meta.LineageParent) != "" {
-			return strings.TrimSpace(meta.LineageParent)
+		if meta.LineageParent != "" {
+			return meta.LineageParent
 		}
-		return strings.TrimSpace(meta.Parent)
+		return meta.Parent
 	}
 	if meta := state.Archived[branch]; meta != nil {
-		return strings.TrimSpace(meta.Parent)
+		return meta.Parent
 	}
 	return ""
 }

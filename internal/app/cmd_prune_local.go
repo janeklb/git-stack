@@ -82,7 +82,7 @@ func cleanupMergeDetectionPolicy(state *State, includeSquash bool) string {
 	if includeSquash {
 		return "include-squash"
 	}
-	policy := strings.TrimSpace(state.Cleanup.MergeDetection)
+	policy := state.Cleanup.MergeDetection
 	if policy == "" {
 		return cleanupMergeDetectionStrict
 	}
@@ -93,7 +93,7 @@ func cleanupMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, pol
 	if strings.TrimSpace(policy) == "" {
 		policy = cleanupMergeDetectionStrict
 	}
-	head := strings.TrimSpace(pr.HeadRefOID)
+	head := pr.HeadRefOID
 	if head == "" {
 		return false, "missing PR head commit"
 	}
@@ -107,7 +107,7 @@ func cleanupMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, pol
 
 	mergeCommit := ""
 	if pr.MergeCommit != nil {
-		mergeCommit = strings.TrimSpace(pr.MergeCommit.OID)
+		mergeCommit = pr.MergeCommit.OID
 	}
 	if mergeCommit != "" {
 		contains, containsErr := git.BaseContainsCommit(base, mergeCommit)
@@ -186,7 +186,7 @@ func (a *App) runCleanupCommand(repoRoot string, state *State, yes bool, scope p
 	for _, candidate := range plan.Delete {
 		if current == candidate.Branch {
 			target := state.Trunk
-			if strings.TrimSpace(target) == "" {
+			if target == "" {
 				target = "main"
 			}
 			if err := gitRunQuiet("switch", target); err != nil {
@@ -257,7 +257,7 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 			continue
 		}
 
-		base := strings.TrimSpace(pr.BaseRefName)
+		base := pr.BaseRefName
 		if base == "" {
 			base = state.Trunk
 		}

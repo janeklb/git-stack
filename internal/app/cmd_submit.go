@@ -126,9 +126,9 @@ func (a *App) cleanupMergedBranch(state *State, branch string, git submitGitClie
 	current, currentErr := git.CurrentBranch()
 	base := state.Trunk
 	if meta := state.Branches[branch]; meta != nil {
-		if meta.PR != nil && strings.TrimSpace(meta.PR.Base) != "" {
+		if meta.PR != nil && meta.PR.Base != "" {
 			base = meta.PR.Base
-		} else if strings.TrimSpace(meta.Parent) != "" {
+		} else if meta.Parent != "" {
 			base = meta.Parent
 		}
 	}
@@ -176,7 +176,7 @@ func promptSwitchTargetForMergedBranchDeletion(state *State, branch string, in i
 	children := mergedBranchChildren(state, branch)
 	if len(children) == 0 {
 		target := state.Trunk
-		if strings.TrimSpace(target) == "" {
+		if target == "" {
 			target = "main"
 		}
 		fmt.Fprintf(out, "%s -> merged and remote deleted; switching to %s before cleanup\n", branch, target)

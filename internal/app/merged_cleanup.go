@@ -62,9 +62,9 @@ func archiveMergedBranch(state *State, branch string) {
 	if state.Archived == nil {
 		state.Archived = map[string]*ArchivedRef{}
 	}
-	parent := strings.TrimSpace(meta.LineageParent)
+	parent := meta.LineageParent
 	if parent == "" {
-		parent = strings.TrimSpace(meta.Parent)
+		parent = meta.Parent
 	}
 	state.Archived[branch] = &ArchivedRef{Parent: parent, PR: meta.PR}
 }
@@ -75,9 +75,9 @@ func pruneArchivedLineage(state *State) {
 	}
 	keep := map[string]bool{}
 	for _, meta := range state.Branches {
-		lineageParent := strings.TrimSpace(meta.LineageParent)
+		lineageParent := meta.LineageParent
 		if lineageParent == "" {
-			lineageParent = strings.TrimSpace(meta.Parent)
+			lineageParent = meta.Parent
 		}
 		cur := lineageParent
 		seen := map[string]bool{}
@@ -91,7 +91,7 @@ func pruneArchivedLineage(state *State) {
 				break
 			}
 			keep[cur] = true
-			cur = strings.TrimSpace(archived.Parent)
+			cur = archived.Parent
 		}
 	}
 	for branch := range state.Archived {
@@ -103,7 +103,7 @@ func pruneArchivedLineage(state *State) {
 }
 
 func reparentChildrenAfterMergedDeletion(state *State, deletedBranch, replacementParent string, out io.Writer) {
-	if strings.TrimSpace(replacementParent) == "" {
+	if replacementParent == "" {
 		replacementParent = state.Trunk
 	}
 	for name, meta := range state.Branches {

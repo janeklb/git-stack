@@ -132,7 +132,7 @@ func (a *App) cmdAdvance(next string) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(candidate.Base) == strings.TrimSpace(state.Trunk) {
+	if candidate.Base == state.Trunk {
 		if err := syncLocalTrunkToFetchedRemote(state.Trunk); err != nil {
 			return err
 		}
@@ -206,12 +206,12 @@ func buildRefreshAdvanceCandidateWithDeps(state *State, current string, deps ref
 	}
 
 	base := state.Trunk
-	if strings.TrimSpace(pr.BaseRefName) != "" {
-		base = strings.TrimSpace(pr.BaseRefName)
-	} else if strings.TrimSpace(meta.PR.Base) != "" {
-		base = strings.TrimSpace(meta.PR.Base)
-	} else if strings.TrimSpace(meta.Parent) != "" {
-		base = strings.TrimSpace(meta.Parent)
+	if pr.BaseRefName != "" {
+		base = pr.BaseRefName
+	} else if meta.PR.Base != "" {
+		base = meta.PR.Base
+	} else if meta.Parent != "" {
+		base = meta.Parent
 	}
 
 	integrated, err := deps.mergedCleanupIntegrated(current, base, pr)
@@ -247,7 +247,7 @@ func chooseRefreshAdvanceTarget(in io.Reader, out io.Writer, state *State, candi
 
 	if len(candidate.Children) == 0 {
 		target := state.Trunk
-		if strings.TrimSpace(target) == "" {
+		if target == "" {
 			target = "main"
 		}
 		if target == candidate.Branch {
@@ -473,9 +473,9 @@ func buildRefreshPlanWithDeps(state *State, deps refreshPlanDeps) (*refreshPlan,
 		}
 
 		base := state.Trunk
-		if strings.TrimSpace(meta.PR.Base) != "" {
+		if meta.PR.Base != "" {
 			base = meta.PR.Base
-		} else if strings.TrimSpace(meta.Parent) != "" {
+		} else if meta.Parent != "" {
 			base = meta.Parent
 		}
 
@@ -547,7 +547,7 @@ func confirmRefreshApply(in io.Reader, out io.Writer) bool {
 
 func cleanupMergedBranchForRefresh(out io.Writer, state *State, candidate refreshCleanupCandidate, git refreshGitClient) error {
 	target := state.Trunk
-	if strings.TrimSpace(target) == "" {
+	if target == "" {
 		target = "main"
 	}
 	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, target); err != nil {
@@ -573,9 +573,9 @@ func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {
 
 	mergeCommit := ""
 	if pr.MergeCommit != nil {
-		mergeCommit = strings.TrimSpace(pr.MergeCommit.OID)
+		mergeCommit = pr.MergeCommit.OID
 	}
-	headCommit := strings.TrimSpace(pr.HeadRefOID)
+	headCommit := pr.HeadRefOID
 	if headCommit == "" {
 		return false, nil
 	}
