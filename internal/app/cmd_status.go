@@ -2,8 +2,6 @@ package app
 
 import (
 	"fmt"
-	"io"
-	"os"
 	"sort"
 	"strings"
 )
@@ -114,18 +112,6 @@ func branchPRState(pr *PRMeta) string {
 		return "updated"
 	}
 	return "submitted"
-}
-
-func stdoutIsTTY(out io.Writer) bool {
-	file, ok := out.(*os.File)
-	if !ok {
-		return false
-	}
-	info, err := file.Stat()
-	if err != nil {
-		return false
-	}
-	return info.Mode()&os.ModeCharDevice != 0
 }
 
 func (t statusTheme) branch(name string) string {

@@ -6,6 +6,18 @@ import (
 	"sync"
 )
 
+type submitDeps struct {
+	git                  submitGitClient
+	gh                   submitGHClient
+	ensureCleanWorktree  func() error
+	loadState            func() (string, *State, bool, error)
+	submitQueue          func(*State, bool, []string) ([]string, error)
+	ensurePR             func(string, string, *PRMeta, *GhPR) (*PRMeta, error)
+	syncCurrentStackBody func(*State, bool, string) error
+	saveState            func(string, *State) error
+	cleanupMergedBranch  func(*State, string)
+}
+
 func ensurePR(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 	latestTitle, summary, err := branchSummary(parent, branch)
 	if err != nil {
