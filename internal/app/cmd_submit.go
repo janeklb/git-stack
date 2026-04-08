@@ -8,18 +8,6 @@ import (
 	"strings"
 )
 
-type submitDeps struct {
-	git                  submitGitClient
-	gh                   submitGHClient
-	ensureCleanWorktree  func() error
-	loadState            func() (string, *State, bool, error)
-	submitQueue          func(*State, bool, []string) ([]string, error)
-	ensurePR             func(string, string, *PRMeta, *GhPR) (*PRMeta, error)
-	syncCurrentStackBody func(*State, bool, string) error
-	saveState            func(string, *State) error
-	cleanupMergedBranch  func(*State, string)
-}
-
 func (a *App) defaultSubmitDeps() submitDeps {
 	git := defaultGitClient{}
 	return submitDeps{
