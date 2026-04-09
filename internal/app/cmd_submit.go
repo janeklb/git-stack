@@ -54,7 +54,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 	if len(queue) == 0 {
 		a.println("nothing to submit")
 		if nextOnCleanup != "" {
-			a.printf("submit: note: --next-on-cleanup was not used because submit did not clean up the current branch\n")
+			a.println("submit: note: --next-on-cleanup was not used because submit did not clean up the current branch")
 		}
 		return nil
 	}
@@ -73,7 +73,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 				if existing.BaseRefName != "" {
 					meta.PR.Base = existing.BaseRefName
 				}
-				a.printf("%s -> PR #%d already merged, skipping\n", branch, existing.Number)
+				a.printlnf("%s -> PR #%d already merged, skipping", branch, existing.Number)
 				used, err := deps.cleanupMergedBranch(state, branch, nextOnCleanup)
 				if err != nil {
 					return err
@@ -90,7 +90,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 			parent = state.Trunk
 		}
 		if !deps.git.LocalBranchExists(branch) {
-			a.printf("%s -> skipped: local branch no longer exists\n", branch)
+			a.printlnf("%s -> skipped: local branch no longer exists", branch)
 			continue
 		}
 		hasCommits, err := deps.git.BranchHasCommitsSince(parent, branch)
@@ -98,7 +98,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 			return fmt.Errorf("check submit range %s..%s: %w", parent, branch, err)
 		}
 		if !hasCommits {
-			a.printf("%s -> skipped: no commits beyond %s\n", branch, parent)
+			a.printlnf("%s -> skipped: no commits beyond %s", branch, parent)
 			continue
 		}
 		if err := deps.git.PushBranch(branch); err != nil {
@@ -109,13 +109,13 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 			return fmt.Errorf("submit %s: %w", branch, err)
 		}
 		meta.PR = pr
-		a.printf("%s -> PR #%d %s\n", branch, pr.Number, pr.URL)
+		a.printlnf("%s -> PR #%d %s", branch, pr.Number, pr.URL)
 	}
 	if err := deps.syncCurrentStackBody(state, all, branch); err != nil {
 		return err
 	}
 	if nextOnCleanup != "" && !usedNextOnCleanup {
-		a.printf("submit: note: --next-on-cleanup was not used because submit did not clean up the current branch\n")
+		a.println("submit: note: --next-on-cleanup was not used because submit did not clean up the current branch")
 	}
 
 	if persisted {
@@ -147,11 +147,11 @@ func (a *App) cleanupMergedBranch(state *State, branch string, nextOnCleanup str
 
 	integrated, integratedErr := git.BranchFullyIntegrated(branch, base)
 	if integratedErr != nil {
-		a.printf("%s -> merged and remote deleted, but integration check failed; keeping local branch\n", branch)
+		a.printlnf("%s -> merged and remote deleted, but integration check failed; keeping local branch", branch)
 		return false, nil
 	}
 	if !integrated {
-		a.printf("%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch\n", branch)
+		a.printlnf("%s -> merged and remote deleted, but unmerged local changes detected; keeping local branch", branch)
 		return false, nil
 	}
 
@@ -161,30 +161,30 @@ func (a *App) cleanupMergedBranch(state *State, branch string, nextOnCleanup str
 			return usedNextOnCleanup, err
 		}
 		if !proceed {
-			a.printf("%s -> keeping local merged branch\n", branch)
+			a.printlnf("%s -> keeping local merged branch", branch)
 			return usedNextOnCleanup, nil
 		}
 		if err := switchAwayThenDeleteMergedBranch(git, branch, true, target); err != nil {
-			a.printf("%s -> %v\n", branch, err)
+			a.printlnf("%s -> %v", branch, err)
 			return usedNextOnCleanup, nil
 		}
 		if err := cleanupMergedBranchState(a.stdout, state, branch, base); err != nil {
-			a.printf("%s -> %v\n", branch, err)
+			a.printlnf("%s -> %v", branch, err)
 			return usedNextOnCleanup, nil
 		}
-		a.printf("%s -> deleted local merged branch\n", branch)
+		a.printlnf("%s -> deleted local merged branch", branch)
 		return usedNextOnCleanup, nil
 	}
 
 	if err := switchAwayThenDeleteMergedBranch(git, branch, true, ""); err != nil {
-		a.printf("%s -> %v\n", branch, err)
+		a.printlnf("%s -> %v", branch, err)
 		return false, nil
 	}
 	if err := cleanupMergedBranchState(a.stdout, state, branch, base); err != nil {
-		a.printf("%s -> %v\n", branch, err)
+		a.printlnf("%s -> %v", branch, err)
 		return false, nil
 	}
-	a.printf("%s -> deleted local merged branch\n", branch)
+	a.printlnf("%s -> deleted local merged branch", branch)
 	return false, nil
 }
 
@@ -243,9 +243,9 @@ func promptSwitchTargetForMergedBranchDeletion(state *State, branch string, in i
 
 	fmt.Fprintf(out, "%s -> merged and remote deleted. Choose branch to switch to before deleting it:\n", branch)
 	for i, child := range children {
-		fmt.Fprintf(out, "  %d) %s\n", i+1, child)
+		fmt.Fprintln(out, fmt.Sprintf("  %d) %s", i+1, child))
 	}
-	fmt.Fprintf(out, "  0) keep local branch\n")
+	fmt.Fprintln(out, "  0) keep local branch")
 	fmt.Fprintf(out, "selection [0-%d]: ", len(children))
 	answer, err := readPromptLine(reader)
 	if err != nil {

@@ -78,12 +78,12 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool
 			return err
 		}
 		if !persisted {
-			a.printf("initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode)
+			a.printlnf("initialized stack state (trunk=%s, mode=%s)", state.Trunk, state.RestackMode)
 		}
 		if err := saveState(repoRoot, state); err != nil {
 			return err
 		}
-		a.printf("adopted %s (parent=%s)\n", branchName, parentBranch)
+		a.printlnf("adopted %s (parent=%s)", branchName, parentBranch)
 		return nil
 	}
 	if parentBranch == cur && cur != state.Trunk {
@@ -127,11 +127,11 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool
 	state.Branches[branchName] = &BranchRef{Parent: parentBranch, LineageParent: parentBranch}
 	state.Naming.NextIndex++
 	if !persisted {
-		a.printf("initialized stack state (trunk=%s, mode=%s)\n", state.Trunk, state.RestackMode)
+		a.printlnf("initialized stack state (trunk=%s, mode=%s)", state.Trunk, state.RestackMode)
 	}
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
-	a.printf("created %s (parent=%s)\n", branchName, parentBranch)
+	a.printlnf("created %s (parent=%s)", branchName, parentBranch)
 	return nil
 }

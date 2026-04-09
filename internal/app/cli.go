@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -15,7 +14,7 @@ func (a *App) Run(args []string, invocation string) int {
 	root.SetArgs(args)
 	err := root.Execute()
 	if err != nil {
-		fmt.Fprintf(a.stderr, "error: %v\n", err)
+		a.printferrln("error: %v", err)
 		return 1
 	}
 	return 0

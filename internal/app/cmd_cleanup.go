@@ -190,13 +190,13 @@ func (a *App) runCleanupCommand(repoRoot string, state *State, yes bool, scope p
 				target = "main"
 			}
 			if err := gitRunQuiet("switch", target); err != nil {
-				a.printf("%s -> failed to switch to %s before deletion: %v\n", candidate.Branch, target, err)
+				a.printlnf("%s -> failed to switch to %s before deletion: %v", candidate.Branch, target, err)
 				continue
 			}
 			current = target
 		}
 		if err := deleteLocalBranch(candidate.Branch); err != nil {
-			a.printf("%s -> failed to delete local branch: %v\n", candidate.Branch, err)
+			a.printlnf("%s -> failed to delete local branch: %v", candidate.Branch, err)
 			continue
 		}
 
@@ -206,7 +206,7 @@ func (a *App) runCleanupCommand(repoRoot string, state *State, yes bool, scope p
 			}
 		}
 
-		a.printf("%s -> deleted local branch (merged PR #%d)\n", candidate.Branch, candidate.PR.Number)
+		a.printlnf("%s -> deleted local branch (merged PR #%d)", candidate.Branch, candidate.PR.Number)
 	}
 
 	a.println("cleanup completed")

@@ -93,7 +93,7 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 			}
 			printCapturedOutput(stderrBuf.String(), os.Stderr, theme, stderrStyle)
 		}
-		fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ %d", exitCode)))
+		fmt.Fprintln(os.Stdout, theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 	} else if decorate && opts.boxMode == commandBoxOnFailure && waitErr != nil {
 		hasCapturedOutput := strings.TrimSpace(stdoutBuf.String()) != "" || strings.TrimSpace(stderrBuf.String()) != ""
 		if hasCapturedOutput {
@@ -102,7 +102,7 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 				printCapturedOutput(stdoutBuf.String(), os.Stdout, theme, theme.stdoutLine)
 				printCapturedOutput(stderrBuf.String(), os.Stderr, theme, theme.stderrLine)
 			}
-			fmt.Fprintf(os.Stdout, "%s\n", theme.footer(fmt.Sprintf("└─ %d", exitCode)))
+			fmt.Fprintln(os.Stdout, theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 		}
 	}
 

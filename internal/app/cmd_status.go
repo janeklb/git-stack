@@ -99,7 +99,7 @@ func (a *App) cmdStatus(all bool, showDrift bool, noColor bool) error {
 
 	op, _ := loadOperation(repoRoot)
 	if op != nil {
-		a.printf("restack in progress: mode=%s index=%d/%d\n", op.Mode, op.Index, len(op.Queue))
+		a.printlnf("restack in progress: mode=%s index=%d/%d", op.Mode, op.Index, len(op.Queue))
 	}
 	return nil
 }

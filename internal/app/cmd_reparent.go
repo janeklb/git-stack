@@ -71,6 +71,6 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 		}
 	}
 
-	a.printf("reparented %s: %s -> %s\n", target, oldParent, newParent)
+	a.printlnf("reparented %s: %s -> %s", target, oldParent, newParent)
 	return nil
 }

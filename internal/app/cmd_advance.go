@@ -69,7 +69,7 @@ func (a *App) cmdAdvance(next string) error {
 		return err
 	}
 
-	a.printf("advance: cleanup %s, switch to %s, restack, submit all\n", candidate.Branch, target)
+	a.printlnf("advance: cleanup %s, switch to %s, restack, submit all", candidate.Branch, target)
 	if err := cleanupMergedBranchForAdvance(a.stdout, state, candidate, target, deps.git); err != nil {
 		return err
 	}
