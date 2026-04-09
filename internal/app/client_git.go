@@ -110,6 +110,26 @@ func listLocalBranches() ([]string, error) {
 	return branches, nil
 }
 
+func listOriginBranches() ([]string, error) {
+	out, err := gitOutput("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin")
+	if err != nil {
+		return nil, err
+	}
+	branches := []string{}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "origin/HEAD" {
+			continue
+		}
+		line = strings.TrimPrefix(line, "origin/")
+		if line == "" {
+			continue
+		}
+		branches = append(branches, line)
+	}
+	return branches, nil
+}
+
 func branchTimestamp(branch string) (int64, error) {
 	out, err := gitOutput("show", "-s", "--format=%ct", branch)
 	if err != nil {
