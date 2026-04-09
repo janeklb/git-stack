@@ -78,7 +78,7 @@ stack init [--trunk <branch>] [--mode rebase|merge]
 stack new <name> [--parent <branch>] [--template <template>] [--prefix-index]
 stack status
 stack restack [--mode rebase|merge] [--continue] [--abort]
-stack submit [--all] [branch]
+stack submit [--all] [--next-on-cleanup <branch>] [branch]
 stack reparent <branch> --parent <new-parent>
 stack cleanup [--all] [--yes] [--include-squash] [--untracked]
 stack advance [--next <branch>]

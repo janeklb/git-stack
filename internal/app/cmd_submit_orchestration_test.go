@@ -72,7 +72,7 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 	syncCalled := false
 	saveCalled := false
 
-	err := app.cmdSubmitWithDeps(false, "", submitDeps{
+	err := app.cmdSubmitWithDeps(false, "", "", submitDeps{
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
@@ -94,8 +94,9 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 			saveCalled = true
 			return nil
 		},
-		cleanupMergedBranch: func(*State, string) {
+		cleanupMergedBranch: func(*State, string, string) (bool, error) {
 			t.Fatal("cleanup should not be called for empty queue")
+			return false, nil
 		},
 	})
 	if err != nil {
@@ -120,7 +121,7 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 	git := &fakeSubmitGitClient{}
 	cleaned := ""
 
-	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
+	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
 		git:                 git,
 		gh:                  fakeSubmitGHClient{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
 		ensureCleanWorktree: func() error { return nil },
@@ -141,8 +142,9 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 			t.Fatal("save should not run when persisted=false")
 			return nil
 		},
-		cleanupMergedBranch: func(_ *State, branch string) {
+		cleanupMergedBranch: func(_ *State, branch string, _ string) (bool, error) {
 			cleaned = branch
+			return false, nil
 		},
 	})
 	if err != nil {
@@ -171,7 +173,7 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	syncedBranch := ""
 	savedRoot := ""
 
-	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
+	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
@@ -207,8 +209,9 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 			savedRoot = root
 			return nil
 		},
-		cleanupMergedBranch: func(*State, string) {
+		cleanupMergedBranch: func(*State, string, string) (bool, error) {
 			t.Fatal("cleanup should not be called for open PR path")
+			return false, nil
 		},
 	})
 	if err != nil {
@@ -245,7 +248,7 @@ func TestCmdSubmitSkipsMissingLocalBranch(t *testing.T) {
 	}}
 	git := &fakeSubmitGitClient{local: map[string]bool{"feat-one": false}}
 
-	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
+	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
@@ -261,7 +264,7 @@ func TestCmdSubmitSkipsMissingLocalBranch(t *testing.T) {
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
 		saveState:            func(string, *State) error { return nil },
-		cleanupMergedBranch:  func(*State, string) {},
+		cleanupMergedBranch:  func(*State, string, string) (bool, error) { return false, nil },
 	})
 	if err != nil {
 		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
@@ -282,7 +285,7 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 	}}
 	git := &fakeSubmitGitClient{local: map[string]bool{"feat-one": true}, ahead: map[string]bool{"feat-one": false}}
 
-	err := app.cmdSubmitWithDeps(false, "feat-one", submitDeps{
+	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
@@ -298,7 +301,7 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
 		saveState:            func(string, *State) error { return nil },
-		cleanupMergedBranch:  func(*State, string) {},
+		cleanupMergedBranch:  func(*State, string, string) (bool, error) { return false, nil },
 	})
 	if err != nil {
 		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
@@ -308,5 +311,36 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "feat-one -> skipped: no commits beyond main") {
 		t.Fatalf("expected empty-range skip output, got:\n%s", out.String())
+	}
+}
+
+func TestCmdSubmitPrintsNoteWhenNextOnCleanupUnused(t *testing.T) {
+	var out strings.Builder
+	app := NewWithIO(strings.NewReader(""), &out, io.Discard)
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{"feat-one": {Parent: "main", PR: nil}}}
+	git := &fakeSubmitGitClient{}
+
+	err := app.cmdSubmitWithDeps(false, "later-branch", "feat-one", submitDeps{
+		git:                 git,
+		gh:                  fakeSubmitGHClient{},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, false, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+			return &PRMeta{Number: 11, URL: "https://example.invalid/pr/11", Base: parent}, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error { return nil },
+		saveState:            func(string, *State) error { return nil },
+		cleanupMergedBranch:  func(*State, string, string) (bool, error) { return false, nil },
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if !strings.Contains(out.String(), "submit: note: --next-on-cleanup was not used") {
+		t.Fatalf("expected unused next-on-cleanup note, got:\n%s", out.String())
 	}
 }

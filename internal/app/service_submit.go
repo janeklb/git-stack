@@ -15,7 +15,7 @@ type submitDeps struct {
 	ensurePR             func(string, string, *PRMeta, *GhPR) (*PRMeta, error)
 	syncCurrentStackBody func(*State, bool, string) error
 	saveState            func(string, *State) error
-	cleanupMergedBranch  func(*State, string)
+	cleanupMergedBranch  func(*State, string, string) (bool, error)
 }
 
 func ensurePR(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {

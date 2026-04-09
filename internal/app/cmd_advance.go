@@ -83,7 +83,7 @@ func (a *App) cmdAdvance(next string) error {
 	if err := runRestackQueue(repoRoot, state, state.RestackMode, restackQueue, rebaseBases, a.stdout); err != nil {
 		return err
 	}
-	if err := a.cmdSubmitWithDeps(false, "", submitDeps{
+	if err := a.cmdSubmitWithDeps(false, "", "", submitDeps{
 		git:                 defaultGitClient{},
 		gh:                  defaultGHClient{},
 		ensureCleanWorktree: ensureCleanWorktree,
@@ -98,7 +98,7 @@ func (a *App) cmdAdvance(next string) error {
 			return syncAdvanceStackBodies(state, candidate.Children)
 		},
 		saveState:           saveState,
-		cleanupMergedBranch: func(*State, string) {},
+		cleanupMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
 	}); err != nil {
 		return err
 	}
