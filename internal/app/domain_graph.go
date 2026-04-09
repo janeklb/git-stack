@@ -108,6 +108,10 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 		if strings.TrimSpace(candidateHead) == branchHead {
 			continue
 		}
+		// Skip branches already merged into trunk - they shouldn't be inferred as stack parents
+		if err := gitRunQuiet("merge-base", "--is-ancestor", b, trunk); err == nil {
+			continue
+		}
 		if err := gitRunQuiet("merge-base", "--is-ancestor", b, branch); err == nil {
 			ts, err := branchTimestamp(b)
 			if err != nil {
