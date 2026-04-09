@@ -344,3 +344,39 @@ func TestCmdSubmitPrintsNoteWhenNextOnCleanupUnused(t *testing.T) {
 		t.Fatalf("expected unused next-on-cleanup note, got:\n%s", out.String())
 	}
 }
+
+func TestCmdSubmitTrimsNextOnCleanupBeforeCleanupCallback(t *testing.T) {
+	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"feat-one": {Parent: "main", PR: &PRMeta{Number: 7, URL: "https://old", Base: "main"}},
+	}}
+	seen := ""
+
+	err := app.cmdSubmitWithDeps(false, "  feat-two  ", "feat-one", submitDeps{
+		git:                 &fakeSubmitGitClient{},
+		gh:                  fakeSubmitGHClient{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, false, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+			t.Fatal("ensurePR should not be called for merged PR")
+			return nil, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error { return nil },
+		saveState:            func(string, *State) error { return nil },
+		cleanupMergedBranch: func(_ *State, _ string, nextOnCleanup string) (bool, error) {
+			seen = nextOnCleanup
+			return true, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if seen != "feat-two" {
+		t.Fatalf("expected trimmed next-on-cleanup, got %q", seen)
+	}
+}

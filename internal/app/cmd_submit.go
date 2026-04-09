@@ -31,6 +31,7 @@ func (a *App) cmdSubmit(all bool, nextOnCleanup, branch string) error {
 }
 
 func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps submitDeps) error {
+	nextOnCleanup = strings.TrimSpace(nextOnCleanup)
 	if err := deps.ensureCleanWorktree(); err != nil {
 		return err
 	}
@@ -52,7 +53,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 	}
 	if len(queue) == 0 {
 		a.println("nothing to submit")
-		if strings.TrimSpace(nextOnCleanup) != "" {
+		if nextOnCleanup != "" {
 			a.printf("submit: note: --next-on-cleanup was not used because submit did not clean up the current branch\n")
 		}
 		return nil
@@ -113,7 +114,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 	if err := deps.syncCurrentStackBody(state, all, branch); err != nil {
 		return err
 	}
-	if strings.TrimSpace(nextOnCleanup) != "" && !usedNextOnCleanup {
+	if nextOnCleanup != "" && !usedNextOnCleanup {
 		a.printf("submit: note: --next-on-cleanup was not used because submit did not clean up the current branch\n")
 	}
 
@@ -201,7 +202,7 @@ func chooseSubmitCleanupSwitchTarget(state *State, branch, nextOnCleanup string,
 }
 
 func validateSubmitCleanupTarget(branch, nextOnCleanup string, git submitGitClient) (string, error) {
-	target := strings.TrimSpace(nextOnCleanup)
+	target := nextOnCleanup
 	if target == "" {
 		return "", fmt.Errorf("submit --next-on-cleanup requires a branch name")
 	}
