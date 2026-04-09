@@ -1,6 +1,7 @@
 package app
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -98,4 +99,103 @@ func TestInitHelpMarksCommandAsRepairFlow(t *testing.T) {
 	if !strings.Contains(out, "auto-bootstrap state when possible") {
 		t.Fatalf("expected init help to mention auto-bootstrap happy path, got:\n%s", out)
 	}
+}
+
+func TestReparentPositionalCompletionListsLocalBranches(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+		mustGit(t, repo, "switch", "-c", "feat-one")
+		mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+		mustGit(t, repo, "add", "feature1.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+		mustGit(t, repo, "switch", "main")
+
+		out, code := runCLIAndCapture(t, cli, []string{"__complete", "reparent", "fe"})
+		if code != 0 {
+			t.Fatalf("reparent completion failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "feat-one") {
+			t.Fatalf("expected reparent completion to include feat-one, got:\n%s", out)
+		}
+		if strings.Contains(out, "README.md") {
+			t.Fatalf("expected reparent completion to suppress file suggestions, got:\n%s", out)
+		}
+	})
+}
+
+func TestReparentParentFlagCompletionIncludesOriginBranches(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+		mustGit(t, repo, "switch", "-c", "remote-parent")
+		mustWriteFile(t, filepath.Join(repo, "remote.txt"), "remote\n")
+		mustGit(t, repo, "add", "remote.txt")
+		mustGit(t, repo, "commit", "-m", "remote parent")
+		mustGit(t, repo, "push", "-u", "origin", "remote-parent")
+		mustGit(t, repo, "switch", "main")
+		mustGit(t, repo, "branch", "-D", "remote-parent")
+
+		out, code := runCLIAndCapture(t, cli, []string{"__complete", "reparent", "feat-one", "--parent", "rem"})
+		if code != 0 {
+			t.Fatalf("reparent parent completion failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "remote-parent") {
+			t.Fatalf("expected reparent --parent completion to include remote-parent, got:\n%s", out)
+		}
+	})
+}
+
+func TestSubmitPositionalCompletionListsLocalBranches(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+		mustGit(t, repo, "switch", "-c", "feat-submit")
+		mustWriteFile(t, filepath.Join(repo, "submit.txt"), "submit\n")
+		mustGit(t, repo, "add", "submit.txt")
+		mustGit(t, repo, "commit", "-m", "submit branch")
+		mustGit(t, repo, "switch", "main")
+
+		out, code := runCLIAndCapture(t, cli, []string{"__complete", "submit", "feat-s"})
+		if code != 0 {
+			t.Fatalf("submit completion failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "feat-submit") {
+			t.Fatalf("expected submit completion to include feat-submit, got:\n%s", out)
+		}
+	})
+}
+
+func TestAdvanceNextFlagCompletionListsOnlyLocalBranches(t *testing.T) {
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+		mustGit(t, repo, "switch", "-c", "local-next")
+		mustWriteFile(t, filepath.Join(repo, "local.txt"), "local\n")
+		mustGit(t, repo, "add", "local.txt")
+		mustGit(t, repo, "commit", "-m", "local next")
+		mustGit(t, repo, "push", "-u", "origin", "local-next")
+		mustGit(t, repo, "switch", "-c", "remote-next")
+		mustWriteFile(t, filepath.Join(repo, "remote-next.txt"), "remote\n")
+		mustGit(t, repo, "add", "remote-next.txt")
+		mustGit(t, repo, "commit", "-m", "remote next")
+		mustGit(t, repo, "push", "-u", "origin", "remote-next")
+		mustGit(t, repo, "switch", "main")
+		mustGit(t, repo, "branch", "-D", "remote-next")
+
+		out, code := runCLIAndCapture(t, cli, []string{"__complete", "advance", "--next", ""})
+		if code != 0 {
+			t.Fatalf("advance next completion failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "local-next") {
+			t.Fatalf("expected advance --next completion to include local-next, got:\n%s", out)
+		}
+		if strings.Contains(out, "remote-next") {
+			t.Fatalf("expected advance --next completion to exclude remote-only branches, got:\n%s", out)
+		}
+	})
 }

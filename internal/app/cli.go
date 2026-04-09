@@ -96,6 +96,7 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	newCmd.Flags().StringVar(&newTemplate, "template", "", "override naming template")
 	newCmd.Flags().BoolVar(&newPrefixIndex, "prefix-index", false, "prefix generated name with incrementing index")
 	newCmd.Flags().BoolVar(&newAdopt, "adopt", false, "track the current existing branch instead of creating a new one")
+	_ = newCmd.RegisterFlagCompletionFunc("parent", completeBranchRefs(true))
 	root.AddCommand(newCmd)
 
 	var statusAll bool
@@ -147,6 +148,8 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	}
 	submitCmd.Flags().BoolVar(&submitAll, "all", false, "submit all stack branches")
 	submitCmd.Flags().StringVar(&submitNextOnCleanup, "next-on-cleanup", "", "switch to this local branch if submit cleans up the current merged branch")
+	submitCmd.ValidArgsFunction = completeSingleBranchArg(false)
+	_ = submitCmd.RegisterFlagCompletionFunc("next-on-cleanup", completeBranchRefs(false))
 	root.AddCommand(submitCmd)
 
 	var reparentParent string
@@ -161,6 +164,8 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	}
 	reparentCmd.Flags().StringVar(&reparentParent, "parent", "", "new parent branch")
 	reparentCmd.Flags().BoolVar(&reparentPreserveLineage, "preserve-lineage", false, "keep the existing lineage parent")
+	reparentCmd.ValidArgsFunction = completeSingleBranchArg(false)
+	_ = reparentCmd.RegisterFlagCompletionFunc("parent", completeBranchRefs(true))
 	_ = reparentCmd.MarkFlagRequired("parent")
 	root.AddCommand(reparentCmd)
 
@@ -184,6 +189,7 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 		},
 	}
 	advanceCmd.Flags().StringVar(&advanceNext, "next", "", "checkout target after advancing a merged branch")
+	_ = advanceCmd.RegisterFlagCompletionFunc("next", completeBranchRefs(false))
 	root.AddCommand(advanceCmd)
 
 	var cleanupYes bool
