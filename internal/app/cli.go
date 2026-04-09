@@ -133,6 +133,7 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 	root.AddCommand(restackCmd)
 
 	var submitAll bool
+	var submitNextOnCleanup string
 	submitCmd := &cobra.Command{
 		Use:   "submit [branch]",
 		Short: "Push branches and create/update PRs",
@@ -142,10 +143,11 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 			if len(args) > 0 {
 				branch = args[0]
 			}
-			return a.cmdSubmit(submitAll, branch)
+			return a.cmdSubmit(submitAll, submitNextOnCleanup, branch)
 		},
 	}
 	submitCmd.Flags().BoolVar(&submitAll, "all", false, "submit all stack branches")
+	submitCmd.Flags().StringVar(&submitNextOnCleanup, "next-on-cleanup", "", "switch to this local branch if submit cleans up the current merged branch")
 	root.AddCommand(submitCmd)
 
 	var reparentParent string

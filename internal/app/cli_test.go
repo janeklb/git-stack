@@ -36,6 +36,13 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	if advance.Flags().Lookup("next") == nil {
 		t.Fatalf("expected advance next flag to exist")
 	}
+	submit, _, err := root.Find([]string{"submit"})
+	if err != nil {
+		t.Fatalf("find submit command: %v", err)
+	}
+	if submit.Flags().Lookup("next-on-cleanup") == nil {
+		t.Fatalf("expected submit next-on-cleanup flag to exist")
+	}
 	cleanup, _, err := root.Find([]string{"cleanup"})
 	if err != nil {
 		t.Fatalf("find cleanup command: %v", err)
