@@ -51,8 +51,8 @@ func (a *App) cmdDoctor() error {
 		return report.exitError()
 	}
 
-	if strings.TrimSpace(state.Trunk) == "" || !branchExists(state.Trunk) {
-		report.add(doctorSeverityError, "trunk-missing", fmt.Sprintf("trunk=%s", strings.TrimSpace(state.Trunk)))
+	if state.Trunk == "" || !branchExists(state.Trunk) {
+		report.add(doctorSeverityError, "trunk-missing", fmt.Sprintf("trunk=%s", state.Trunk))
 	}
 
 	for _, branch := range sortedBranchNames(state.Branches) {
@@ -61,7 +61,7 @@ func (a *App) cmdDoctor() error {
 			report.add(doctorSeverityError, "branch-metadata-missing", fmt.Sprintf("branch=%s", branch))
 			continue
 		}
-		parent := strings.TrimSpace(meta.Parent)
+		parent := meta.Parent
 		if parent == "" {
 			report.add(doctorSeverityError, "missing-parent", fmt.Sprintf("branch=%s", branch))
 			continue
@@ -86,7 +86,7 @@ func (a *App) cmdDoctor() error {
 		}
 		parent := ""
 		if meta := state.Branches[branch]; meta != nil {
-			parent = strings.TrimSpace(meta.Parent)
+			parent = meta.Parent
 		}
 		report.add(doctorSeverityWarn, "unrooted-branch", fmt.Sprintf("branch=%s", branch), fmt.Sprintf("parent=%s", parent))
 	}
@@ -97,7 +97,7 @@ func (a *App) cmdDoctor() error {
 			report.add(doctorSeverityWarn, "restack-operation-unreadable", fmt.Sprintf("detail=%q", opErr.Error()))
 		}
 	} else if op != nil {
-		if op.Index < 0 || op.Index > len(op.Queue) || strings.TrimSpace(op.Mode) == "" || strings.TrimSpace(op.OriginalBranch) == "" {
+		if op.Index < 0 || op.Index > len(op.Queue) || op.Mode == "" || op.OriginalBranch == "" {
 			report.add(doctorSeverityWarn, "restack-operation-stale", fmt.Sprintf("index=%d", op.Index), fmt.Sprintf("queue=%d", len(op.Queue)))
 		} else {
 			report.add(doctorSeverityWarn, "restack-operation-present", fmt.Sprintf("mode=%s", op.Mode), fmt.Sprintf("index=%d", op.Index), fmt.Sprintf("queue=%d", len(op.Queue)))

@@ -93,6 +93,7 @@ func ghJSON(out any, args ...string) error {
 	if err := json.Unmarshal([]byte(raw), out); err != nil {
 		return err
 	}
+	normalizeGHJSON(out)
 	return nil
 }
 

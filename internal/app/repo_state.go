@@ -132,20 +132,7 @@ func loadState(repoRoot string) (*State, error) {
 	if err := json.Unmarshal(data, state); err != nil {
 		return nil, err
 	}
-	if state.Branches == nil {
-		state.Branches = map[string]*BranchRef{}
-	}
-	if state.Archived == nil {
-		state.Archived = map[string]*ArchivedRef{}
-	}
-	for _, branch := range state.Branches {
-		if branch == nil {
-			continue
-		}
-		if strings.TrimSpace(branch.LineageParent) == "" {
-			branch.LineageParent = branch.Parent
-		}
-	}
+	normalizeState(state)
 	if state.Naming.Template == "" {
 		state.Naming.Template = "{slug}"
 	}
@@ -166,6 +153,7 @@ func saveState(repoRoot string, state *State) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	normalizeState(state)
 	state.Version = stateVersion
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
@@ -187,6 +175,7 @@ func loadOperation(repoRoot string) (*RestackOperation, error) {
 	if err := json.Unmarshal(data, op); err != nil {
 		return nil, err
 	}
+	normalizeOperation(op)
 	return op, nil
 }
 
@@ -195,6 +184,7 @@ func saveOperation(repoRoot string, op *RestackOperation) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	normalizeOperation(op)
 	data, err := json.MarshalIndent(op, "", "  ")
 	if err != nil {
 		return err
