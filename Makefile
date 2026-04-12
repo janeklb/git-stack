@@ -7,7 +7,7 @@ CI_TEST_IMAGE ?= stack-ci-test
 CI_TEST_GOCACHE ?= stack-ci-go-build-cache
 CI_TEST_GOMODCACHE ?= stack-ci-go-mod-cache
 
-.PHONY: test test-timings test-linux test-linux-timings build-ci-test-image build install fmt clean
+.PHONY: test test-timings test-command-timings test-linux test-linux-timings build-ci-test-image build install fmt clean
 
 test:
 	$(GO) test ./...
@@ -15,6 +15,14 @@ test:
 test-timings:
 	@set -o pipefail; \
 	$(GO) test -json ./... | jq -r -s 'map(select((.Action=="pass" or .Action=="fail") and (.Test != null))) | sort_by(.Elapsed // 0) | reverse[] | [.Action, (.Elapsed // 0), (.Package // ""), .Test] | @tsv'
+
+test-command-timings:
+	@summary_file="$$(mktemp)"; \
+	STACK_TEST_COMMAND_TIMING=1 STACK_TEST_COMMAND_TIMING_SUMMARY="$$summary_file" $(GO) test -count=1 ./internal/app; \
+	status=$$?; \
+	cat "$$summary_file"; \
+	rm -f "$$summary_file"; \
+	exit $$status
 
 build-ci-test-image:
 	docker build -f build/ci-test.Dockerfile -t $(CI_TEST_IMAGE) .
