@@ -39,9 +39,25 @@ Or use Make targets:
 
 ```bash
 make test
+make test-linux
+make test-linux-timings
 make build
 make install
 ```
+
+`make test-linux` and `make test-linux-timings` run the suite inside a local Docker
+container using Linux plus Go `1.22.12`, which is closer to the GitHub Actions CI
+environment than running directly on macOS.
+
+These targets were added because this repository's tests shell out to `git` and
+work with temporary repositories heavily enough that the suite runs much slower
+on macOS than in CI, even on fast local hardware. Running the same suite inside
+local Linux closes most of that gap and gives a better apples-to-apples check
+when diagnosing CI-vs-local behavior.
+
+They also mount persistent Docker volumes for the Go build and module caches, so
+repeat runs stay closer to the cached behavior in CI instead of redownloading and
+rebuilding everything on each invocation.
 
 `make install` installs `stack` with `go install ./cmd/stack` into your Go bin directory
 (`GOBIN` if set, otherwise `$(go env GOPATH)/bin`) and creates `git-stack` as a symlink

@@ -3,8 +3,11 @@ SHELL := /bin/bash
 BIN_DIR ?= bin
 BINARY := $(BIN_DIR)/stack
 GO_SRCS := $(shell find cmd internal -name '*.go' -type f ! -name '*_test.go')
+CI_TEST_IMAGE ?= stack-ci-test
+CI_TEST_GOCACHE ?= stack-ci-go-build-cache
+CI_TEST_GOMODCACHE ?= stack-ci-go-mod-cache
 
-.PHONY: test test-timings build install fmt clean
+.PHONY: test test-timings test-linux test-linux-timings build-ci-test-image build install fmt clean
 
 test:
 	$(GO) test ./...
@@ -12,6 +15,23 @@ test:
 test-timings:
 	@set -o pipefail; \
 	$(GO) test -json ./... | jq -r -s 'map(select((.Action=="pass" or .Action=="fail") and (.Test != null))) | sort_by(.Elapsed // 0) | reverse[] | [.Action, (.Elapsed // 0), (.Package // ""), .Test] | @tsv'
+
+build-ci-test-image:
+	docker build -f build/ci-test.Dockerfile -t $(CI_TEST_IMAGE) .
+
+test-linux: build-ci-test-image
+	docker run --rm -t \
+		-v "$(CURDIR):/workspace" \
+		-v "$(CI_TEST_GOCACHE):/root/.cache/go-build" \
+		-v "$(CI_TEST_GOMODCACHE):/go/pkg/mod" \
+		-w /workspace $(CI_TEST_IMAGE) make test
+
+test-linux-timings: build-ci-test-image
+	docker run --rm -t \
+		-v "$(CURDIR):/workspace" \
+		-v "$(CI_TEST_GOCACHE):/root/.cache/go-build" \
+		-v "$(CI_TEST_GOMODCACHE):/go/pkg/mod" \
+		-w /workspace $(CI_TEST_IMAGE) make test-timings
 
 build: $(BINARY)
 
