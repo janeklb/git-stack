@@ -19,7 +19,12 @@ const (
 )
 
 func (a *App) helpFunc(cmd *cobra.Command, _ []string) {
-	writeCommandHelp(cmd.OutOrStdout(), cmd, configuredHelpWrapWidth(cmd.OutOrStdout()))
+	theme := helpTheme{useColor: helpColorEnabled(cmd.OutOrStdout())}
+	writeCommandHelp(cmd.OutOrStdout(), cmd, configuredHelpWrapWidth(cmd.OutOrStdout()), theme)
+}
+
+func helpColorEnabled(out io.Writer) bool {
+	return stdoutIsTTY(out) && strings.TrimSpace(os.Getenv("NO_COLOR")) == ""
 }
 
 func configuredHelpWrapWidth(out io.Writer) int {
@@ -59,15 +64,15 @@ func helpWrapWidthForTerminalWidth(width int) int {
 	return preferredHelpWrapWidth
 }
 
-func writeCommandHelp(out io.Writer, cmd *cobra.Command, wrapWidth int) {
+func writeCommandHelp(out io.Writer, cmd *cobra.Command, wrapWidth int, theme helpTheme) {
 	writeHelpDescription(out, cmd, wrapWidth)
-	writeUsageSection(out, cmd)
-	writeAliasesSection(out, cmd)
-	writeCommandSection(out, cmd, wrapWidth)
-	writeExampleSection(out, cmd, wrapWidth)
-	writeFlagsSection(out, "Flags:", cmd.NonInheritedFlags(), wrapWidth)
-	writeFlagsSection(out, "Global Flags:", cmd.InheritedFlags(), wrapWidth)
-	writeFooter(out, cmd)
+	writeUsageSection(out, cmd, theme)
+	writeAliasesSection(out, cmd, theme)
+	writeCommandSection(out, cmd, wrapWidth, theme)
+	writeExampleSection(out, cmd, wrapWidth, theme)
+	writeFlagsSection(out, "Flags:", cmd.NonInheritedFlags(), wrapWidth, theme)
+	writeFlagsSection(out, "Global Flags:", cmd.InheritedFlags(), wrapWidth, theme)
+	writeFooter(out, cmd, theme)
 }
 
 func writeHelpDescription(out io.Writer, cmd *cobra.Command, wrapWidth int) {
@@ -83,30 +88,30 @@ func writeHelpDescription(out io.Writer, cmd *cobra.Command, wrapWidth int) {
 	fmt.Fprintln(out)
 }
 
-func writeUsageSection(out io.Writer, cmd *cobra.Command) {
-	fmt.Fprintln(out, "Usage:")
+func writeUsageSection(out io.Writer, cmd *cobra.Command, theme helpTheme) {
+	fmt.Fprintln(out, theme.header("Usage:"))
 	fmt.Fprintf(out, "  %s\n", cmd.UseLine())
 	if cmd.HasAvailableSubCommands() {
 		fmt.Fprintf(out, "  %s [command]\n", cmd.CommandPath())
 	}
 }
 
-func writeAliasesSection(out io.Writer, cmd *cobra.Command) {
+func writeAliasesSection(out io.Writer, cmd *cobra.Command, theme helpTheme) {
 	if len(cmd.Aliases) == 0 {
 		return
 	}
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Aliases:")
+	fmt.Fprintln(out, theme.header("Aliases:"))
 	fmt.Fprintf(out, "  %s\n", strings.Join(cmd.Aliases, ", "))
 }
 
-func writeCommandSection(out io.Writer, cmd *cobra.Command, wrapWidth int) {
+func writeCommandSection(out io.Writer, cmd *cobra.Command, wrapWidth int, theme helpTheme) {
 	children := availableCommands(cmd)
 	if len(children) == 0 {
 		return
 	}
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Available Commands:")
+	fmt.Fprintln(out, theme.header("Available Commands:"))
 	nameWidth := 0
 	for _, child := range children {
 		if n := runeWidth(child.Name()); n > nameWidth {
@@ -114,40 +119,108 @@ func writeCommandSection(out io.Writer, cmd *cobra.Command, wrapWidth int) {
 		}
 	}
 	for _, child := range children {
-		writeAlignedEntry(out, child.Name(), child.Short, nameWidth, wrapWidth)
+		writeAlignedEntry(out, theme.command(child.Name()), child.Short, nameWidth, wrapWidth)
 	}
 }
 
-func writeExampleSection(out io.Writer, cmd *cobra.Command, wrapWidth int) {
+func writeExampleSection(out io.Writer, cmd *cobra.Command, wrapWidth int, theme helpTheme) {
 	example := strings.Trim(cmd.Example, "\n")
 	if example == "" {
 		return
 	}
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Examples:")
+	fmt.Fprintln(out, theme.header("Examples:"))
 	for _, line := range strings.Split(example, "\n") {
-		writeWrappedText(out, strings.TrimRight(line, " \t"), wrapWidth, "")
+		writeWrappedText(out, theme.example(strings.TrimRight(line, " \t")), wrapWidth, "")
 	}
 }
 
-func writeFlagsSection(out io.Writer, title string, flags *flag.FlagSet, wrapWidth int) {
+func writeFlagsSection(out io.Writer, title string, flags *flag.FlagSet, wrapWidth int, theme helpTheme) {
 	if flags == nil || !flags.HasAvailableFlags() {
 		return
 	}
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, title)
-	if wrapWidth > 0 {
-		fmt.Fprint(out, flags.FlagUsagesWrapped(wrapWidth))
-		return
-	}
-	fmt.Fprint(out, flags.FlagUsages())
+	fmt.Fprintln(out, theme.header(title))
+	writeFlagUsages(out, flags, wrapWidth, theme)
 }
 
-func writeFooter(out io.Writer, cmd *cobra.Command) {
+func writeFooter(out io.Writer, cmd *cobra.Command, theme helpTheme) {
 	if cmd.HasSubCommands() {
 		fmt.Fprintln(out)
-		fmt.Fprintf(out, "Use \"%s [command] --help\" for more information about a command.\n", cmd.CommandPath())
+		fmt.Fprintf(out, "%s\n", theme.note(fmt.Sprintf("Use \"%s [command] --help\" for more information about a command.", cmd.CommandPath())))
 	}
+}
+
+func writeFlagUsages(out io.Writer, flags *flag.FlagSet, wrapWidth int, theme helpTheme) {
+	entries := collectFlagEntries(flags, theme)
+	if len(entries) == 0 {
+		return
+	}
+	nameWidth := 0
+	for _, entry := range entries {
+		if entry.plainWidth > nameWidth {
+			nameWidth = entry.plainWidth
+		}
+	}
+	for _, entry := range entries {
+		writeAlignedEntry(out, entry.styledName, entry.usage, nameWidth, wrapWidth)
+	}
+}
+
+type helpFlagEntry struct {
+	styledName string
+	plainWidth int
+	usage      string
+}
+
+func collectFlagEntries(flags *flag.FlagSet, theme helpTheme) []helpFlagEntry {
+	entries := []helpFlagEntry{}
+	flags.VisitAll(func(f *flag.Flag) {
+		if f.Hidden {
+			return
+		}
+		plainName, styledName := formatFlagName(f, theme)
+		entries = append(entries, helpFlagEntry{
+			styledName: styledName,
+			plainWidth: runeWidth(plainName),
+			usage:      strings.TrimSpace(f.Usage),
+		})
+	})
+	return entries
+}
+
+func formatFlagName(f *flag.Flag, theme helpTheme) (string, string) {
+	partsPlain := []string{}
+	partsStyled := []string{}
+	if f.Shorthand != "" && f.ShorthandDeprecated == "" {
+		shorthand := "-" + f.Shorthand
+		partsPlain = append(partsPlain, shorthand)
+		partsStyled = append(partsStyled, theme.flagName(shorthand))
+	}
+	long := "--" + f.Name
+	partsPlain = append(partsPlain, long)
+	partsStyled = append(partsStyled, theme.flagName(long))
+	plainName := strings.Join(partsPlain, ", ")
+	styledName := strings.Join(partsStyled, ", ")
+	if valueName := flagValueName(f); valueName != "" {
+		plainName += " " + valueName
+		styledName += " " + theme.flagValue(valueName)
+	}
+	return plainName, styledName
+}
+
+func flagValueName(f *flag.Flag) string {
+	if f.Value == nil {
+		return ""
+	}
+	if f.Value.Type() == "bool" {
+		return ""
+	}
+	name := strings.TrimSpace(f.Value.Type())
+	if name == "" {
+		name = "value"
+	}
+	return name
 }
 
 func availableCommands(cmd *cobra.Command) []*cobra.Command {
@@ -254,4 +327,39 @@ func leadingWhitespace(text string) string {
 
 func runeWidth(text string) int {
 	return utf8.RuneCountInString(text)
+}
+
+type helpTheme struct {
+	useColor bool
+}
+
+func (t helpTheme) header(text string) string {
+	return t.wrap(text, "1;37")
+}
+
+func (t helpTheme) command(text string) string {
+	return t.wrap(text, "1;36")
+}
+
+func (t helpTheme) flagName(text string) string {
+	return t.wrap(text, "33")
+}
+
+func (t helpTheme) flagValue(text string) string {
+	return t.wrap(text, "36")
+}
+
+func (t helpTheme) example(text string) string {
+	return t.wrap(text, "2")
+}
+
+func (t helpTheme) note(text string) string {
+	return t.wrap(text, "90")
+}
+
+func (t helpTheme) wrap(text, code string) string {
+	if !t.useColor {
+		return text
+	}
+	return "\x1b[" + code + "m" + text + "\x1b[0m"
 }

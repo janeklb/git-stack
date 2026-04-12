@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -62,7 +63,7 @@ func TestWriteCommandHelpWrapsCommandDescriptions(t *testing.T) {
 	})
 
 	var buf bytes.Buffer
-	writeCommandHelp(&buf, cmd, 48)
+	writeCommandHelp(&buf, cmd, 48, helpTheme{})
 	got := buf.String()
 	if !strings.Contains(got, "Available Commands:") {
 		t.Fatalf("expected available commands section, got:\n%s", got)
@@ -78,5 +79,47 @@ func TestWriteCommandHelpWrapsCommandDescriptions(t *testing.T) {
 	}
 	if !strings.Contains(got, "\n          wrapped to a readable width.") {
 		t.Fatalf("expected wrapped continuation line for command description, got:\n%s", got)
+	}
+}
+
+func TestWriteCommandHelpAppliesColorTheme(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "stack",
+		Long:  "A command with a deliberately long description to exercise the help renderer.",
+		Short: "root",
+	}
+	cmd.Flags().Bool("all", false, "show all tracked stacks")
+	cmd.AddCommand(&cobra.Command{
+		Use:   "submit",
+		Short: "Push branches and create or update pull requests.",
+	})
+
+	var buf bytes.Buffer
+	writeCommandHelp(&buf, cmd, 48, helpTheme{useColor: true})
+	got := buf.String()
+	if !strings.Contains(got, "\x1b[1;37mUsage:\x1b[0m") {
+		t.Fatalf("expected colored header, got:\n%s", got)
+	}
+	if !strings.Contains(got, "\x1b[1;36msubmit\x1b[0m") {
+		t.Fatalf("expected colored command name, got:\n%s", got)
+	}
+	if !strings.Contains(got, "\x1b[33m--all\x1b[0m") {
+		t.Fatalf("expected colored flag name, got:\n%s", got)
+	}
+	if !strings.Contains(got, "\x1b[90mUse \"stack [command] --help\" for more information about a command.\x1b[0m") {
+		t.Fatalf("expected colored footer note, got:\n%s", got)
+	}
+}
+
+func TestHelpColorEnabledHonorsNoColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	defer read.Close()
+	defer write.Close()
+	if helpColorEnabled(write) {
+		t.Fatal("expected NO_COLOR to disable help colors")
 	}
 }
