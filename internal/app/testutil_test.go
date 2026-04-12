@@ -130,17 +130,6 @@ func mustGitOutput(t *testing.T, dir string, args ...string) string {
 	return string(out)
 }
 
-func branchExistsInRepo(t *testing.T, repo, name string) bool {
-	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+name)
-	cmd.Dir = repo
-	return cmd.Run() == nil
-}
-
-func currentBranchInRepo(t *testing.T, repo string) string {
-	t.Helper()
-	return strings.TrimSpace(mustGitOutput(t, repo, "symbolic-ref", "--quiet", "--short", "HEAD"))
-}
-
 func envWithPathPrepended(dir string) []string {
 	pathValue := dir
 	if current := os.Getenv("PATH"); current != "" {
