@@ -43,7 +43,7 @@ func TestAdvanceSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 		t.Fatalf("save state: %v", err)
 	}
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergedMain)+"\"}}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -117,7 +117,7 @@ func TestAdvanceFromOpenChildCleansMergedAncestorAndRestoresCurrentBranch(t *tes
 		t.Fatalf("save state: %v", err)
 	}
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergedMain)+"\"}}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -183,7 +183,7 @@ func TestAdvanceNoopsWhenCurrentStackHasNoMergedBranches(t *testing.T) {
 		t.Fatalf("save state: %v", err)
 	}
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -238,7 +238,7 @@ func TestAdvanceAbortsWhenRemoteBranchStillExists(t *testing.T) {
 		t.Fatalf("save state: %v", err)
 	}
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -313,7 +313,7 @@ func TestAdvanceDoesNotCleanupUnrelatedMergedTrackedBranches(t *testing.T) {
 		t.Fatalf("save state: %v", err)
 	}
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"3\" ]; then\n    cat <<'EOF'\n{\"number\":3,\"url\":\"https://example.invalid/pr/3\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -374,7 +374,7 @@ func TestAdvanceUsesFetchedRemoteTrunkWhenLocalTrunkIsStale(t *testing.T) {
 		t.Fatalf("save state: %v", err)
 	}
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergedMain)+"\"}}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -424,7 +424,7 @@ func TestAdvanceFastForwardsLocalTrunkForMergedLastSlice(t *testing.T) {
 		t.Fatalf("save state: %v", err)
 	}
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergedMain)+"\"}}\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -487,7 +487,7 @@ func TestAdvanceAbortsBeforeCleanupWhenLocalTrunkDiverged(t *testing.T) {
 		t.Fatalf("save state: %v", err)
 	}
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -561,7 +561,7 @@ func TestAdvanceRestacksOnlyAffectedStack(t *testing.T) {
 
 	otherBefore := mustGitOutput(t, repo, "rev-parse", "other-root")
 
-	fakeBin := t.TempDir()
+	fakeBin := newTempDir(t, "advance-fake-bin")
 	ghPath := filepath.Join(fakeBin, "gh")
 	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"3\" ]; then\n    cat <<'EOF'\n{\"number\":3,\"url\":\"https://example.invalid/pr/3\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 	if err := os.Chmod(ghPath, 0o755); err != nil {

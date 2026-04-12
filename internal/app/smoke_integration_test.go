@@ -27,7 +27,7 @@ func TestIntegrationSmokeSubmitMergedSkipPath(t *testing.T) {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "smoke-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\"}\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -71,7 +71,7 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 		mustGit(t, repo, "push", "origin", "main")
 		mustGit(t, repo, "push", "origin", ":old-feature")
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "smoke-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ]; then\n  cat <<'EOF'\n[{\"number\":9,\"url\":\"https://example.invalid/pr/9\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headOID)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeOID)+"\"}}]\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {

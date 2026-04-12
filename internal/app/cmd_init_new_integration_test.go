@@ -100,8 +100,8 @@ func TestNewOnUntrackedCurrentBranchAutoTracksAndStacksFromIt(t *testing.T) {
 
 func TestNewInEmptyRepositoryShowsGuidance(t *testing.T) {
 	t.Parallel()
-	base := t.TempDir()
-	repo := t.TempDir()
+	base := newTempDir(t, "empty-repo-base")
+	repo := newTempDir(t, "empty-repo-clone")
 	origin := filepath.Join(base, "origin.git")
 	mustGit(t, repo, "init", "-b", "main")
 	mustGit(t, base, "init", "--bare", "--initial-branch=main", origin)
@@ -138,7 +138,7 @@ func TestInitPreservesInferredNextIndexForPrefixNaming(t *testing.T) {
 
 func TestInitFailsInSingleBranchClone(t *testing.T) {
 	t.Parallel()
-	base := t.TempDir()
+	base := newTempDir(t, "single-branch-clone-base")
 	seed := filepath.Join(base, "seed")
 	origin := filepath.Join(base, "origin.git")
 	clone := filepath.Join(base, "clone")
@@ -171,7 +171,7 @@ func TestInitFailsInSingleBranchClone(t *testing.T) {
 
 func TestInitFailsWithoutOriginRemote(t *testing.T) {
 	t.Parallel()
-	repo := t.TempDir()
+	repo := newTempDir(t, "missing-origin-repo")
 	mustGit(t, repo, "init", "-b", "main")
 	mustGit(t, repo, "config", "user.name", "Stack Test")
 	mustGit(t, repo, "config", "user.email", "stack-test@example.com")

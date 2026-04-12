@@ -9,16 +9,20 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
 var testCLIBinary string
+var tempPathMu sync.Mutex
+var tempPathRecords []string
 
 func TestMain(m *testing.M) {
 	tmp, err := os.MkdirTemp("", "stack-git-config-")
 	if err != nil {
 		panic(err)
 	}
+	recordTempPath("testmain", tmp)
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		panic(err)
@@ -29,6 +33,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	testCLIBinary = filepath.Join(tmp, "stack-test")
+	recordTempPath("test-cli-binary", testCLIBinary)
 	build := exec.Command("go", "build", "-o", testCLIBinary, "./cmd/stack")
 	build.Dir = repoRoot
 	build.Stdout = os.Stdout
@@ -56,8 +61,50 @@ func TestMain(m *testing.M) {
 			_ = os.WriteFile(summaryPath, []byte(summary), 0o600)
 		}
 	}
+	if os.Getenv("STACK_TEST_TEMP_PATH_DIAGNOSTIC") != "" {
+		summary := formatTempPathSummary()
+		fmt.Fprint(os.Stderr, summary)
+		if summaryPath := os.Getenv("STACK_TEST_TEMP_PATH_SUMMARY"); summaryPath != "" {
+			_ = os.WriteFile(summaryPath, []byte(summary), 0o600)
+		}
+	}
 	_ = os.RemoveAll(tmp)
 	os.Exit(code)
+}
+
+func recordTempPath(label, path string) {
+	if os.Getenv("STACK_TEST_TEMP_PATH_DIAGNOSTIC") == "" {
+		return
+	}
+	tempPathMu.Lock()
+	defer tempPathMu.Unlock()
+	tempPathRecords = append(tempPathRecords, label+"\t"+path)
+}
+
+func formatTempPathSummary() string {
+	tempPathMu.Lock()
+	records := append([]string(nil), tempPathRecords...)
+	tempPathMu.Unlock()
+	sort.Strings(records)
+	var out strings.Builder
+	tmpRoot := os.Getenv("TMPDIR")
+	if tmpRoot == "" {
+		tmpRoot = os.TempDir()
+	}
+	fmt.Fprintf(&out, "temp path summary:\n")
+	fmt.Fprintf(&out, "  TMPDIR=%s\n", tmpRoot)
+	for _, record := range records {
+		parts := strings.SplitN(record, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		location := "outside-tmpdir"
+		if strings.HasPrefix(parts[1], tmpRoot) {
+			location = "under-tmpdir"
+		}
+		fmt.Fprintf(&out, "  %s [%s] %s\n", parts[0], location, parts[1])
+	}
+	return out.String()
 }
 
 func enableCommandTimingWrappers(tmpDir, logPath string) error {

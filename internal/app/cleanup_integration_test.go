@@ -59,7 +59,7 @@ func TestCleanupDefaultsToCurrentStackScope(t *testing.T) {
 		mustGit(t, repo, "push", "origin", ":old-b")
 		mustGit(t, repo, "switch", "active-a")
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "cleanup-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ] && [ \"$3\" = \"--head\" ]; then\n  if [ \"$4\" = \"old-a\" ]; then\n    cat <<'EOF'\n[{\"number\":21,\"url\":\"https://example.invalid/pr/21\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headA)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeA)+"\"}}]\nEOF\n    exit 0\n  fi\n  if [ \"$4\" = \"old-b\" ]; then\n    cat <<'EOF'\n[{\"number\":22,\"url\":\"https://example.invalid/pr/22\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headB)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeB)+"\"}}]\nEOF\n    exit 0\n  fi\n  echo '[]'\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -167,7 +167,7 @@ func TestCleanupUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 		mustGit(t, repo, "push", "origin", ":tracked-b")
 		mustGit(t, repo, "switch", "active-child")
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "cleanup-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ] && [ \"$3\" = \"--head\" ]; then\n  if [ \"$4\" = \"tracked-a\" ]; then\n    cat <<'EOF'\n[{\"number\":31,\"url\":\"https://example.invalid/pr/31\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headA)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeA)+"\"}}]\nEOF\n    exit 0\n  fi\n  if [ \"$4\" = \"tracked-b\" ]; then\n    cat <<'EOF'\n[{\"number\":32,\"url\":\"https://example.invalid/pr/32\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headB)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeB)+"\"}}]\nEOF\n    exit 0\n  fi\n  if [ \"$4\" = \"untracked-old\" ]; then\n    cat <<'EOF'\n[{\"number\":33,\"url\":\"https://example.invalid/pr/33\",\"baseRefName\":\"main\",\"headRefOid\":\""+strings.TrimSpace(headUntracked)+"\",\"state\":\"MERGED\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergeUntracked)+"\"}}]\nEOF\n    exit 0\n  fi\n  echo '[]'\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {

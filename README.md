@@ -39,7 +39,9 @@ Or use Make targets:
 
 ```bash
 make test
+make test-ramdisk
 make test-linux
+make test-linux-tmpfs
 make test-linux-timings
 make build
 make install
@@ -58,6 +60,18 @@ when diagnosing CI-vs-local behavior.
 They also mount persistent Docker volumes for the Go build and module caches, so
 repeat runs stay closer to the cached behavior in CI instead of redownloading and
 rebuilding everything on each invocation.
+
+`make test-linux-tmpfs` keeps the repository bind-mounted from the host but moves
+the test temp area onto a Linux `tmpfs` mount. This is useful as a diagnostic when
+you want to measure how much of the remaining test time comes from temporary repo
+and file churn rather than process startup or the host-mounted workspace.
+
+`make test-ramdisk` is the macOS-side version of that experiment. It creates a
+temporary RAM disk, points `TMPDIR` at it for the duration of the test run, and
+then tears it down. This is useful when you want to measure how much native macOS
+test time is coming from temporary repo churn versus process startup and other
+non-disk overhead. The default RAM disk size is `1 GiB`; override it with
+`RAMDISK_SECTORS=<count>` if you need a larger or smaller disk.
 
 `make install` installs `stack` with `go install ./cmd/stack` into your Go bin directory
 (`GOBIN` if set, otherwise `$(go env GOPATH)/bin`) and creates `git-stack` as a symlink

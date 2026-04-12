@@ -5,7 +5,7 @@ import "testing"
 func TestRecordRestackContinueProgressLeavesIndexWhenOperationStillActive(t *testing.T) {
 	t.Parallel()
 
-	repo := t.TempDir()
+	repo := newTempDir(t, "service-restack-repo")
 	op := &RestackOperation{Type: "restack", Mode: "rebase", Queue: []string{"feat-one", "feat-two"}, Index: 0}
 	completed, err := recordRestackContinueProgress(repo, op, false)
 	if err != nil {
@@ -22,7 +22,7 @@ func TestRecordRestackContinueProgressLeavesIndexWhenOperationStillActive(t *tes
 func TestRecordRestackContinueProgressAdvancesIndexWhenBranchCompletes(t *testing.T) {
 	t.Parallel()
 
-	repo := t.TempDir()
+	repo := newTempDir(t, "service-restack-repo")
 	op := &RestackOperation{Type: "restack", Mode: "rebase", Queue: []string{"feat-one", "feat-two"}, Index: 0}
 	completed, err := recordRestackContinueProgress(repo, op, true)
 	if err != nil {

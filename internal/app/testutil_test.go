@@ -21,9 +21,16 @@ type testBranchReference struct {
 	LineageParent string `json:"lineageParent"`
 }
 
+func newTempDir(t *testing.T, label string) string {
+	t.Helper()
+	dir := t.TempDir()
+	recordTempPath(label, dir)
+	return dir
+}
+
 func newTestRepo(t *testing.T) string {
 	t.Helper()
-	base := t.TempDir()
+	base := newTempDir(t, "new-test-repo")
 	repo := filepath.Join(base, "repo")
 	origin := filepath.Join(base, "origin.git")
 
@@ -52,7 +59,7 @@ func mustConfigureOriginTracking(t *testing.T, repo, trunk string) {
 
 func newBareOrigin(t *testing.T) string {
 	t.Helper()
-	base := t.TempDir()
+	base := newTempDir(t, "new-bare-origin")
 	origin := filepath.Join(base, "origin.git")
 	mustGit(t, base, "init", "--bare", "--initial-branch=main", origin)
 	return origin

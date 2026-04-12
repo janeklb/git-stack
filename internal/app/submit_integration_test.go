@@ -58,7 +58,7 @@ func TestSubmitSkipsMergedTrackedPR(t *testing.T) {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "submit-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nstate_file=\"$(dirname \"$0\")/.created-pr\"\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\"}\nEOF\n  exit 0\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ]; then\n  if [ -f \"$state_file\" ]; then\n    cat <<'EOF'\n[{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"feat two\",\"state\":\"OPEN\"}]\nEOF\n  else\n    printf '[]\\n'\n  fi\n  exit 0\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"create\" ]; then\n  touch \"$state_file\"\n  printf 'https://example.invalid/pr/2\\n'\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -106,7 +106,7 @@ func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *tes
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "submit-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\"}\nEOF\n  exit 0\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ]; then\n  printf '[]\\n'\n  exit 0\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"create\" ]; then\n  printf 'https://example.invalid/pr/2\\n'\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -169,7 +169,7 @@ func TestSubmitUsesNextOnCleanupToSwitchBeforeDeletingMergedCurrentBranch(t *tes
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "submit-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nstate_file=\"$(dirname \"$0\")/.created-pr\"\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\"}\nEOF\n  exit 0\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"list\" ]; then\n  if [ -f \"$state_file\" ]; then\n    cat <<'EOF'\n[{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"feat two\",\"state\":\"OPEN\"}]\nEOF\n  else\n    printf '[]\\n'\n  fi\n  exit 0\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"create\" ]; then\n  touch \"$state_file\"\n  printf 'https://example.invalid/pr/2\\n'\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -228,7 +228,7 @@ func TestSubmitFailsWhenNextOnCleanupTargetDoesNotExist(t *testing.T) {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "submit-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\"}\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -279,7 +279,7 @@ func TestSubmitKeepsBranchWithUnmergedChanges(t *testing.T) {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "submit-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\"}\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
@@ -337,7 +337,7 @@ func TestSubmitForcePushesWithLeaseAfterHistoryRewrite(t *testing.T) {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
-		fakeBin := t.TempDir()
+		fakeBin := newTempDir(t, "submit-fake-bin")
 		ghPath := filepath.Join(fakeBin, "gh")
 		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"open\",\"state\":\"OPEN\"}\nEOF\n  exit 0\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
 		if err := os.Chmod(ghPath, 0o755); err != nil {
