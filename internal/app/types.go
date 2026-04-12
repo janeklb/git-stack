@@ -74,6 +74,7 @@ type GhPR struct {
 	BaseRefName string    `json:"baseRefName"`
 	HeadRefOID  string    `json:"headRefOid"`
 	Title       string    `json:"title"`
+	IsDraft     bool      `json:"isDraft"`
 	State       string    `json:"state"`
 	MergeCommit *GhCommit `json:"mergeCommit"`
 }

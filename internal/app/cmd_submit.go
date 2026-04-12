@@ -104,7 +104,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 		if err := deps.git.PushBranch(branch); err != nil {
 			return fmt.Errorf("push %s: %w", branch, err)
 		}
-		pr, err := deps.ensurePR(branch, parent, meta.PR, existingPR)
+		pr, err := deps.ensurePR(state.Trunk, branch, parent, meta.PR, existingPR)
 		if err != nil {
 			return fmt.Errorf("submit %s: %w", branch, err)
 		}

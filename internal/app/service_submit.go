@@ -12,18 +12,19 @@ type submitDeps struct {
 	ensureCleanWorktree  func() error
 	loadState            func() (string, *State, bool, error)
 	submitQueue          func(*State, bool, []string) ([]string, error)
-	ensurePR             func(string, string, *PRMeta, *GhPR) (*PRMeta, error)
+	ensurePR             func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error)
 	syncCurrentStackBody func(*State, bool, string) error
 	saveState            func(string, *State) error
 	cleanupMergedBranch  func(*State, string, string) (bool, error)
 }
 
-func ensurePR(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+func ensurePR(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 	latestTitle, summary, err := branchSummary(parent, branch)
 	if err != nil {
 		return nil, err
 	}
 	defaultBody := composeBody(summary, "")
+	wantDraft := shouldUseDraftPR(trunk, parent)
 
 	if existing != nil && existing.Number > 0 {
 		if existingPR == nil {
@@ -36,6 +37,9 @@ func ensurePR(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMet
 			if err := ghEdit(existing.Number, parent, existingPR.Body); err != nil {
 				return nil, err
 			}
+			if err := ghSyncDraftState(existing.Number, wantDraft, existingPR); err != nil {
+				return nil, err
+			}
 			return &PRMeta{Number: existing.Number, URL: existingPR.URL, Base: parent, Updated: true}, nil
 		}
 	}
@@ -44,10 +48,13 @@ func ensurePR(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMet
 		if err := ghEdit(open.Number, parent, open.Body); err != nil {
 			return nil, err
 		}
+		if err := ghSyncDraftState(open.Number, wantDraft, open); err != nil {
+			return nil, err
+		}
 		return &PRMeta{Number: open.Number, URL: open.URL, Base: parent, Updated: true}, nil
 	}
 
-	number, url, err := ghCreate(branch, parent, latestTitle, defaultBody)
+	number, url, err := ghCreate(branch, parent, latestTitle, defaultBody, wantDraft)
 	if err != nil {
 		return nil, err
 	}
@@ -81,10 +88,12 @@ func syncCurrentStackBodies(state *State, all bool, target string) error {
 }
 
 type stackBodyUpdate struct {
-	branch string
-	number int
-	base   string
-	body   string
+	branch  string
+	number  int
+	base    string
+	body    string
+	draft   bool
+	isDraft bool
 }
 
 type stackBodySyncSnapshot struct {
@@ -129,7 +138,7 @@ func fetchStackBodySyncSnapshots(state *State, ordered []string) []stackBodySync
 					if base == "" {
 						base = state.Trunk
 					}
-					snapshot.update = stackBodyUpdate{branch: branch, number: pr.Number, base: base, body: pr.Body}
+					snapshot.update = stackBodyUpdate{branch: branch, number: pr.Number, base: base, body: pr.Body, draft: shouldUseDraftPR(state.Trunk, base), isDraft: pr.IsDraft}
 					snapshot.hasUpdate = true
 				}
 			}
@@ -152,6 +161,10 @@ func applyStackBodyUpdates(lines []StackPRLine, updates []stackBodyUpdate) error
 			managed := managedStackBlock(update.branch, lines)
 			body := upsertManagedBlock(update.body, managed)
 			if err := ghEdit(update.number, update.base, body); err != nil {
+				errCh <- err
+				return
+			}
+			if err := ghSyncDraftState(update.number, update.draft, &GhPR{IsDraft: update.isDraft}); err != nil {
 				errCh <- err
 			}
 		}(update)

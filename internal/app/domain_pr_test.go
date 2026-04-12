@@ -109,3 +109,14 @@ func TestStackPRMarker(t *testing.T) {
 		t.Fatalf("expected merged marker with surrounding spaces, got %q", got)
 	}
 }
+
+func TestShouldUseDraftPR(t *testing.T) {
+	t.Parallel()
+
+	if shouldUseDraftPR("main", "main") {
+		t.Fatal("expected trunk-based PR to be ready for review")
+	}
+	if !shouldUseDraftPR("main", "feat-parent") {
+		t.Fatal("expected stacked PR to stay draft")
+	}
+}

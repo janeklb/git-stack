@@ -10,7 +10,7 @@ import (
 
 func ghFindByHead(branch string) (*GhPR, error) {
 	var prs []GhPR
-	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "open", "--json", "number,url,body,baseRefName,headRefOid,title,state,mergeCommit", "--limit", "1"); err != nil {
+	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "open", "--json", "number,url,body,baseRefName,headRefOid,title,isDraft,state,mergeCommit", "--limit", "1"); err != nil {
 		return nil, err
 	}
 	if len(prs) == 0 {
@@ -21,7 +21,7 @@ func ghFindByHead(branch string) (*GhPR, error) {
 
 func ghFindMergedByHead(branch string) (*GhPR, error) {
 	var prs []GhPR
-	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "merged", "--json", "number,url,baseRefName,headRefOid,state,mergeCommit", "--limit", "1"); err != nil {
+	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "merged", "--json", "number,url,baseRefName,headRefOid,isDraft,state,mergeCommit", "--limit", "1"); err != nil {
 		return nil, err
 	}
 	if len(prs) == 0 {
@@ -32,20 +32,24 @@ func ghFindMergedByHead(branch string) (*GhPR, error) {
 
 func ghView(number int) (*GhPR, error) {
 	var pr GhPR
-	if err := ghJSON(&pr, "pr", "view", strconv.Itoa(number), "--json", "number,url,body,baseRefName,headRefOid,title,state,mergeCommit"); err != nil {
+	if err := ghJSON(&pr, "pr", "view", strconv.Itoa(number), "--json", "number,url,body,baseRefName,headRefOid,title,isDraft,state,mergeCommit"); err != nil {
 		return nil, err
 	}
 	return &pr, nil
 }
 
-func ghCreate(branch, parent, title, body string) (int, string, error) {
+func ghCreate(branch, parent, title, body string, draft bool) (int, string, error) {
 	bodyFile, cleanup, err := writeTempBody(body)
 	if err != nil {
 		return 0, "", err
 	}
 	defer cleanup()
 
-	if err := ghRun("pr", "create", "--base", parent, "--head", branch, "--title", title, "--body-file", bodyFile); err != nil {
+	args := []string{"pr", "create", "--base", parent, "--head", branch, "--title", title, "--body-file", bodyFile}
+	if draft {
+		args = append(args, "--draft")
+	}
+	if err := ghRun(args...); err != nil {
 		return 0, "", err
 	}
 	pr, err := ghFindByHead(branch)
@@ -65,6 +69,17 @@ func ghEdit(number int, base, body string) error {
 	}
 	defer cleanup()
 	return ghRun("pr", "edit", strconv.Itoa(number), "--base", base, "--body-file", bodyFile)
+}
+
+func ghSyncDraftState(number int, wantDraft bool, current *GhPR) error {
+	if current != nil && current.IsDraft == wantDraft {
+		return nil
+	}
+	args := []string{"pr", "ready", strconv.Itoa(number)}
+	if wantDraft {
+		args = append(args, "--undo")
+	}
+	return ghRun(args...)
 }
 
 func writeTempBody(body string) (string, func(), error) {
