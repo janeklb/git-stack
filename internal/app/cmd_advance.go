@@ -80,6 +80,8 @@ func (a *App) cmdAdvance(next string) error {
 		}
 	}
 
+	// Clean merged slices first, then restack only the surviving roots that were
+	// directly downstream of those merged branches.
 	a.printlnf("advance: cleanup merged branches in current stack, switch to %s, restack, submit all", target)
 	restackRoots := []string{}
 	restackRootSet := map[string]bool{}
@@ -144,6 +146,8 @@ func (a *App) cmdAdvance(next string) error {
 	return nil
 }
 
+// Advance should look across the whole current stack component, not just the
+// checked-out branch, and clean merged slices from the top down.
 func buildAdvanceCandidatesWithDeps(state *State, current string, deps advanceDeps) ([]advanceCleanupCandidate, error) {
 	selected := branchesInCurrentStack(state, current)
 	order := topoOrderSelected(state, selected)
@@ -302,6 +306,8 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 	return target, nil
 }
 
+// When the current branch is itself being deleted, pick the first surviving
+// descendants beneath it as candidate checkout targets.
 func advanceCleanupTargets(state *State, branch string, merged map[string]bool) []string {
 	children := map[string][]string{}
 	for name, meta := range state.Branches {
@@ -495,6 +501,8 @@ func cleanupMergedBranchForAdvance(out io.Writer, state *State, candidate advanc
 	return nil
 }
 
+// Preserve the user's location when their starting branch survived the advance;
+// otherwise stay on the fallback branch chosen during cleanup.
 func restoreAdvanceTarget(original, fallback string, merged map[string]bool, git advanceGitClient) error {
 	target := fallback
 	if !merged[original] {
@@ -512,6 +520,7 @@ func restoreAdvanceTarget(original, fallback string, merged map[string]bool, git
 	}
 	return git.Run("switch", target)
 }
+
 func mergedCleanupIntegrated(branch, base string, pr *GhPR) (bool, error) {
 	integrated, err := branchFullyIntegrated(branch, base)
 	if err != nil {
