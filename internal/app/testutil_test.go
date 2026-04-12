@@ -131,7 +131,6 @@ func mustGitOutput(t *testing.T, dir string, args ...string) string {
 }
 
 func branchExistsInRepo(t *testing.T, repo, name string) bool {
-	t.Helper()
 	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+name)
 	cmd.Dir = repo
 	return cmd.Run() == nil
