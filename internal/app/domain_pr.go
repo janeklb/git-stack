@@ -110,6 +110,10 @@ func stackPRMarker(currentBranch, branch, state string) string {
 	return "⚪"
 }
 
+func shouldUseDraftPR(trunk, base string) bool {
+	return base != "" && base != trunk
+}
+
 func stitchBody(before, managed, after string) string {
 	if before == "" && after == "" {
 		return managed + "\n"

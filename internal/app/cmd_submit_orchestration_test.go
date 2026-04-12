@@ -82,7 +82,7 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{}, nil
 		},
-		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for empty queue")
 			return nil, nil
 		},
@@ -131,7 +131,7 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for merged PR")
 			return nil, nil
 		},
@@ -169,6 +169,7 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	git := &fakeSubmitGitClient{}
 	ensurePRBranch := ""
 	ensurePRBase := ""
+	ensurePRTrunk := ""
 	syncedAll := false
 	syncedBranch := ""
 	savedRoot := ""
@@ -189,13 +190,14 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 			}
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+		ensurePR: func(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 			if existing != nil {
 				t.Fatalf("expected nil existing PR, got %+v", existing)
 			}
 			if existingPR != nil {
 				t.Fatalf("expected nil existing GhPR snapshot, got %+v", existingPR)
 			}
+			ensurePRTrunk = trunk
 			ensurePRBranch = branch
 			ensurePRBase = parent
 			return &PRMeta{Number: 11, URL: "https://example.invalid/pr/11", Base: parent}, nil
@@ -222,6 +224,9 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	}
 	if ensurePRBranch != "feat-one" {
 		t.Fatalf("expected ensurePR for feat-one, got %q", ensurePRBranch)
+	}
+	if ensurePRTrunk != "main" {
+		t.Fatalf("expected trunk main, got %q", ensurePRTrunk)
 	}
 	if ensurePRBase != "main" {
 		t.Fatalf("expected trunk fallback parent main, got %q", ensurePRBase)
@@ -258,7 +263,7 @@ func TestCmdSubmitSkipsMissingLocalBranch(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not run for missing local branch")
 			return nil, nil
 		},
@@ -295,7 +300,7 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not run when branch has no commits beyond parent")
 			return nil, nil
 		},
@@ -330,7 +335,10 @@ func TestCmdSubmitPrintsNoteWhenNextOnCleanupUnused(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+		ensurePR: func(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+			if trunk != "main" {
+				t.Fatalf("expected trunk main, got %q", trunk)
+			}
 			return &PRMeta{Number: 11, URL: "https://example.invalid/pr/11", Base: parent}, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
@@ -362,7 +370,7 @@ func TestCmdSubmitTrimsNextOnCleanupBeforeCleanupCallback(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for merged PR")
 			return nil, nil
 		},
