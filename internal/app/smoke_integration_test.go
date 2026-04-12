@@ -93,20 +93,17 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 }
 
 func TestIntegrationSmokeStatusShowsTrackedBranch(t *testing.T) {
+	t.Parallel()
 	repo := newTestRepo(t)
 
-	withRepoCwd(t, repo, func() {
-		cli := New()
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
 
-		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
-		mustRunCLI(t, cli, []string{"new", "feat-one"})
-
-		out, code := runCLIAndCapture(t, cli, []string{"status"})
-		if code != 0 {
-			t.Fatalf("status failed: exit=%d\n%s", code, out)
-		}
-		if !strings.Contains(out, "main (trunk)") || !strings.Contains(out, "feat-one") {
-			t.Fatalf("expected trunk and branch in status output, got:\n%s", out)
-		}
-	})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"status"})
+	if code != 0 {
+		t.Fatalf("status failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "main (trunk)") || !strings.Contains(out, "feat-one") {
+		t.Fatalf("expected trunk and branch in status output, got:\n%s", out)
+	}
 }

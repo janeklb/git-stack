@@ -8,42 +8,36 @@ import (
 )
 
 func TestSubmitWithNoTrackedBranchesIsNoop(t *testing.T) {
+	t.Parallel()
 	repo := newTestRepo(t)
 
-	withRepoCwd(t, repo, func() {
-		cli := New()
-
-		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
-		out, code := runCLIAndCapture(t, cli, []string{"submit", "--all"})
-		if code != 0 {
-			t.Fatalf("submit failed: exit=%d\n%s", code, out)
-		}
-		if !strings.Contains(out, "nothing to submit") {
-			t.Fatalf("expected noop submit message, got:\n%s", out)
-		}
-	})
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"submit", "--all"})
+	if code != 0 {
+		t.Fatalf("submit failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "nothing to submit") {
+		t.Fatalf("expected noop submit message, got:\n%s", out)
+	}
 }
 
 func TestSubmitWithoutInitializedStateIsNoop(t *testing.T) {
+	t.Parallel()
 	repo := newTestRepo(t)
 
-	withRepoCwd(t, repo, func() {
-		cli := New()
-
-		out, code := runCLIAndCapture(t, cli, []string{"submit", "--all"})
-		if code != 0 {
-			t.Fatalf("submit failed: exit=%d\n%s", code, out)
-		}
-		if !strings.Contains(out, "nothing to submit") {
-			t.Fatalf("expected noop submit message, got:\n%s", out)
-		}
-		if !strings.Contains(out, "initialized stack state") {
-			t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
-		}
-		if _, err := loadState(repo); err != nil {
-			t.Fatalf("expected state file to be persisted, got: %v", err)
-		}
-	})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"submit", "--all"})
+	if code != 0 {
+		t.Fatalf("submit failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "nothing to submit") {
+		t.Fatalf("expected noop submit message, got:\n%s", out)
+	}
+	if !strings.Contains(out, "initialized stack state") {
+		t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
+	}
+	if _, err := loadState(repo); err != nil {
+		t.Fatalf("expected state file to be persisted, got: %v", err)
+	}
 }
 
 func TestSubmitSkipsMergedTrackedPR(t *testing.T) {

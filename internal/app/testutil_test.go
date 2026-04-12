@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -87,6 +88,20 @@ func mustRunCLI(t *testing.T, cli *App, args []string) {
 	}
 }
 
+func mustRunCLIInRepo(t *testing.T, repo string, args []string) {
+	t.Helper()
+	if out, code := runCLIInRepoAndCapture(t, repo, args); code != 0 {
+		t.Fatalf("cli failed: stack %s (exit=%d)\n%s", strings.Join(args, " "), code, out)
+	}
+}
+
+func mustRunCLIInRepoWithEnv(t *testing.T, repo string, env []string, args []string) {
+	t.Helper()
+	if out, code := runCLIInRepoAndCaptureWithEnv(t, repo, env, args); code != 0 {
+		t.Fatalf("cli failed: stack %s (exit=%d)\n%s", strings.Join(args, " "), code, out)
+	}
+}
+
 func mustGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
@@ -102,6 +117,36 @@ func mustWriteFile(t *testing.T, path string, contents string) {
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatalf("write file %s: %v", path, err)
 	}
+}
+
+func mustGitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(out))
+	}
+	return string(out)
+}
+
+func branchExistsInRepo(repo, name string) bool {
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+name)
+	cmd.Dir = repo
+	return cmd.Run() == nil
+}
+
+func currentBranchInRepo(t *testing.T, repo string) string {
+	t.Helper()
+	return strings.TrimSpace(mustGitOutput(t, repo, "symbolic-ref", "--quiet", "--short", "HEAD"))
+}
+
+func envWithPathPrepended(dir string) []string {
+	pathValue := dir
+	if current := os.Getenv("PATH"); current != "" {
+		pathValue += string(os.PathListSeparator) + current
+	}
+	return append(os.Environ(), "PATH="+pathValue)
 }
 
 func readStateFile(t *testing.T, repo string) testState {
@@ -145,10 +190,42 @@ func runCLIAndCapture(t *testing.T, _ *App, args []string) (string, int) {
 	return buf.String(), code
 }
 
+func runCLIInRepoAndCapture(t *testing.T, repo string, args []string) (string, int) {
+	t.Helper()
+	return runCLIInRepoAndCaptureWithEnv(t, repo, nil, args)
+}
+
+func runCLIInRepoAndCaptureWithEnv(t *testing.T, repo string, env []string, args []string) (string, int) {
+	t.Helper()
+	return runCLIInRepoWithInputAndCapture(t, repo, env, args, "")
+}
+
 func runCLIWithInputAndCapture(t *testing.T, _ *App, args []string, input string) (string, int) {
 	t.Helper()
 	var buf bytes.Buffer
 	cli := NewWithIO(strings.NewReader(input), &buf, &buf)
 	code := cli.Run(args, "stack")
 	return buf.String(), code
+}
+
+func runCLIInRepoWithInputAndCapture(t *testing.T, repo string, env []string, args []string, input string) (string, int) {
+	t.Helper()
+	cmd := exec.Command(testCLIBinary, args...)
+	cmd.Dir = repo
+	if env != nil {
+		cmd.Env = env
+	}
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+	}
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return string(out), 0
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return string(out), exitErr.ExitCode()
+	}
+	t.Fatalf("run cli %s: %v\n%s", strings.Join(args, " "), err, string(out))
+	return "", 0
 }
