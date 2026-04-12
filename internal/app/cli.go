@@ -56,7 +56,8 @@ Mutating commands require a clean worktree. Commands such as new, status, restac
 			return ensureSupportedCloneLayout()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+			a.writeCompactRootHelp(cmd.OutOrStdout(), cmd)
+			return nil
 		},
 	}
 	root.CompletionOptions.DisableDefaultCmd = false

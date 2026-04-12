@@ -18,6 +18,23 @@ func TestHelpIncludesCompletionCommand(t *testing.T) {
 	if !strings.Contains(out, "stack is an opinionated CLI for personal stacked PR development") {
 		t.Fatalf("expected root help to include updated long description, got:\n%s", out)
 	}
+	if !strings.Contains(out, "Manage personal stacked PR branches") {
+		t.Fatalf("expected root help to include short summary, got:\n%s", out)
+	}
+}
+
+func TestBareRootOutputOmitsRootLongDescription(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, nil)
+	if code != 0 {
+		t.Fatalf("bare root failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "Manage personal stacked PR branches") {
+		t.Fatalf("expected bare root to include short summary, got:\n%s", out)
+	}
+	if strings.Contains(out, "stack is an opinionated CLI for personal stacked PR development") {
+		t.Fatalf("expected bare root to omit long description, got:\n%s", out)
+	}
 }
 
 func TestCompletionBashOutputsScript(t *testing.T) {
@@ -104,6 +121,9 @@ func TestInitHelpMarksCommandAsRepairFlow(t *testing.T) {
 	}
 	if !strings.Contains(out, "supports {slug} and {n}") {
 		t.Fatalf("expected init help to describe naming template placeholders, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Initialize or repair stack state") {
+		t.Fatalf("expected init help to include short summary, got:\n%s", out)
 	}
 }
 

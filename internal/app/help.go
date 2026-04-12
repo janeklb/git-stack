@@ -23,6 +23,11 @@ func (a *App) helpFunc(cmd *cobra.Command, _ []string) {
 	writeCommandHelp(cmd.OutOrStdout(), cmd, configuredHelpWrapWidth(cmd.OutOrStdout()), theme)
 }
 
+func (a *App) writeCompactRootHelp(out io.Writer, cmd *cobra.Command) {
+	theme := helpTheme{useColor: helpColorEnabled(out)}
+	writeCompactRootHelp(out, cmd, configuredHelpWrapWidth(out), theme)
+}
+
 func helpColorEnabled(out io.Writer) bool {
 	return stdoutIsTTY(out) && strings.TrimSpace(os.Getenv("NO_COLOR")) == ""
 }
@@ -65,7 +70,7 @@ func helpWrapWidthForTerminalWidth(width int) int {
 }
 
 func writeCommandHelp(out io.Writer, cmd *cobra.Command, wrapWidth int, theme helpTheme) {
-	writeHelpDescription(out, cmd, wrapWidth)
+	writeHelpDescription(out, cmd, wrapWidth, theme)
 	writeUsageSection(out, cmd, theme)
 	writeAliasesSection(out, cmd, theme)
 	writeCommandSection(out, cmd, wrapWidth, theme)
@@ -75,16 +80,33 @@ func writeCommandHelp(out io.Writer, cmd *cobra.Command, wrapWidth int, theme he
 	writeFooter(out, cmd, theme)
 }
 
-func writeHelpDescription(out io.Writer, cmd *cobra.Command, wrapWidth int) {
-	text := strings.TrimSpace(cmd.Long)
-	if text == "" {
-		text = strings.TrimSpace(cmd.Short)
+func writeCompactRootHelp(out io.Writer, cmd *cobra.Command, wrapWidth int, theme helpTheme) {
+	short := strings.TrimSpace(cmd.Short)
+	if short != "" {
+		writeWrappedText(out, theme.summary(short), wrapWidth, "")
+		fmt.Fprintln(out)
+		fmt.Fprintln(out)
 	}
-	if text == "" {
+	writeUsageSection(out, cmd, theme)
+	writeCommandSection(out, cmd, wrapWidth, theme)
+	writeFooter(out, cmd, theme)
+}
+
+func writeHelpDescription(out io.Writer, cmd *cobra.Command, wrapWidth int, theme helpTheme) {
+	short := strings.TrimSpace(cmd.Short)
+	long := strings.TrimSpace(cmd.Long)
+	if short == "" && long == "" {
 		return
 	}
-	writeWrappedText(out, text, wrapWidth, "")
-	fmt.Fprintln(out)
+	if short != "" {
+		writeWrappedText(out, theme.summary(short), wrapWidth, "")
+		if long != "" && long != short {
+			fmt.Fprintln(out)
+		}
+	}
+	if long != "" && long != short {
+		writeWrappedText(out, long, wrapWidth, "")
+	}
 	fmt.Fprintln(out)
 }
 
@@ -335,6 +357,10 @@ type helpTheme struct {
 
 func (t helpTheme) header(text string) string {
 	return t.wrap(text, "1;37")
+}
+
+func (t helpTheme) summary(text string) string {
+	return t.wrap(text, "1")
 }
 
 func (t helpTheme) command(text string) string {

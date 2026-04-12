@@ -55,7 +55,7 @@ func TestWriteCommandHelpWrapsCommandDescriptions(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "stack",
 		Long:  "A command with a deliberately long description to exercise the help renderer.",
-		Short: "root",
+		Short: "A concise summary line.",
 	}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "submit",
@@ -67,6 +67,12 @@ func TestWriteCommandHelpWrapsCommandDescriptions(t *testing.T) {
 	got := buf.String()
 	if !strings.Contains(got, "Available Commands:") {
 		t.Fatalf("expected available commands section, got:\n%s", got)
+	}
+	if !strings.Contains(got, "A concise summary line.") {
+		t.Fatalf("expected short summary to be rendered, got:\n%s", got)
+	}
+	if !strings.Contains(got, "A command with a deliberately long description") {
+		t.Fatalf("expected long description to be rendered, got:\n%s", got)
 	}
 	if !strings.Contains(got, "submit") {
 		t.Fatalf("expected command entry, got:\n%s", got)
@@ -82,11 +88,30 @@ func TestWriteCommandHelpWrapsCommandDescriptions(t *testing.T) {
 	}
 }
 
+func TestWriteCompactRootHelpUsesOnlyShortDescription(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "stack",
+		Short: "A concise summary line.",
+		Long:  "A command with a deliberately long description to exercise the help renderer.",
+	}
+	cmd.AddCommand(&cobra.Command{Use: "submit", Short: "Push branches."})
+
+	var buf bytes.Buffer
+	writeCompactRootHelp(&buf, cmd, 48, helpTheme{})
+	got := buf.String()
+	if !strings.Contains(got, "A concise summary line.") {
+		t.Fatalf("expected compact help to include short summary, got:\n%s", got)
+	}
+	if strings.Contains(got, "deliberately long description") {
+		t.Fatalf("expected compact help to omit long description, got:\n%s", got)
+	}
+}
+
 func TestWriteCommandHelpAppliesColorTheme(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "stack",
 		Long:  "A command with a deliberately long description to exercise the help renderer.",
-		Short: "root",
+		Short: "A concise summary line.",
 	}
 	cmd.Flags().Bool("all", false, "show all tracked stacks")
 	cmd.AddCommand(&cobra.Command{
@@ -99,6 +124,9 @@ func TestWriteCommandHelpAppliesColorTheme(t *testing.T) {
 	got := buf.String()
 	if !strings.Contains(got, "\x1b[1;37mUsage:\x1b[0m") {
 		t.Fatalf("expected colored header, got:\n%s", got)
+	}
+	if !strings.Contains(got, "\x1b[1mA concise summary line.\x1b[0m") {
+		t.Fatalf("expected colored short summary, got:\n%s", got)
 	}
 	if !strings.Contains(got, "\x1b[1;36msubmit\x1b[0m") {
 		t.Fatalf("expected colored command name, got:\n%s", got)
