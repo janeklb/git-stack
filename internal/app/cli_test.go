@@ -15,6 +15,9 @@ func TestHelpIncludesCompletionCommand(t *testing.T) {
 	if !strings.Contains(out, "completion") {
 		t.Fatalf("expected help output to mention completion command, got:\n%s", out)
 	}
+	if !strings.Contains(out, "stack is an opinionated CLI for personal stacked PR development") {
+		t.Fatalf("expected root help to include updated long description, got:\n%s", out)
+	}
 }
 
 func TestCompletionBashOutputsScript(t *testing.T) {
@@ -98,6 +101,54 @@ func TestInitHelpMarksCommandAsRepairFlow(t *testing.T) {
 	}
 	if !strings.Contains(out, "auto-bootstrap state when possible") {
 		t.Fatalf("expected init help to mention auto-bootstrap happy path, got:\n%s", out)
+	}
+	if !strings.Contains(out, "supports {slug} and {n}") {
+		t.Fatalf("expected init help to describe naming template placeholders, got:\n%s", out)
+	}
+}
+
+func TestSubmitHelpDescribesDefaultsAndCleanupFlag(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"help", "submit"})
+	if code != 0 {
+		t.Fatalf("help submit failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "By default, submit operates on the current stack component in topological order") {
+		t.Fatalf("expected submit help to describe default scope and ordering, got:\n%s", out)
+	}
+	if !strings.Contains(out, "force-pushes the local branch to origin with force-with-lease") {
+		t.Fatalf("expected submit help to describe push semantics, got:\n%s", out)
+	}
+	if !strings.Contains(out, "stack submit --next-on-cleanup feat/two feat/one") {
+		t.Fatalf("expected submit help to include cleanup example, got:\n%s", out)
+	}
+}
+
+func TestAdvanceHelpDescribesStrictPostMergeFlow(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"help", "advance"})
+	if code != 0 {
+		t.Fatalf("help advance failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "advance is a strict post-merge workflow") {
+		t.Fatalf("expected advance help to describe strict post-merge behavior, got:\n%s", out)
+	}
+	if !strings.Contains(out, "whose remote branches have already been deleted") {
+		t.Fatalf("expected advance help to describe remote deletion precondition, got:\n%s", out)
+	}
+}
+
+func TestCleanupHelpDescribesPlanAndScope(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"help", "cleanup"})
+	if code != 0 {
+		t.Fatalf("help cleanup failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "builds a cleanup plan, prints that plan") {
+		t.Fatalf("expected cleanup help to describe plan output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "By default it only considers tracked branches in the current stack component") {
+		t.Fatalf("expected cleanup help to describe default scope, got:\n%s", out)
 	}
 }
 
