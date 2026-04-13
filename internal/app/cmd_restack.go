@@ -34,7 +34,7 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 			return err
 		}
 		if active {
-			return errors.New("a restack operation is already in progress; use stack restack --continue or --abort")
+			return errors.New("a restack operation is already in progress; use git-stack restack --continue or --abort")
 		}
 		return runRestack(repoRoot, state, op, false, a.stdout)
 	}

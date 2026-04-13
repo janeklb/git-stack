@@ -83,22 +83,22 @@ func withRepoCwd(t *testing.T, repo string, fn func()) {
 
 func mustRunCLI(t *testing.T, cli *App, args []string) {
 	t.Helper()
-	if code := cli.Run(args, "stack"); code != 0 {
-		t.Fatalf("cli failed: stack %s (exit=%d)", strings.Join(args, " "), code)
+	if code := cli.Run(args, canonicalBinName); code != 0 {
+		t.Fatalf("cli failed: %s %s (exit=%d)", canonicalBinName, strings.Join(args, " "), code)
 	}
 }
 
 func mustRunCLIInRepo(t *testing.T, repo string, args []string) {
 	t.Helper()
 	if out, code := runCLIInRepoAndCapture(t, repo, args); code != 0 {
-		t.Fatalf("cli failed: stack %s (exit=%d)\n%s", strings.Join(args, " "), code, out)
+		t.Fatalf("cli failed: %s %s (exit=%d)\n%s", canonicalBinName, strings.Join(args, " "), code, out)
 	}
 }
 
 func mustRunCLIInRepoWithEnv(t *testing.T, repo string, env []string, args []string) {
 	t.Helper()
 	if out, code := runCLIInRepoAndCaptureWithEnv(t, repo, env, args); code != 0 {
-		t.Fatalf("cli failed: stack %s (exit=%d)\n%s", strings.Join(args, " "), code, out)
+		t.Fatalf("cli failed: %s %s (exit=%d)\n%s", canonicalBinName, strings.Join(args, " "), code, out)
 	}
 }
 
@@ -185,7 +185,7 @@ func runCLIAndCapture(t *testing.T, _ *App, args []string) (string, int) {
 
 	var buf bytes.Buffer
 	cli := NewWithIO(nil, &buf, &buf)
-	code := cli.Run(args, "stack")
+	code := cli.Run(args, canonicalBinName)
 
 	return buf.String(), code
 }
@@ -204,7 +204,7 @@ func runCLIWithInputAndCapture(t *testing.T, _ *App, args []string, input string
 	t.Helper()
 	var buf bytes.Buffer
 	cli := NewWithIO(strings.NewReader(input), &buf, &buf)
-	code := cli.Run(args, "stack")
+	code := cli.Run(args, canonicalBinName)
 	return buf.String(), code
 }
 

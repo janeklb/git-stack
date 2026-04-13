@@ -1,6 +1,6 @@
-# stack manifest
+# git-stack manifest
 
-`stack` exists to support one workflow really well: personal stacked PR development, especially the high-frequency loop of advancing a stack after merges.
+`git-stack` exists to support one workflow really well: personal stacked PR development, especially the high-frequency loop of advancing a stack after merges.
 
 ## Purpose
 

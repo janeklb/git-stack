@@ -1,7 +1,7 @@
 GO ?= go
 SHELL := /bin/bash
 BIN_DIR ?= bin
-BINARY := $(BIN_DIR)/stack
+BINARY := $(BIN_DIR)/git-stack
 GO_SRCS := $(shell find cmd internal -name '*.go' -type f ! -name '*_test.go')
 CI_TEST_IMAGE ?= stack-ci-test
 CI_TEST_GOCACHE ?= stack-ci-go-build-cache
@@ -37,15 +37,15 @@ build: $(BINARY)
 
 $(BINARY): go.mod $(GO_SRCS)
 	mkdir -p $(BIN_DIR)
-	$(GO) build -o $(BINARY) ./cmd/stack
+	$(GO) build -o $(BINARY) ./cmd/git-stack
 
 install:
 	@BIN_DIR="$$($(GO) env GOBIN)"; \
 	if [ -z "$$BIN_DIR" ]; then BIN_DIR="$$($(GO) env GOPATH)/bin"; fi; \
 	mkdir -p "$$BIN_DIR"; \
-	$(GO) install ./cmd/stack; \
-	ln -sf "$$BIN_DIR/stack" "$$BIN_DIR/git-stack"; \
-	printf "installed stack and git-stack in %s\n" "$$BIN_DIR"
+	$(GO) install ./cmd/git-stack; \
+	printf "installed git-stack in %s\n" "$$BIN_DIR"; \
+	printf "optional alias: alias stack=git-stack\n"
 
 fmt:
 	gofmt -w ./cmd ./internal

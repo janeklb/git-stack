@@ -1,6 +1,6 @@
-# stack assumptions
+# git-stack assumptions
 
-This file records repo-level workflow assumptions and command preconditions that shape `stack` behavior.
+This file records repo-level workflow assumptions and command preconditions that shape `git-stack` behavior.
 
 Use it when changing command semantics, relaxing constraints, or adding new workflows. If an assumption changes, audit every command that depends on it.
 

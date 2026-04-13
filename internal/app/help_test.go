@@ -53,7 +53,7 @@ func TestWriteWrappedTextLeavesNarrowOutputUnwrapped(t *testing.T) {
 
 func TestWriteCommandHelpWrapsCommandDescriptions(t *testing.T) {
 	cmd := &cobra.Command{
-		Use:   "stack",
+		Use:   "git-stack",
 		Long:  "A command with a deliberately long description to exercise the help renderer.",
 		Short: "A concise summary line.",
 	}
@@ -90,7 +90,7 @@ func TestWriteCommandHelpWrapsCommandDescriptions(t *testing.T) {
 
 func TestWriteCompactRootHelpUsesOnlyShortDescription(t *testing.T) {
 	cmd := &cobra.Command{
-		Use:   "stack",
+		Use:   "git-stack",
 		Short: "A concise summary line.",
 		Long:  "A command with a deliberately long description to exercise the help renderer.",
 	}
@@ -109,7 +109,7 @@ func TestWriteCompactRootHelpUsesOnlyShortDescription(t *testing.T) {
 
 func TestWriteCommandHelpAppliesColorTheme(t *testing.T) {
 	cmd := &cobra.Command{
-		Use:   "stack",
+		Use:   "git-stack",
 		Long:  "A command with a deliberately long description to exercise the help renderer.",
 		Short: "A concise summary line.",
 	}
@@ -134,7 +134,7 @@ func TestWriteCommandHelpAppliesColorTheme(t *testing.T) {
 	if !strings.Contains(got, "\x1b[33m--all\x1b[0m") {
 		t.Fatalf("expected colored flag name, got:\n%s", got)
 	}
-	if !strings.Contains(got, "\x1b[90mUse \"stack [command] --help\" for more information about a command.\x1b[0m") {
+	if !strings.Contains(got, "\x1b[90mUse \"git-stack [command] --help\" for more information about a command.\x1b[0m") {
 		t.Fatalf("expected colored footer note, got:\n%s", got)
 	}
 }

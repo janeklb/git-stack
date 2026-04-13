@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const canonicalBinName = "git-stack"
+
 func (a *App) Run(args []string, invocation string) int {
 	root := a.newRootCmd(invocation)
 	root.SetIn(a.in)
@@ -23,20 +25,20 @@ func (a *App) Run(args []string, invocation string) int {
 func (a *App) newRootCmd(invocation string) *cobra.Command {
 	bin := invocation
 	if bin == "" {
-		bin = "stack"
+		bin = canonicalBinName
 	}
 	use := strings.TrimSpace(bin)
 	if use == "" {
-		use = "stack"
+		use = canonicalBinName
 	}
 
 	var root *cobra.Command
 	root = &cobra.Command{
 		Use:   use,
 		Short: "Manage personal stacked PR branches",
-		Long: `stack is an opinionated CLI for personal stacked PR development.
+		Long: `git-stack is an opinionated CLI for personal stacked PR development.
 
-It tracks branch parentage, restacks descendants after history changes, and submits pull requests in stack order. Equivalent git extension form: git stack <command>.
+It tracks branch parentage, restacks descendants after history changes, and submits pull requests in stack order. When git-stack is on your PATH, Git also exposes it as git stack <command>.
 
 Mutating commands require a clean worktree. Commands such as new, status, restack, submit, reparent, and cleanup can infer and persist stack state automatically when the workflow is unambiguous.`,
 		SilenceUsage:  true,
@@ -75,7 +77,7 @@ Mutating commands require a clean worktree. Commands such as new, status, restac
 This command writes stack metadata under .git/stack/state.json. It is primarily a repair and reconfiguration flow: normal mutating commands should auto-bootstrap state when possible instead of requiring init first.
 
 init requires a clean worktree. When --trunk is omitted, stack detects trunk from origin/HEAD. Existing inferred or persisted branch relationships are preserved when possible while trunk, restack mode, and naming settings are refreshed.`,
-		Example: "  stack init\n  stack init --trunk main --mode rebase\n  stack init --template \"feature/{slug}\" --prefix-index",
+		Example: "  git-stack init\n  git-stack init --trunk main --mode rebase\n  git-stack init --template \"feature/{slug}\" --prefix-index",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdInit(initTrunk, initMode, initTemplate, initPrefixIndex)
@@ -99,7 +101,7 @@ init requires a clean worktree. When --trunk is omitted, stack detects trunk fro
 Without --adopt, stack creates a new branch from the chosen parent and starts tracking it. The default parent is the current branch. If [name] is omitted, stack generates a temporary slug. The final branch name is built from the configured template, where {slug} expands to the normalized name and {n} expands to the next zero-padded index.
 
 With --adopt, stack does not create a branch. It tracks the current existing branch instead. If --parent is omitted during adopt, stack infers the parent from local branch ancestry. This command requires a clean worktree and auto-persists inferred state if needed.`,
-		Example: "  stack new add-search\n  stack new api/auth --parent main\n  stack new polish-login --template \"feature/{slug}\"\n  stack new --adopt\n  stack new --adopt --parent feature/base",
+		Example: "  git-stack new add-search\n  git-stack new api/auth --parent main\n  git-stack new polish-login --template \"feature/{slug}\"\n  git-stack new --adopt\n  git-stack new --adopt --parent feature/base",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := ""
@@ -128,7 +130,7 @@ With --adopt, stack does not create a branch. It tracks the current existing bra
 By default, status shows the connected tracked component rooted at the topmost tracked ancestor of the current branch. When run from trunk, it shows every tracked stack. If persisted state is missing, status infers stack relationships from local branch ancestry without requiring initialization.
 
 Each branch line includes its PR state: local-only when no PR metadata exists, submitted when a PR exists, and updated when an existing PR was updated on the last submit. Use --drift to surface parent mismatches such as parent-not-ancestor or missing-parent conditions.`,
-		Example: "  stack status\n  stack status --all\n  stack status --drift --no-color",
+		Example: "  git-stack status\n  git-stack status --all\n  git-stack status --drift --no-color",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdStatus(statusAll, statusDrift, statusNoColor)
@@ -147,10 +149,10 @@ Each branch line includes its PR state: local-only when no PR metadata exists, s
 		Short: "Restack branches onto their parents",
 		Long: `Rewrite tracked branches so each branch is based on its recorded parent.
 
-On a fresh run, restack requires a clean worktree. It auto-persists inferred state if needed, then processes tracked branches in stack order using the configured restack mode. The default mode comes from stack state and is usually rebase unless changed with stack init.
+On a fresh run, restack requires a clean worktree. It auto-persists inferred state if needed, then processes tracked branches in stack order using the configured restack mode. The default mode comes from stack state and is usually rebase unless changed with git-stack init.
 
-If git stops for conflicts, stack records the in-progress operation under .git/stack/operation.json. Resolve the conflicts with normal git commands, then run stack restack --continue. Use --abort to abandon the recorded restack operation.`,
-		Example: "  stack restack\n  stack restack --mode merge\n  stack restack --continue\n  stack restack --abort",
+If git stops for conflicts, stack records the in-progress operation under .git/stack/operation.json. Resolve the conflicts with normal git commands, then run git-stack restack --continue. Use --abort to abandon the recorded restack operation.`,
+		Example: "  git-stack restack\n  git-stack restack --mode merge\n  git-stack restack --continue\n  git-stack restack --abort",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdRestack(restackMode, restackContinue, restackAbort)
@@ -171,7 +173,7 @@ If git stops for conflicts, stack records the in-progress operation under .git/s
 By default, submit operates on the current stack component in topological order. If [branch] is given, submit uses the stack containing that tracked branch. Use --all to submit every tracked branch. This command requires a clean worktree and auto-persists inferred state if needed.
 
 For each eligible tracked branch, stack force-pushes the local branch to origin with force-with-lease, then creates or updates its PR against the recorded parent branch. Branches are skipped when the local branch is missing or when there are no commits beyond the parent. If a tracked branch already has a merged PR and its remote branch has been deleted, submit may also clean up the local merged branch after confirming it is fully integrated.`,
-		Example: "  stack submit\n  stack submit feat/login\n  stack submit --all\n  stack submit --next-on-cleanup feat/two feat/one",
+		Example: "  git-stack submit\n  git-stack submit feat/login\n  git-stack submit --all\n  git-stack submit --next-on-cleanup feat/two feat/one",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := ""
@@ -194,10 +196,10 @@ For each eligible tracked branch, stack force-pushes the local branch to origin 
 		Short: "Change the parent branch for a stack branch",
 		Long: `Change the recorded parent for a tracked branch and rewrite its history onto the new base.
 
-reparent requires a clean worktree. The target branch must already be tracked, and the new parent must exist locally or on origin. stack checks for invalid parent cycles before rewriting history.
+reparent requires a clean worktree. The target branch must already be tracked, and the new parent must exist locally or on origin. git-stack checks for invalid parent cycles before rewriting history.
 
-Implementation-wise this is a rebase: stack switches to the target branch and runs git rebase --onto <new-parent> <old-parent>. If the branch already has PR metadata, stack also updates the PR base on GitHub. By default both Parent and LineageParent move to the new parent; use --preserve-lineage to keep the old lineage relationship for stack body/history context.`,
-		Example: "  stack reparent feat-two --parent main\n  stack reparent feat-two --parent feat-base --preserve-lineage",
+Implementation-wise this is a rebase: git-stack switches to the target branch and runs git rebase --onto <new-parent> <old-parent>. If the branch already has PR metadata, git-stack also updates the PR base on GitHub. By default both Parent and LineageParent move to the new parent; use --preserve-lineage to keep the old lineage relationship for stack body/history context.`,
+		Example: "  git-stack reparent feat-two --parent main\n  git-stack reparent feat-two --parent feat-base --preserve-lineage",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdReparent(args[0], reparentParent, reparentPreserveLineage)
@@ -218,7 +220,7 @@ Implementation-wise this is a rebase: stack switches to the target branch and ru
 doctor reads the saved stack state and validates trunk existence, parent references, parent ancestry, cycles, unrooted tracked branches, and any recorded restack operation. It also reports local branches that exist in git but are missing from stack state as informational output.
 
 doctor does not mutate the repository. It exits non-zero when it finds errors and zero when the report contains only warnings or infos. Unlike most other commands, doctor requires initialized stack state and does not auto-bootstrap it.`,
-		Example: "  stack doctor",
+		Example: "  git-stack doctor",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdDoctor()
@@ -235,7 +237,7 @@ doctor does not mutate the repository. It exits non-zero when it finds errors an
 advance is a strict post-merge workflow. It requires a clean worktree, fetches origin with prune, then scans the current stack component for tracked branches whose PRs are merged, whose remote branches have already been deleted, and whose local commits are fully integrated into their PR base.
 
 For eligible merged branches, stack cleans them from local state, reparents surviving children, restacks the surviving descendants, submits those updated branches, and restores you to an appropriate local branch. If the current branch is being cleaned and there are multiple surviving descendants, stack prompts for the next branch unless --next is provided.`,
-		Example: "  stack advance\n  stack advance --next feat-two",
+		Example: "  git-stack advance\n  git-stack advance --next feat-two",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdAdvance(advanceNext)
@@ -257,7 +259,7 @@ For eligible merged branches, stack cleans them from local state, reparents surv
 cleanup requires a clean worktree, fetches origin with prune, builds a cleanup plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component. Use --all to consider every tracked branch.
 
 Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured cleanup policy. Children of deleted tracked branches are reparented in stack state. With --untracked, cleanup also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
-		Example: "  stack cleanup\n  stack cleanup --yes\n  stack cleanup --all --yes\n  stack cleanup --yes --include-squash --untracked",
+		Example: "  git-stack cleanup\n  git-stack cleanup --yes\n  git-stack cleanup --all --yes\n  git-stack cleanup --yes --include-squash --untracked",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdCleanup(cleanupYes, cleanupAll, cleanupIncludeSquash, cleanupUntracked)

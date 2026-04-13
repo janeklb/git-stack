@@ -1,4 +1,4 @@
-module github.com/janeklb/stack
+module github.com/janeklb/git-stack
 
 go 1.22
 

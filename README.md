@@ -1,21 +1,26 @@
-# stack
+# git-stack
 
 Project direction: see `MANIFEST.md`.
 
-`stack` is a simple Git stacked-PR CLI focused on local branch stacks and GitHub PR automation.
+`git-stack` is a simple Git stacked-PR CLI focused on local branch stacks and GitHub PR automation.
 
 ## User Question Tracking
 
-Track recurring user questions about using `stack` in GitHub issue #34:
+Track recurring user questions about using `git-stack` in GitHub issue #34:
 
-- https://github.com/janeklb/stack/issues/34
+- https://github.com/janeklb/git-stack/issues/34
 
 AI agent instructions live in `docs/agent-instructions.md` (with `CLAUDE.md` and `AGENTS.md` symlinked to it).
 
-It supports both forms:
+Canonical invocation:
 
-- `stack <command>`
-- `git stack <command>` (by installing `git-stack` on your `PATH`)
+- `git-stack <command>`
+- `git stack <command>` when `git-stack` is on your `PATH`
+
+Optional convenience alias:
+
+- `alias stack=git-stack`
+- or `ln -s "$(command -v git-stack)" "$HOME/.local/bin/stack"`
 
 ## Dependencies
 
@@ -30,10 +35,10 @@ The CLI intentionally uses shelling out to `git`/`gh` rather than API SDKs to ke
 Build the CLI binary:
 
 ```bash
-go build -o bin/stack ./cmd/stack
+go build -o bin/git-stack ./cmd/git-stack
 ```
 
-This produces `bin/stack`.
+This produces `bin/git-stack`.
 
 Or use Make targets:
 
@@ -59,9 +64,28 @@ They also mount persistent Docker volumes for the Go build and module caches, so
 repeat runs stay closer to the cached behavior in CI instead of redownloading and
 rebuilding everything on each invocation.
 
-`make install` installs `stack` with `go install ./cmd/stack` into your Go bin directory
-(`GOBIN` if set, otherwise `$(go env GOPATH)/bin`) and creates `git-stack` as a symlink
-in the same location so both `stack ...` and `git stack ...` work.
+`make install` installs `git-stack` with `go install ./cmd/git-stack` into your Go bin directory
+(`GOBIN` if set, otherwise `$(go env GOPATH)/bin`). If you also want `stack ...`, add a
+manual shell alias or symlink after install.
+
+## Shell Completion
+
+Canonical completion setup targets `git-stack` directly:
+
+- Bash: `source <(git-stack completion bash)`
+- Zsh: `source <(git-stack completion zsh)`
+- Fish: `git-stack completion fish | source`
+- PowerShell: `git-stack completion powershell | Out-String | Invoke-Expression`
+
+`git stack <command>` is an equivalent runtime form, but completion for that wrapper path is
+not bundled automatically. Shells generally attach completion either to `git-stack` itself or to
+Git's own subcommand completion layer, so `git stack ...` needs extra shell-specific glue if you
+want argument completion there too.
+
+For now, the supported recommendation is:
+
+- use `git-stack ...` when you want completion
+- use `git stack ...` if you prefer the Git extension form and do not mind setting up shell-specific completion separately
 
 ## Testing Tiers
 
@@ -87,19 +111,19 @@ go test ./... -count=1
 
 ## Commands
 
-`stack init` remains available as a repair/config migration command, but it is no longer intended to be part of the normal happy path. Normal mutating commands should auto-bootstrap stack state when that can be done unambiguously.
+`git-stack init` remains available as a repair/config migration command, but it is no longer intended to be part of the normal happy path. Normal mutating commands should auto-bootstrap stack state when that can be done unambiguously.
 
 ```text
-stack init [--trunk <branch>] [--mode rebase|merge]
-stack new <name> [--parent <branch>] [--template <template>] [--prefix-index]
-stack status
-stack restack [--mode rebase|merge] [--continue] [--abort]
-stack submit [--all] [--next-on-cleanup <branch>] [branch]
-stack reparent <branch> --parent <new-parent>
-stack cleanup [--all] [--yes] [--include-squash] [--untracked]
-stack advance [--next <branch>]
-stack doctor
-stack completion [bash|zsh|fish|powershell]
+git-stack init [--trunk <branch>] [--mode rebase|merge]
+git-stack new <name> [--parent <branch>] [--template <template>] [--prefix-index]
+git-stack status
+git-stack restack [--mode rebase|merge] [--continue] [--abort]
+git-stack submit [--all] [--next-on-cleanup <branch>] [branch]
+git-stack reparent <branch> --parent <new-parent>
+git-stack cleanup [--all] [--yes] [--include-squash] [--untracked]
+git-stack advance [--next <branch>]
+git-stack doctor
+git-stack completion [bash|zsh|fish|powershell]
 ```
 
 ## State
@@ -116,7 +140,7 @@ State is local-only and stored in:
 - Trunk defaults from `origin/HEAD` when available
 - Stack operations infer graph from git when state is missing (stateless-first)
 - `restack` defaults to rebase, supports merge mode
-- On restack conflicts, it stops and resumes with `stack restack --continue`
+- On restack conflicts, it stops and resumes with `git-stack restack --continue`
 - PR submit uses parent branch as PR base
 - Existing PRs are updated safely with a managed body block
 - Mutating commands require a clean worktree

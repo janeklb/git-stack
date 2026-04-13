@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/janeklb/stack/internal/app"
+	"github.com/janeklb/git-stack/internal/app"
 )
 
 func main() {
