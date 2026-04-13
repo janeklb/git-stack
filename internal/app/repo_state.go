@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-var errStateNotInitialized = errors.New("stack state not initialized; run stack init")
+var errStateNotInitialized = errors.New("stack state not initialized; run git-stack init")
 
 func ensurePersistedState(repoRoot string, state *State, persisted bool, out io.Writer) (bool, error) {
 	if persisted {

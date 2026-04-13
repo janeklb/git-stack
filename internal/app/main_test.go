@@ -23,8 +23,8 @@ func TestMain(m *testing.M) {
 	if err := os.WriteFile(global, []byte{}, 0o600); err != nil {
 		panic(err)
 	}
-	testCLIBinary = filepath.Join(tmp, "stack-test")
-	build := exec.Command("go", "build", "-o", testCLIBinary, "./cmd/stack")
+	testCLIBinary = filepath.Join(tmp, "git-stack-test")
+	build := exec.Command("go", "build", "-o", testCLIBinary, "./cmd/git-stack")
 	build.Dir = repoRoot
 	build.Stdout = os.Stdout
 	build.Stderr = os.Stderr

@@ -68,7 +68,7 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 			return err
 		}
 		if !completed {
-			fmt.Fprintf(out, "%s still in progress on %s; resolve remaining steps then run stack restack --continue again\n", op.Mode, op.Queue[op.Index])
+			fmt.Fprintf(out, "%s still in progress on %s; resolve remaining steps then run git-stack restack --continue again\n", op.Mode, op.Queue[op.Index])
 			return nil
 		}
 	}
@@ -102,7 +102,7 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 			if saveErr := saveOperation(repoRoot, op); saveErr != nil {
 				return saveErr
 			}
-			return fmt.Errorf("%s %s onto %s stopped for conflicts; resolve then run stack restack --continue or --abort", op.Mode, branch, parent)
+			return fmt.Errorf("%s %s onto %s stopped for conflicts; resolve then run git-stack restack --continue or --abort", op.Mode, branch, parent)
 		}
 
 		op.Index++

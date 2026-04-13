@@ -15,7 +15,7 @@ func TestHelpIncludesCompletionCommand(t *testing.T) {
 	if !strings.Contains(out, "completion") {
 		t.Fatalf("expected help output to mention completion command, got:\n%s", out)
 	}
-	if !strings.Contains(out, "stack is an opinionated CLI for personal stacked PR development") {
+	if !strings.Contains(out, "git-stack is an opinionated CLI for personal stacked PR development") {
 		t.Fatalf("expected root help to include updated long description, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Manage personal stacked PR branches") {
@@ -32,7 +32,7 @@ func TestBareRootOutputOmitsRootLongDescription(t *testing.T) {
 	if !strings.Contains(out, "Manage personal stacked PR branches") {
 		t.Fatalf("expected bare root to include short summary, got:\n%s", out)
 	}
-	if strings.Contains(out, "stack is an opinionated CLI for personal stacked PR development") {
+	if strings.Contains(out, "git-stack is an opinionated CLI for personal stacked PR development") {
 		t.Fatalf("expected bare root to omit long description, got:\n%s", out)
 	}
 }
@@ -43,13 +43,13 @@ func TestCompletionBashOutputsScript(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("completion bash failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "__start_stack") {
+	if !strings.Contains(out, "__start_git-stack") {
 		t.Fatalf("expected bash completion function in output, got:\n%s", out)
 	}
 }
 
 func TestKeyCommandFlagsExist(t *testing.T) {
-	root := New().newRootCmd("stack")
+	root := New().newRootCmd("git-stack")
 	advance, _, err := root.Find([]string{"advance"})
 	if err != nil {
 		t.Fatalf("find advance command: %v", err)
@@ -97,7 +97,7 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 }
 
 func TestStatusHasStatAlias(t *testing.T) {
-	root := New().newRootCmd("stack")
+	root := New().newRootCmd("git-stack")
 	cmd, _, err := root.Find([]string{"stat"})
 	if err != nil {
 		t.Fatalf("find stat command: %v", err)
@@ -139,7 +139,7 @@ func TestSubmitHelpDescribesDefaultsAndCleanupFlag(t *testing.T) {
 	if !strings.Contains(out, "force-pushes the local branch to origin with force-with-lease") {
 		t.Fatalf("expected submit help to describe push semantics, got:\n%s", out)
 	}
-	if !strings.Contains(out, "stack submit --next-on-cleanup feat/two feat/one") {
+	if !strings.Contains(out, "git-stack submit --next-on-cleanup feat/two feat/one") {
 		t.Fatalf("expected submit help to include cleanup example, got:\n%s", out)
 	}
 }
