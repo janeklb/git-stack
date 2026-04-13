@@ -19,7 +19,7 @@ func TestUpsertManagedBlockAppendsAndReplaces(t *testing.T) {
 	if !strings.Contains(body, "User body") {
 		t.Fatalf("expected original body to be preserved, got:\n%s", body)
 	}
-	if !strings.Contains(body, "## Chained PRs") {
+	if !strings.Contains(body, "## Stacked PRs") {
 		t.Fatalf("expected managed block to be appended, got:\n%s", body)
 	}
 
@@ -72,7 +72,7 @@ func TestManagedStackBlockKeepsHeadingInsideManagedMarkers(t *testing.T) {
 		State:  "OPEN",
 	}})
 	start := strings.Index(managed, managedBlockStart)
-	heading := strings.Index(managed, "## Chained PRs")
+	heading := strings.Index(managed, "## Stacked PRs")
 	end := strings.Index(managed, managedBlockEnd)
 	if !(start >= 0 && heading > start && end > heading) {
 		t.Fatalf("expected heading to be inside managed markers, got:\n%s", managed)

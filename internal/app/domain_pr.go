@@ -63,7 +63,7 @@ func managedStackBlock(currentBranch string, lines []StackPRLine) string {
 	var b strings.Builder
 	b.WriteString(managedBlockStart)
 	b.WriteString("\n")
-	b.WriteString("## Chained PRs\n")
+	b.WriteString("## Stacked PRs\n")
 	for _, line := range lines {
 		if line.Number <= 0 || strings.TrimSpace(line.URL) == "" {
 			continue
