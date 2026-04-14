@@ -51,8 +51,8 @@ git-stack state
 git-stack new my-feature-part-2
 # ... repeat
 
-# After a PR is merged, advance local state and restack descendants
-git-stack advance
+# After a PR is merged, move local state forward and restack descendants
+git-stack forward
 ```
 
 `submit` is the step that actually creates or updates GitHub PRs. PRs are not created by a plain `git push`.
@@ -64,7 +64,7 @@ git-stack new <name> [--parent <branch>] [--template <template>] [--prefix-index
 git-stack state
 git-stack submit [--all] [--next-on-clean <branch>] [branch]
 git-stack restack [--mode rebase|merge] [--continue] [--abort]
-git-stack advance [--next <branch>]
+git-stack forward [--next <branch>]
 git-stack clean [--all] [--yes] [--include-squash] [--untracked]
 git-stack reparent <branch> --parent <new-parent>
 git-stack check

@@ -84,7 +84,7 @@ init requires a clean worktree. When --trunk is omitted, stack detects trunk fro
 		},
 	}
 	initCmd.Flags().StringVar(&initTrunk, "trunk", "", "set trunk explicitly instead of detecting it from origin/HEAD")
-	initCmd.Flags().StringVar(&initMode, "mode", defaultRestackMode, "default restack mode for future restack and advance runs: rebase or merge")
+	initCmd.Flags().StringVar(&initMode, "mode", defaultRestackMode, "default restack mode for future restack and forward runs: rebase or merge")
 	initCmd.Flags().StringVar(&initTemplate, "template", "{slug}", "default branch naming template for stack new; supports {slug} and {n}")
 	initCmd.Flags().BoolVar(&initPrefixIndex, "prefix-index", false, "prefix generated branch names with the next zero-padded index when the template does not include {n}")
 	root.AddCommand(initCmd)
@@ -228,24 +228,25 @@ check does not mutate the repository. It exits non-zero when it finds errors and
 	}
 	root.AddCommand(checkCmd)
 
-	var advanceNext string
-	advanceCmd := &cobra.Command{
-		Use:   "advance",
-		Short: "Advance after the current branch merges",
-		Long: `Advance the current stack after one or more branches in that stack have merged.
+	var forwardNext string
+	forwardCmd := &cobra.Command{
+		Use:     "forward",
+		Aliases: []string{"fw"},
+		Short:   "Move forward after the current branch merges",
+		Long: `Move the current stack forward after one or more branches in that stack have merged.
 
-advance is a strict post-merge workflow. It requires a clean worktree, fetches origin with prune, then scans the current stack component for tracked branches whose PRs are merged, whose remote branches have already been deleted, and whose local commits are fully integrated into their PR base.
+forward is a strict post-merge workflow. It requires a clean worktree, fetches origin with prune, then scans the current stack component for tracked branches whose PRs are merged, whose remote branches have already been deleted, and whose local commits are fully integrated into their PR base.
 
 For eligible merged branches, stack cleans them from local state, reparents surviving children, restacks the surviving descendants, submits those updated branches, and restores you to an appropriate local branch. If the current branch is being cleaned and there are multiple surviving descendants, stack prompts for the next branch unless --next is provided.`,
-		Example: "  git-stack advance\n  git-stack advance --next feat-two",
+		Example: "  git-stack forward\n  git-stack fw --next feat-two",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdAdvance(advanceNext)
+			return a.cmdForward(forwardNext)
 		},
 	}
-	advanceCmd.Flags().StringVar(&advanceNext, "next", "", "when the current branch is deleted during advance, switch to this existing surviving branch instead of prompting")
-	_ = advanceCmd.RegisterFlagCompletionFunc("next", completeBranchRefs(false))
-	root.AddCommand(advanceCmd)
+	forwardCmd.Flags().StringVar(&forwardNext, "next", "", "when the current branch is deleted during forward, switch to this existing surviving branch instead of prompting")
+	_ = forwardCmd.RegisterFlagCompletionFunc("next", completeBranchRefs(false))
+	root.AddCommand(forwardCmd)
 
 	var cleanYes bool
 	var cleanAll bool

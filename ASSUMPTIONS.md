@@ -10,10 +10,10 @@ Use it when changing command semantics, relaxing constraints, or adding new work
 | --- | --- | --- |
 | Full-clone workflow with canonical remote `origin` | The tool resolves branches and trunk from `origin`, not from arbitrary remotes or single-branch clones. | All commands except root help/completion via `ensureSupportedCloneLayout()` |
 | `refs/remotes/origin/HEAD` exists | Trunk detection depends on a stable remote default branch. | `init` when `--trunk` is omitted; any flow that auto-infers state from trunk |
-| Clean worktree before mutation | Mutating commands should not have to reason about unrelated local edits, index state, or partially-applied history rewrites. | `init`, `new`, `restack` (new run), `submit`, `reparent`, `advance`, `clean` |
+| Clean worktree before mutation | Mutating commands should not have to reason about unrelated local edits, index state, or partially-applied history rewrites. | `init`, `new`, `restack` (new run), `submit`, `reparent`, `forward`, `clean` |
 | Persisted stack state is internal tool state | Commands may auto-bootstrap or persist state without treating state management as a user-facing workflow. | `new`, `restack`, `state`, `reparent`, `submit`, `clean` |
-| Single-writer tracked-stack model | A tracked stack is expected to be managed from one clone at a time. `stack` does not try to negotiate concurrent writers for the same tracked branches. | Primarily `submit`; indirectly `advance` after restacks/repairs |
-| Remote tracked branches are mirrors of local tracked branches | For tracked branches, the local branch plus stack state is the source of truth. Remote branch history may be replaced when the local stack is rewritten. | `submit`, `advance` |
+| Single-writer tracked-stack model | A tracked stack is expected to be managed from one clone at a time. `stack` does not try to negotiate concurrent writers for the same tracked branches. | Primarily `submit`; indirectly `forward` after restacks/repairs |
+| Remote tracked branches are mirrors of local tracked branches | For tracked branches, the local branch plus stack state is the source of truth. Remote branch history may be replaced when the local stack is rewritten. | `submit`, `forward` |
 
 ## Command-specific assumptions
 
@@ -25,9 +25,9 @@ Use it when changing command semantics, relaxing constraints, or adding new work
 - A `--force-with-lease` rejection is treated as an unexpected remote mutation, not as a cue to retry differently.
 
 Why this matters:
-- Changing submit push semantics affects `advance`, branch-repair flows, and any assumption that tracked branch history is tool-managed.
+- Changing submit push semantics affects `forward`, branch-repair flows, and any assumption that tracked branch history is tool-managed.
 
-### `advance`
+### `forward`
 
 - The current branch must be tracked.
 - The current branch must have PR metadata and that PR must already be merged.
@@ -35,7 +35,7 @@ Why this matters:
 - Local branch commits must already be integrated into the PR base before local cleanup proceeds.
 
 Why this matters:
-- `advance` assumes a strict post-merge flow: cleanup the merged branch, move to a surviving branch, restack descendants, then submit them.
+- `forward` assumes a strict post-merge flow: cleanup the merged branch, move to a surviving branch, restack descendants, then submit them.
 
 ### `clean`
 
@@ -68,6 +68,6 @@ When changing a foundational assumption, check at least:
 - clone/remote detection in `ensureSupportedCloneLayout()`
 - clean-worktree enforcement in mutating commands
 - submit push semantics and lease-failure behavior
-- advance eligibility checks
+- forward eligibility checks
 - clean decisions that rely on fetched remote state
 - state bootstrap/persistence behavior in commands that call `loadStateFromRepoOrInfer()`
