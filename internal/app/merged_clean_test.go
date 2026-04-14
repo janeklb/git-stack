@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-type fakeMergedCleanupGit struct {
+type fakeMergedCleanGit struct {
 	currentBranch string
 	runCalls      [][]string
 	deleted       []string
@@ -14,16 +14,16 @@ type fakeMergedCleanupGit struct {
 	deleteErr     error
 }
 
-func (f *fakeMergedCleanupGit) CurrentBranch() (string, error) {
+func (f *fakeMergedCleanGit) CurrentBranch() (string, error) {
 	return f.currentBranch, nil
 }
 
-func (f *fakeMergedCleanupGit) Run(args ...string) error {
+func (f *fakeMergedCleanGit) Run(args ...string) error {
 	f.runCalls = append(f.runCalls, append([]string{}, args...))
 	return f.runErr
 }
 
-func (f *fakeMergedCleanupGit) DeleteLocalBranch(branch string) error {
+func (f *fakeMergedCleanGit) DeleteLocalBranch(branch string) error {
 	f.deleted = append(f.deleted, branch)
 	return f.deleteErr
 }
@@ -31,7 +31,7 @@ func (f *fakeMergedCleanupGit) DeleteLocalBranch(branch string) error {
 func TestSwitchAwayThenDeleteMergedBranchSwitchesAndDeletesCurrentBranch(t *testing.T) {
 	t.Parallel()
 
-	git := &fakeMergedCleanupGit{currentBranch: "feat-one"}
+	git := &fakeMergedCleanGit{currentBranch: "feat-one"}
 	if err := switchAwayThenDeleteMergedBranch(git, "feat-one", true, "main"); err != nil {
 		t.Fatalf("switchAwayThenDeleteMergedBranch returned error: %v", err)
 	}
@@ -46,12 +46,12 @@ func TestSwitchAwayThenDeleteMergedBranchSwitchesAndDeletesCurrentBranch(t *test
 func TestSwitchAwayThenDeleteMergedBranchRequiresTargetWhenCurrentBranchMatches(t *testing.T) {
 	t.Parallel()
 
-	git := &fakeMergedCleanupGit{currentBranch: "feat-one"}
+	git := &fakeMergedCleanGit{currentBranch: "feat-one"}
 	err := switchAwayThenDeleteMergedBranch(git, "feat-one", true, "")
 	if err == nil {
 		t.Fatal("expected error when no switch target is available")
 	}
-	if got := err.Error(); got != "no switch target available before cleanup of feat-one" {
+	if got := err.Error(); got != "no switch target available before clean of feat-one" {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(git.deleted) != 0 {
@@ -62,7 +62,7 @@ func TestSwitchAwayThenDeleteMergedBranchRequiresTargetWhenCurrentBranchMatches(
 func TestSwitchAwayThenDeleteMergedBranchReturnsDeleteError(t *testing.T) {
 	t.Parallel()
 
-	git := &fakeMergedCleanupGit{currentBranch: "main", deleteErr: errors.New("boom")}
+	git := &fakeMergedCleanGit{currentBranch: "main", deleteErr: errors.New("boom")}
 	err := switchAwayThenDeleteMergedBranch(git, "feat-one", true, "")
 	if err == nil {
 		t.Fatal("expected delete error")
@@ -72,7 +72,7 @@ func TestSwitchAwayThenDeleteMergedBranchReturnsDeleteError(t *testing.T) {
 	}
 }
 
-func TestCleanupMergedBranchStateReparentsChildrenAndArchivesLineage(t *testing.T) {
+func TestCleanMergedBranchStateReparentsChildrenAndArchivesLineage(t *testing.T) {
 	t.Parallel()
 
 	state := &State{
@@ -84,8 +84,8 @@ func TestCleanupMergedBranchStateReparentsChildrenAndArchivesLineage(t *testing.
 	}
 
 	var out bytes.Buffer
-	if err := cleanupMergedBranchState(&out, state, "feat-one", "main"); err != nil {
-		t.Fatalf("cleanupMergedBranchState returned error: %v", err)
+	if err := cleanMergedBranchState(&out, state, "feat-one", "main"); err != nil {
+		t.Fatalf("cleanMergedBranchState returned error: %v", err)
 	}
 
 	if _, ok := state.Branches["feat-one"]; ok {
@@ -102,16 +102,16 @@ func TestCleanupMergedBranchStateReparentsChildrenAndArchivesLineage(t *testing.
 	}
 }
 
-func TestCleanupMergedBranchStateErrorsForMissingTrackedBranch(t *testing.T) {
+func TestCleanMergedBranchStateErrorsForMissingTrackedBranch(t *testing.T) {
 	t.Parallel()
 
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
 	var out bytes.Buffer
-	err := cleanupMergedBranchState(&out, state, "missing", "main")
+	err := cleanMergedBranchState(&out, state, "missing", "main")
 	if err == nil {
-		t.Fatal("expected cleanupMergedBranchState to reject missing branch metadata")
+		t.Fatal("expected cleanMergedBranchState to reject missing branch metadata")
 	}
-	if got := err.Error(); got != "cleanup requires tracked branch metadata for missing" {
+	if got := err.Error(); got != "clean requires tracked branch metadata for missing" {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

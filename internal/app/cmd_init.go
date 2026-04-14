@@ -51,8 +51,8 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 			PrefixIndex: prefixIndex,
 			NextIndex:   nextIndex,
 		},
-		Cleanup: CleanupConfig{
-			MergeDetection: cleanupMergeDetectionStrict,
+		Clean: CleanConfig{
+			MergeDetection: cleanMergeDetectionStrict,
 		},
 		Branches: branches,
 		Archived: archived,

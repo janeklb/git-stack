@@ -84,8 +84,8 @@ func inferState(repoRoot string) (*State, error) {
 			Template:  "{slug}",
 			NextIndex: 1,
 		},
-		Cleanup: CleanupConfig{
-			MergeDetection: cleanupMergeDetectionStrict,
+		Clean: CleanConfig{
+			MergeDetection: cleanMergeDetectionStrict,
 		},
 		Branches: map[string]*BranchRef{},
 		Archived: map[string]*ArchivedRef{},
@@ -142,8 +142,8 @@ func loadState(repoRoot string) (*State, error) {
 	if state.RestackMode == "" {
 		state.RestackMode = defaultRestackMode
 	}
-	if state.Cleanup.MergeDetection == "" {
-		state.Cleanup.MergeDetection = cleanupMergeDetectionStrict
+	if state.Clean.MergeDetection == "" {
+		state.Clean.MergeDetection = cleanMergeDetectionStrict
 	}
 	return state, nil
 }

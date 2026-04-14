@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestCleanupDefaultsToCurrentStackScope(t *testing.T) {
+func TestCleanDefaultsToCurrentStackScope(t *testing.T) {
 	repo := newTestRepo(t)
 	origin := newBareOrigin(t)
 
@@ -67,15 +67,15 @@ func TestCleanupDefaultsToCurrentStackScope(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"cleanup", "--yes"})
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes"})
 		if code != 0 {
-			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
+			t.Fatalf("clean failed: exit=%d\n%s", code, out)
 		}
 		if !strings.Contains(out, "old-a -> deleted local branch") {
-			t.Fatalf("expected old-a cleanup output, got:\n%s", out)
+			t.Fatalf("expected old-a clean output, got:\n%s", out)
 		}
 		if strings.Contains(out, "old-b -> deleted local branch") {
-			t.Fatalf("did not expect unrelated stack cleanup, got:\n%s", out)
+			t.Fatalf("did not expect unrelated stack clean output, got:\n%s", out)
 		}
 		if branchExists("old-a") {
 			t.Fatalf("expected old-a to be removed")
@@ -100,7 +100,7 @@ func TestCleanupDefaultsToCurrentStackScope(t *testing.T) {
 	})
 }
 
-func TestCleanupUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
+func TestCleanUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 	repo := newTestRepo(t)
 	origin := newBareOrigin(t)
 
@@ -175,35 +175,35 @@ func TestCleanupUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"cleanup", "--yes", "--untracked"})
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes", "--untracked"})
 		if code != 0 {
-			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
+			t.Fatalf("clean failed: exit=%d\n%s", code, out)
 		}
 		if !strings.Contains(out, "tracked-a -> deleted local branch") {
-			t.Fatalf("expected tracked-a cleanup output, got:\n%s", out)
+			t.Fatalf("expected tracked-a clean output, got:\n%s", out)
 		}
 		if strings.Contains(out, "tracked-b -> deleted local branch") {
-			t.Fatalf("did not expect unrelated tracked stack cleanup, got:\n%s", out)
+			t.Fatalf("did not expect unrelated tracked stack clean output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "untracked-old -> deleted local branch") {
-			t.Fatalf("expected global untracked cleanup output, got:\n%s", out)
+			t.Fatalf("expected global untracked clean output, got:\n%s", out)
 		}
 	})
 }
 
-func TestCleanupWithoutInitializedStateAutoBootstraps(t *testing.T) {
+func TestCleanWithoutInitializedStateAutoBootstraps(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"cleanup"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"clean"})
 	if code != 0 {
-		t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
+		t.Fatalf("clean failed: exit=%d\n%s", code, out)
 	}
 	if !strings.Contains(out, "initialized stack state") {
 		t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "cleanup: nothing to do") {
-		t.Fatalf("expected noop cleanup output, got:\n%s", out)
+	if !strings.Contains(out, "clean: nothing to do") {
+		t.Fatalf("expected noop clean output, got:\n%s", out)
 	}
 	if _, err := loadState(repo); err != nil {
 		t.Fatalf("expected state file to be persisted, got: %v", err)

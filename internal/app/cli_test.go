@@ -61,24 +61,24 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find submit command: %v", err)
 	}
-	if submit.Flags().Lookup("next-on-cleanup") == nil {
-		t.Fatalf("expected submit next-on-cleanup flag to exist")
+	if submit.Flags().Lookup("next-on-clean") == nil {
+		t.Fatalf("expected submit next-on-clean flag to exist")
 	}
-	cleanup, _, err := root.Find([]string{"cleanup"})
+	clean, _, err := root.Find([]string{"clean"})
 	if err != nil {
-		t.Fatalf("find cleanup command: %v", err)
+		t.Fatalf("find clean command: %v", err)
 	}
-	if cleanup.Flags().Lookup("yes") == nil {
-		t.Fatalf("expected cleanup yes flag to exist")
+	if clean.Flags().Lookup("yes") == nil {
+		t.Fatalf("expected clean yes flag to exist")
 	}
-	if cleanup.Flags().Lookup("all") == nil {
-		t.Fatalf("expected cleanup all flag to exist")
+	if clean.Flags().Lookup("all") == nil {
+		t.Fatalf("expected clean all flag to exist")
 	}
-	if cleanup.Flags().Lookup("include-squash") == nil {
-		t.Fatalf("expected cleanup include-squash flag to exist")
+	if clean.Flags().Lookup("include-squash") == nil {
+		t.Fatalf("expected clean include-squash flag to exist")
 	}
-	if cleanup.Flags().Lookup("untracked") == nil {
-		t.Fatalf("expected cleanup untracked flag to exist")
+	if clean.Flags().Lookup("untracked") == nil {
+		t.Fatalf("expected clean untracked flag to exist")
 	}
 	reparent, _, err := root.Find([]string{"reparent"})
 	if err != nil {
@@ -127,7 +127,7 @@ func TestInitHelpMarksCommandAsRepairFlow(t *testing.T) {
 	}
 }
 
-func TestSubmitHelpDescribesDefaultsAndCleanupFlag(t *testing.T) {
+func TestSubmitHelpDescribesDefaultsAndCleanFlag(t *testing.T) {
 	cli := New()
 	out, code := runCLIAndCapture(t, cli, []string{"help", "submit"})
 	if code != 0 {
@@ -139,8 +139,8 @@ func TestSubmitHelpDescribesDefaultsAndCleanupFlag(t *testing.T) {
 	if !strings.Contains(out, "force-pushes the local branch to origin with force-with-lease") {
 		t.Fatalf("expected submit help to describe push semantics, got:\n%s", out)
 	}
-	if !strings.Contains(out, "git-stack submit --next-on-cleanup feat/two feat/one") {
-		t.Fatalf("expected submit help to include cleanup example, got:\n%s", out)
+	if !strings.Contains(out, "git-stack submit --next-on-clean feat/two feat/one") {
+		t.Fatalf("expected submit help to include clean example, got:\n%s", out)
 	}
 }
 
@@ -158,17 +158,17 @@ func TestAdvanceHelpDescribesStrictPostMergeFlow(t *testing.T) {
 	}
 }
 
-func TestCleanupHelpDescribesPlanAndScope(t *testing.T) {
+func TestCleanHelpDescribesPlanAndScope(t *testing.T) {
 	cli := New()
-	out, code := runCLIAndCapture(t, cli, []string{"help", "cleanup"})
+	out, code := runCLIAndCapture(t, cli, []string{"help", "clean"})
 	if code != 0 {
-		t.Fatalf("help cleanup failed: exit=%d\n%s", code, out)
+		t.Fatalf("help clean failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "builds a cleanup plan, prints that plan") {
-		t.Fatalf("expected cleanup help to describe plan output, got:\n%s", out)
+	if !strings.Contains(out, "builds a clean plan, prints that plan") {
+		t.Fatalf("expected clean help to describe plan output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "By default it only considers tracked branches in the current stack component") {
-		t.Fatalf("expected cleanup help to describe default scope, got:\n%s", out)
+		t.Fatalf("expected clean help to describe default scope, got:\n%s", out)
 	}
 }
 
