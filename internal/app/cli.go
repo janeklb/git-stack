@@ -163,7 +163,7 @@ If git stops for conflicts, stack records the in-progress operation under .git/s
 	root.AddCommand(restackCmd)
 
 	var submitAll bool
-	var submitNextOnCleanup string
+	var submitNextOnClean string
 	submitCmd := &cobra.Command{
 		Use:   "submit [branch]",
 		Short: "Push branches and create/update PRs",
@@ -172,20 +172,20 @@ If git stops for conflicts, stack records the in-progress operation under .git/s
 By default, submit operates on the current stack component in topological order. If [branch] is given, submit uses the stack containing that tracked branch. Use --all to submit every tracked branch. This command requires a clean worktree and auto-persists inferred state if needed.
 
 For each eligible tracked branch, stack force-pushes the local branch to origin with force-with-lease, then creates or updates its PR against the recorded parent branch. Branches are skipped when the local branch is missing or when there are no commits beyond the parent. If a tracked branch already has a merged PR and its remote branch has been deleted, submit may also clean up the local merged branch after confirming it is fully integrated.`,
-		Example: "  git-stack submit\n  git-stack submit feat/login\n  git-stack submit --all\n  git-stack submit --next-on-cleanup feat/two feat/one",
+		Example: "  git-stack submit\n  git-stack submit feat/login\n  git-stack submit --all\n  git-stack submit --next-on-clean feat/two feat/one",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := ""
 			if len(args) > 0 {
 				branch = args[0]
 			}
-			return a.cmdSubmit(submitAll, submitNextOnCleanup, branch)
+			return a.cmdSubmit(submitAll, submitNextOnClean, branch)
 		},
 	}
 	submitCmd.Flags().BoolVar(&submitAll, "all", false, "submit every tracked branch instead of only the current stack or the named branch's stack")
-	submitCmd.Flags().StringVar(&submitNextOnCleanup, "next-on-cleanup", "", "when submit deletes the current merged branch, switch to this existing local branch instead of prompting")
+	submitCmd.Flags().StringVar(&submitNextOnClean, "next-on-clean", "", "when submit deletes the current merged branch, switch to this existing local branch instead of prompting")
 	submitCmd.ValidArgsFunction = completeSingleBranchArg(false)
-	_ = submitCmd.RegisterFlagCompletionFunc("next-on-cleanup", completeBranchRefs(false))
+	_ = submitCmd.RegisterFlagCompletionFunc("next-on-clean", completeBranchRefs(false))
 	root.AddCommand(submitCmd)
 
 	var reparentParent string
@@ -257,7 +257,7 @@ For eligible merged branches, stack cleans them from local state, reparents surv
 
 		clean requires a clean worktree, fetches origin with prune, builds a clean plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component. Use --all to consider every tracked branch.
 
-		Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured cleanup policy. Children of deleted tracked branches are reparented in stack state. With --untracked, clean also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
+		Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured clean policy. Children of deleted tracked branches are reparented in stack state. With --untracked, clean also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
 		Example: "  git-stack clean\n  git-stack clean --yes\n  git-stack clean --all --yes\n  git-stack clean --yes --include-squash --untracked",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -266,7 +266,7 @@ For eligible merged branches, stack cleans them from local state, reparents surv
 	}
 	cleanCmd.Flags().BoolVar(&cleanYes, "yes", false, "apply the printed clean plan without an interactive confirmation prompt")
 	cleanCmd.Flags().BoolVar(&cleanAll, "all", false, "consider all tracked branches instead of only the current stack component")
-	cleanCmd.Flags().BoolVar(&cleanIncludeSquash, "include-squash", false, "allow cleanup of branches that were integrated by squash or other non-merge-commit flows")
+	cleanCmd.Flags().BoolVar(&cleanIncludeSquash, "include-squash", false, "allow clean deletion of branches that were integrated by squash or other non-merge-commit flows")
 	cleanCmd.Flags().BoolVar(&cleanUntracked, "untracked", false, "also consider eligible untracked local branches outside persisted stack state")
 	root.AddCommand(cleanCmd)
 

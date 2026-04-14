@@ -440,7 +440,7 @@ func TestAdvanceFastForwardsLocalTrunkForMergedLastSlice(t *testing.T) {
 
 	cur := currentBranchInRepo(t, repo)
 	if cur != "main" {
-		t.Fatalf("expected advance to switch to main after last-slice cleanup, got %s", cur)
+		t.Fatalf("expected advance to switch to main after last-slice clean, got %s", cur)
 	}
 	localMain := mustGitOutput(t, repo, "rev-parse", "main")
 	if strings.TrimSpace(localMain) != strings.TrimSpace(mergedMain) {

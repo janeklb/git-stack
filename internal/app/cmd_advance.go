@@ -82,7 +82,7 @@ func (a *App) cmdAdvance(next string) error {
 
 	// Clean merged slices first, then restack only the surviving roots that were
 	// directly downstream of those merged branches.
-	a.printlnf("advance: cleanup merged branches in current stack, switch to %s, restack, submit all", target)
+	a.printlnf("advance: clean merged branches in current stack, switch to %s, restack, submit all", target)
 	restackRoots := []string{}
 	restackRootSet := map[string]bool{}
 	rebaseBases := map[string]string{}
@@ -95,7 +95,7 @@ func (a *App) cmdAdvance(next string) error {
 		if candidate.Branch == current {
 			switchTarget = target
 		}
-		if err := cleanupMergedBranchForAdvance(a.stdout, state, candidate, switchTarget, deps.git); err != nil {
+		if err := cleanMergedBranchForAdvance(a.stdout, state, candidate, switchTarget, deps.git); err != nil {
 			return err
 		}
 		for _, child := range candidate.Children {
@@ -133,8 +133,8 @@ func (a *App) cmdAdvance(next string) error {
 		syncCurrentStackBody: func(state *State, all bool, target string) error {
 			return syncAdvanceStackBodies(state, restackRoots)
 		},
-		saveState:           saveState,
-		cleanupMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
+		saveState:         saveState,
+		cleanMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
 	}); err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 	}
 
 	reader := bufio.NewReader(in)
-	fmt.Fprintf(out, "%s -> select next branch to checkout after cleanup:\n", current)
+	fmt.Fprintf(out, "%s -> select next branch to checkout after clean:\n", current)
 	for i, child := range options {
 		fmt.Fprintf(out, "  %d) %s\n", i+1, child)
 	}
@@ -491,18 +491,18 @@ func syncAdvanceStackBodies(state *State, roots []string) error {
 	return applyStackBodyUpdates(lines, updates)
 }
 
-func cleanupMergedBranchForAdvance(out io.Writer, state *State, candidate advanceCleanupCandidate, switchTarget string, git advanceGitClient) error {
+func cleanMergedBranchForAdvance(out io.Writer, state *State, candidate advanceCleanupCandidate, switchTarget string, git advanceGitClient) error {
 	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, switchTarget); err != nil {
 		return err
 	}
-	if err := cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
+	if err := cleanMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
 		return err
 	}
 	return nil
 }
 
 // Preserve the user's location when their starting branch survived the advance;
-// otherwise stay on the fallback branch chosen during cleanup.
+// otherwise stay on the fallback branch chosen during clean.
 func restoreAdvanceTarget(original, fallback string, merged map[string]bool, git advanceGitClient) error {
 	target := fallback
 	if !merged[original] {

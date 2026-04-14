@@ -125,7 +125,7 @@ func cleanupMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, pol
 	}
 
 	if policy != "include-squash" {
-		return false, "unsupported cleanup merge detection policy"
+		return false, "unsupported clean merge detection policy"
 	}
 	integrated, integratedErr := git.BranchFullyIntegrated(branch, base)
 	if integratedErr != nil {
@@ -214,7 +214,7 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 }
 
 func pruneTrackedBranchFromState(repoRoot string, state *State, candidate pruneLocalCandidate, out io.Writer) error {
-	if err := cleanupMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
+	if err := cleanMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
 		return err
 	}
 	if err := saveState(repoRoot, state); err != nil {

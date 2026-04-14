@@ -32,18 +32,18 @@ Why this matters:
 - The current branch must be tracked.
 - The current branch must have PR metadata and that PR must already be merged.
 - The remote branch must already be deleted.
-- Local branch commits must already be integrated into the PR base before local cleanup proceeds.
+- Local branch commits must already be integrated into the PR base before local clean-up proceeds.
 
 Why this matters:
-- `advance` assumes a strict post-merge flow: cleanup the merged branch, move to a surviving branch, restack descendants, then submit them.
+- `advance` assumes a strict post-merge flow: clean the merged branch, move to a surviving branch, restack descendants, then submit them.
 
 ### `clean`
 
 - `origin` is the canonical source for whether remote branches still exist.
-- These commands rely on a fresh `git fetch --prune origin` before deciding which local branches are eligible for cleanup.
+- These commands rely on a fresh `git fetch --prune origin` before deciding which local branches are eligible for cleaning.
 
 Why this matters:
-- If remote-state interpretation changes, merged-branch cleanup rules and state reconciliation may become unsafe.
+- If remote-state interpretation changes, merged-branch cleaning rules and state reconciliation may become unsafe.
 
 ### `new`, `reparent`
 
@@ -69,5 +69,5 @@ When changing a foundational assumption, check at least:
 - clean-worktree enforcement in mutating commands
 - submit push semantics and lease-failure behavior
 - advance eligibility checks
-- cleanup decisions that rely on fetched remote state
+- clean-command decisions that rely on fetched remote state
 - state bootstrap/persistence behavior in commands that call `loadStateFromRepoOrInfer()`

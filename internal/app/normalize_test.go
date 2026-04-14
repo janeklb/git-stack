@@ -53,7 +53,7 @@ func TestLoadStateNormalizesWhitespace(t *testing.T) {
 		t.Fatalf("expected trimmed naming template, got %q", loaded.Naming.Template)
 	}
 	if loaded.Cleanup.MergeDetection != cleanupMergeDetectionStrict {
-		t.Fatalf("expected trimmed cleanup policy, got %q", loaded.Cleanup.MergeDetection)
+		t.Fatalf("expected trimmed clean policy, got %q", loaded.Cleanup.MergeDetection)
 	}
 	if loaded.Branches["feat-one"].Parent != "main" {
 		t.Fatalf("expected trimmed parent, got %q", loaded.Branches["feat-one"].Parent)

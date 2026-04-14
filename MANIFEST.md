@@ -37,8 +37,8 @@
 
 - Core daily commands should map directly to user intent: create work, inspect stack state, restack history, submit PRs, clean up merged work, and advance after merges.
 - Post-merge advance is a first-class workflow and should have a dedicated command rather than being hidden behind flags on a broader maintenance command.
-- Cleanup is the reconciliation primitive beneath advance, but should also stand on its own as a direct command:
-  - `advance` handles the strict "current branch merged, move me forward" flow and includes targeted cleanup of the current merged branch as one step in that workflow.
+- Clean is the reconciliation primitive beneath advance, but should also stand on its own as a direct command:
+  - `advance` handles the strict "current branch merged, move me forward" flow and includes targeted cleaning of the current merged branch as one step in that workflow.
   - `clean` handles merged-branch reconciliation directly for the current stack by default, with broader scopes available explicitly, including branches not tracked in stack state when they are safely eligible for removal.
 - Tree-shaped stacks are allowed. When a merged parent is removed, its children may become separate active stacks while retaining lineage history.
 - Read-only commands may infer or inspect state freely; mutating commands should transparently bootstrap and persist state when they can do so without ambiguity.
