@@ -212,21 +212,21 @@ Implementation-wise this is a rebase: git-stack switches to the target branch an
 	_ = reparentCmd.MarkFlagRequired("parent")
 	root.AddCommand(reparentCmd)
 
-	doctorCmd := &cobra.Command{
-		Use:   "doctor",
+	checkCmd := &cobra.Command{
+		Use:   "check",
 		Short: "Diagnose local stack metadata health",
 		Long: `Inspect persisted stack metadata and report structural problems.
 
-doctor reads the saved stack state and validates trunk existence, parent references, parent ancestry, cycles, unrooted tracked branches, and any recorded restack operation. It also reports local branches that exist in git but are missing from stack state as informational output.
+check reads the saved stack state and validates trunk existence, parent references, parent ancestry, cycles, unrooted tracked branches, and any recorded restack operation. It also reports local branches that exist in git but are missing from stack state as informational output.
 
-doctor does not mutate the repository. It exits non-zero when it finds errors and zero when the report contains only warnings or infos. Unlike most other commands, doctor requires initialized stack state and does not auto-bootstrap it.`,
-		Example: "  git-stack doctor",
+check does not mutate the repository. It exits non-zero when it finds errors and zero when the report contains only warnings or infos. Unlike most other commands, check requires initialized stack state and does not auto-bootstrap it.`,
+		Example: "  git-stack check",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdDoctor()
+			return a.cmdCheck()
 		},
 	}
-	root.AddCommand(doctorCmd)
+	root.AddCommand(checkCmd)
 
 	var advanceNext string
 	advanceCmd := &cobra.Command{
