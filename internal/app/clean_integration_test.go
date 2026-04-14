@@ -209,3 +209,40 @@ func TestCleanWithoutInitializedStateAutoBootstraps(t *testing.T) {
 		t.Fatalf("expected state file to be persisted, got: %v", err)
 	}
 }
+
+func TestCleanPrunesTrackedStateWhenBranchRefIsMissing(t *testing.T) {
+	repo := newTestRepo(t)
+	origin := newBareOrigin(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+
+		state, err := loadState(repo)
+		if err != nil {
+			t.Fatalf("load state: %v", err)
+		}
+		state.Branches["ghost"] = &BranchRef{Parent: "main"}
+		if err := saveState(repo, state); err != nil {
+			t.Fatalf("save state: %v", err)
+		}
+
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes"})
+		if code != 0 {
+			t.Fatalf("clean failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "ghost -> pruned missing tracked branch from stack state") {
+			t.Fatalf("expected ghost branch prune output, got:\n%s", out)
+		}
+
+		stateAfter, err := loadState(repo)
+		if err != nil {
+			t.Fatalf("load state after clean: %v", err)
+		}
+		if _, ok := stateAfter.Branches["ghost"]; ok {
+			t.Fatalf("expected ghost branch removed from stack state")
+		}
+	})
+}
