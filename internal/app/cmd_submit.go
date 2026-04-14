@@ -19,19 +19,19 @@ func (a *App) defaultSubmitDeps() submitDeps {
 		ensurePR:             ensurePR,
 		syncCurrentStackBody: syncCurrentStackBodies,
 		saveState:            saveState,
-		cleanupMergedBranch: func(state *State, branch string, nextOnCleanup string) (bool, error) {
-			return a.cleanupMergedBranch(state, branch, nextOnCleanup, git)
+		cleanMergedBranch: func(state *State, branch string, nextOnClean string) (bool, error) {
+			return a.cleanMergedBranch(state, branch, nextOnClean, git)
 		},
 	}
 }
 
-func (a *App) cmdSubmit(all bool, nextOnCleanup, branch string) error {
+func (a *App) cmdSubmit(all bool, nextOnClean, branch string) error {
 	deps := a.defaultSubmitDeps()
-	return a.cmdSubmitWithDeps(all, nextOnCleanup, branch, deps)
+	return a.cmdSubmitWithDeps(all, nextOnClean, branch, deps)
 }
 
-func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps submitDeps) error {
-	nextOnCleanup = strings.TrimSpace(nextOnCleanup)
+func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submitDeps) error {
+	nextOnClean = strings.TrimSpace(nextOnClean)
 	if err := deps.ensureCleanWorktree(); err != nil {
 		return err
 	}
@@ -53,13 +53,13 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 	}
 	if len(queue) == 0 {
 		a.println("nothing to submit")
-		if nextOnCleanup != "" {
-			a.println("submit: note: --next-on-cleanup was not used because submit did not clean up the current branch")
+		if nextOnClean != "" {
+			a.println("submit: note: --next-on-clean was not used because submit did not clean the current branch")
 		}
 		return nil
 	}
 
-	usedNextOnCleanup := false
+	usedNextOnClean := false
 	for _, branch := range queue {
 		meta, ok := state.Branches[branch]
 		if !ok {
@@ -74,11 +74,11 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 					meta.PR.Base = existing.BaseRefName
 				}
 				a.printlnf("%s -> PR #%d already merged, skipping", branch, existing.Number)
-				used, err := deps.cleanupMergedBranch(state, branch, nextOnCleanup)
+				used, err := deps.cleanMergedBranch(state, branch, nextOnClean)
 				if err != nil {
 					return err
 				}
-				usedNextOnCleanup = usedNextOnCleanup || used
+				usedNextOnClean = usedNextOnClean || used
 				continue
 			}
 			if err == nil {
@@ -114,8 +114,8 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 	if err := deps.syncCurrentStackBody(state, all, branch); err != nil {
 		return err
 	}
-	if nextOnCleanup != "" && !usedNextOnCleanup {
-		a.println("submit: note: --next-on-cleanup was not used because submit did not clean up the current branch")
+	if nextOnClean != "" && !usedNextOnClean {
+		a.println("submit: note: --next-on-clean was not used because submit did not clean the current branch")
 	}
 
 	if persisted {
@@ -126,7 +126,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnCleanup, branch string, deps sub
 	return nil
 }
 
-func (a *App) cleanupMergedBranch(state *State, branch string, nextOnCleanup string, git submitGitClient) (bool, error) {
+func (a *App) cleanMergedBranch(state *State, branch string, nextOnClean string, git submitGitClient) (bool, error) {
 	remoteExists, remoteErr := git.RemoteBranchExists(branch)
 	if remoteErr != nil {
 		return false, nil
@@ -156,31 +156,31 @@ func (a *App) cleanupMergedBranch(state *State, branch string, nextOnCleanup str
 	}
 
 	if currentErr == nil && current == branch {
-		target, proceed, usedNextOnCleanup, err := chooseSubmitCleanupSwitchTarget(state, branch, nextOnCleanup, a.in, a.stdout, git)
+		target, proceed, usedNextOnClean, err := chooseSubmitCleanSwitchTarget(state, branch, nextOnClean, a.in, a.stdout, git)
 		if err != nil {
-			return usedNextOnCleanup, err
+			return usedNextOnClean, err
 		}
 		if !proceed {
 			a.printlnf("%s -> keeping local merged branch", branch)
-			return usedNextOnCleanup, nil
+			return usedNextOnClean, nil
 		}
 		if err := switchAwayThenDeleteMergedBranch(git, branch, true, target); err != nil {
 			a.printlnf("%s -> %v", branch, err)
-			return usedNextOnCleanup, nil
+			return usedNextOnClean, nil
 		}
-		if err := cleanupMergedBranchState(a.stdout, state, branch, base); err != nil {
+		if err := cleanMergedBranchState(a.stdout, state, branch, base); err != nil {
 			a.printlnf("%s -> %v", branch, err)
-			return usedNextOnCleanup, nil
+			return usedNextOnClean, nil
 		}
 		a.printlnf("%s -> deleted local merged branch", branch)
-		return usedNextOnCleanup, nil
+		return usedNextOnClean, nil
 	}
 
 	if err := switchAwayThenDeleteMergedBranch(git, branch, true, ""); err != nil {
 		a.printlnf("%s -> %v", branch, err)
 		return false, nil
 	}
-	if err := cleanupMergedBranchState(a.stdout, state, branch, base); err != nil {
+	if err := cleanMergedBranchState(a.stdout, state, branch, base); err != nil {
 		a.printlnf("%s -> %v", branch, err)
 		return false, nil
 	}
@@ -188,29 +188,29 @@ func (a *App) cleanupMergedBranch(state *State, branch string, nextOnCleanup str
 	return false, nil
 }
 
-func chooseSubmitCleanupSwitchTarget(state *State, branch, nextOnCleanup string, in io.Reader, out io.Writer, git submitGitClient) (string, bool, bool, error) {
-	if nextOnCleanup != "" {
-		target, err := validateSubmitCleanupTarget(branch, nextOnCleanup, git)
+func chooseSubmitCleanSwitchTarget(state *State, branch, nextOnClean string, in io.Reader, out io.Writer, git submitGitClient) (string, bool, bool, error) {
+	if nextOnClean != "" {
+		target, err := validateSubmitCleanTarget(branch, nextOnClean, git)
 		if err != nil {
 			return "", false, true, err
 		}
-		fmt.Fprintf(out, "%s -> using --next-on-cleanup target %s before cleanup\n", branch, target)
+		fmt.Fprintf(out, "%s -> using --next-on-clean target %s before clean\n", branch, target)
 		return target, true, true, nil
 	}
 	target, proceed := promptSwitchTargetForMergedBranchDeletion(state, branch, in, out)
 	return target, proceed, false, nil
 }
 
-func validateSubmitCleanupTarget(branch, nextOnCleanup string, git submitGitClient) (string, error) {
-	target := nextOnCleanup
+func validateSubmitCleanTarget(branch, nextOnClean string, git submitGitClient) (string, error) {
+	target := nextOnClean
 	if target == "" {
-		return "", fmt.Errorf("submit --next-on-cleanup requires a branch name")
+		return "", fmt.Errorf("submit --next-on-clean requires a branch name")
 	}
 	if target == branch {
-		return "", fmt.Errorf("submit --next-on-cleanup cannot be the branch being cleaned: %s", target)
+		return "", fmt.Errorf("submit --next-on-clean cannot be the branch being cleaned: %s", target)
 	}
 	if !git.LocalBranchExists(target) {
-		return "", fmt.Errorf("submit --next-on-cleanup branch does not exist locally: %s", target)
+		return "", fmt.Errorf("submit --next-on-clean branch does not exist locally: %s", target)
 	}
 	return target, nil
 }
@@ -222,7 +222,7 @@ func promptSwitchTargetForMergedBranchDeletion(state *State, branch string, in i
 		if target == "" {
 			target = "main"
 		}
-		fmt.Fprintf(out, "%s -> merged and remote deleted; switching to %s before cleanup\n", branch, target)
+		fmt.Fprintf(out, "%s -> merged and remote deleted; switching to %s before clean\n", branch, target)
 		return target, true
 	}
 
@@ -232,7 +232,7 @@ func promptSwitchTargetForMergedBranchDeletion(state *State, branch string, in i
 		fmt.Fprintf(out, "%s -> merged and remote deleted. Switch to %s and delete this branch? [y/N]: ", branch, target)
 		answer, err := readPromptLine(reader)
 		if err != nil {
-			fmt.Fprintf(out, "%s -> failed to read cleanup prompt\n", branch)
+			fmt.Fprintf(out, "%s -> failed to read clean prompt\n", branch)
 			return "", false
 		}
 		if answer != "y" && answer != "yes" {
@@ -249,7 +249,7 @@ func promptSwitchTargetForMergedBranchDeletion(state *State, branch string, in i
 	fmt.Fprintf(out, "selection [0-%d]: ", len(children))
 	answer, err := readPromptLine(reader)
 	if err != nil {
-		fmt.Fprintf(out, "%s -> failed to read cleanup selection\n", branch)
+		fmt.Fprintf(out, "%s -> failed to read clean selection\n", branch)
 		return "", false
 	}
 	choice, err := strconv.Atoi(answer)

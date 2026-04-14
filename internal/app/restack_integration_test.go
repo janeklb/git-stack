@@ -186,8 +186,8 @@ func TestRestackUsesExplicitOldBaseToDropMergedParentCommits(t *testing.T) {
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
-		if err := cleanupMergedBranchState(io.Discard, state, "feat-one", "main"); err != nil {
-			t.Fatalf("cleanup merged parent state: %v", err)
+		if err := cleanMergedBranchState(io.Discard, state, "feat-one", "main"); err != nil {
+			t.Fatalf("clean merged parent state: %v", err)
 		}
 
 		mustGit(t, repo, "switch", "feat-two")

@@ -78,9 +78,9 @@ func TestReparentChildrenAfterMergedDeletionUpdatesParentAndPRBase(t *testing.T)
 	reparentChildrenAfterMergedDeletion(state, "feat-one", "main", io.Discard)
 
 	if got := state.Branches["feat-two"].Parent; got != "main" {
-		t.Fatalf("expected feat-two parent main after cleanup, got %q", got)
+		t.Fatalf("expected feat-two parent main after clean, got %q", got)
 	}
 	if got := state.Branches["feat-two"].PR.Base; got != "main" {
-		t.Fatalf("expected feat-two PR base main after cleanup, got %q", got)
+		t.Fatalf("expected feat-two PR base main after clean, got %q", got)
 	}
 }

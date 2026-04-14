@@ -114,7 +114,7 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 	}
 }
 
-func TestBuildPruneLocalPlanDefaultCleanupExcludesUntrackedBranches(t *testing.T) {
+func TestBuildPruneLocalPlanDefaultCleanExcludesUntrackedBranches(t *testing.T) {
 	t.Parallel()
 
 	deps := pruneLocalPlanDeps{
@@ -153,7 +153,7 @@ func TestBuildPruneLocalPlanDefaultCleanupExcludesUntrackedBranches(t *testing.T
 	}
 }
 
-func TestCleanupDiscoveryBranchesUsesTrackedScopeAndOptionalGlobalUntracked(t *testing.T) {
+func TestCleanDiscoveryBranchesUsesTrackedScopeAndOptionalGlobalUntracked(t *testing.T) {
 	t.Parallel()
 
 	state := &State{
@@ -165,12 +165,12 @@ func TestCleanupDiscoveryBranchesUsesTrackedScopeAndOptionalGlobalUntracked(t *t
 	}
 	branches := []string{"main", "tracked-in", "tracked-out", "untracked-a", "untracked-b"}
 
-	withoutUntracked := cleanupDiscoveryBranches(state, branches, pruneLocalScope{trackedBranches: map[string]bool{"tracked-in": true}})
+	withoutUntracked := cleanDiscoveryBranches(state, branches, pruneLocalScope{trackedBranches: map[string]bool{"tracked-in": true}})
 	if len(withoutUntracked) != 1 || withoutUntracked[0] != "tracked-in" {
 		t.Fatalf("expected only in-scope tracked branch without --untracked, got %#v", withoutUntracked)
 	}
 
-	withUntracked := cleanupDiscoveryBranches(state, branches, pruneLocalScope{trackedBranches: map[string]bool{"tracked-in": true}, includeUntracked: true})
+	withUntracked := cleanDiscoveryBranches(state, branches, pruneLocalScope{trackedBranches: map[string]bool{"tracked-in": true}, includeUntracked: true})
 	if len(withUntracked) != 3 {
 		t.Fatalf("expected tracked scope plus global untracked branches, got %#v", withUntracked)
 	}
@@ -179,7 +179,7 @@ func TestCleanupDiscoveryBranchesUsesTrackedScopeAndOptionalGlobalUntracked(t *t
 	}
 }
 
-func TestCleanupTrackedScopeUsesCurrentStackByDefault(t *testing.T) {
+func TestCleanTrackedScopeUsesCurrentStackByDefault(t *testing.T) {
 	t.Parallel()
 
 	state := &State{
@@ -193,7 +193,7 @@ func TestCleanupTrackedScopeUsesCurrentStackByDefault(t *testing.T) {
 		},
 	}
 
-	selected := cleanupTrackedScope(state, "stack-a-2", false)
+	selected := cleanTrackedScope(state, "stack-a-2", false)
 	if !selected["stack-a-1"] || !selected["stack-a-2"] || !selected["stack-a-3"] || !selected["stack-a-side"] {
 		t.Fatalf("expected current stack selected, got %#v", selected)
 	}
@@ -202,7 +202,7 @@ func TestCleanupTrackedScopeUsesCurrentStackByDefault(t *testing.T) {
 	}
 }
 
-func TestCleanupTrackedScopeAllSelectsAllTrackedBranches(t *testing.T) {
+func TestCleanTrackedScopeAllSelectsAllTrackedBranches(t *testing.T) {
 	t.Parallel()
 
 	state := &State{
@@ -213,7 +213,7 @@ func TestCleanupTrackedScopeAllSelectsAllTrackedBranches(t *testing.T) {
 		},
 	}
 
-	selected := cleanupTrackedScope(state, "stack-a-1", true)
+	selected := cleanTrackedScope(state, "stack-a-1", true)
 	if !selected["stack-a-1"] || !selected["stack-b-1"] {
 		t.Fatalf("expected all tracked branches selected, got %#v", selected)
 	}
@@ -235,8 +235,8 @@ func TestBuildPruneLocalPlanStrictPolicySkipsBranchWithoutMergeCommit(t *testing
 		}},
 	}
 
-	state := &State{Trunk: "main", Cleanup: CleanupConfig{MergeDetection: cleanupMergeDetectionStrict}, Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
-	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state), mergeDetection: cleanupMergeDetectionStrict})
+	state := &State{Trunk: "main", Clean: CleanConfig{MergeDetection: cleanMergeDetectionStrict}, Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state), mergeDetection: cleanMergeDetectionStrict})
 	if err != nil {
 		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestBuildPruneLocalPlanIncludeSquashAllowsIntegratedBranchWithoutMergeCommi
 		}},
 	}
 
-	state := &State{Trunk: "main", Cleanup: CleanupConfig{MergeDetection: cleanupMergeDetectionStrict}, Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
+	state := &State{Trunk: "main", Clean: CleanConfig{MergeDetection: cleanMergeDetectionStrict}, Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
 	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state), mergeDetection: "include-squash"})
 	if err != nil {
 		t.Fatalf("buildPruneLocalPlan returned error: %v", err)

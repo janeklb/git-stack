@@ -7,32 +7,32 @@ import (
 	"testing"
 )
 
-type submitCleanupTargetGitStub struct {
+type submitCleanTargetGitStub struct {
 	local map[string]bool
 }
 
-func (s submitCleanupTargetGitStub) PushBranch(string) error { return nil }
+func (s submitCleanTargetGitStub) PushBranch(string) error { return nil }
 
-func (s submitCleanupTargetGitStub) RemoteBranchExists(string) (bool, error) { return false, nil }
+func (s submitCleanTargetGitStub) RemoteBranchExists(string) (bool, error) { return false, nil }
 
-func (s submitCleanupTargetGitStub) LocalBranchExists(branch string) bool {
+func (s submitCleanTargetGitStub) LocalBranchExists(branch string) bool {
 	if s.local == nil {
 		return false
 	}
 	return s.local[branch]
 }
 
-func (s submitCleanupTargetGitStub) BranchHasCommitsSince(string, string) (bool, error) {
+func (s submitCleanTargetGitStub) BranchHasCommitsSince(string, string) (bool, error) {
 	return false, nil
 }
 
-func (s submitCleanupTargetGitStub) CurrentBranch() (string, error) { return "", nil }
+func (s submitCleanTargetGitStub) CurrentBranch() (string, error) { return "", nil }
 
-func (s submitCleanupTargetGitStub) Run(...string) error { return nil }
+func (s submitCleanTargetGitStub) Run(...string) error { return nil }
 
-func (s submitCleanupTargetGitStub) DeleteLocalBranch(string) error { return nil }
+func (s submitCleanTargetGitStub) DeleteLocalBranch(string) error { return nil }
 
-func (s submitCleanupTargetGitStub) BranchFullyIntegrated(string, string) (bool, error) {
+func (s submitCleanTargetGitStub) BranchFullyIntegrated(string, string) (bool, error) {
 	return true, nil
 }
 
@@ -48,12 +48,12 @@ func TestPromptSwitchTargetForMergedBranchDeletionNoChildrenDefaultsToTrunk(t *t
 		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one", in, out)
 	})
 	if !proceed {
-		t.Fatal("expected cleanup to proceed when merged branch has no children")
+		t.Fatal("expected clean to proceed when merged branch has no children")
 	}
 	if target != "main" {
 		t.Fatalf("expected trunk switch target main, got %q", target)
 	}
-	if !strings.Contains(out, "switching to main before cleanup") {
+	if !strings.Contains(out, "switching to main before clean") {
 		t.Fatalf("expected trunk switch message, got:\n%s", out)
 	}
 }
@@ -71,7 +71,7 @@ func TestPromptSwitchTargetForMergedBranchDeletionSingleChildPrompt(t *testing.T
 		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one", in, out)
 	})
 	if !proceed {
-		t.Fatal("expected cleanup to proceed when user confirms child switch")
+		t.Fatal("expected clean to proceed when user confirms child switch")
 	}
 	if target != "feat-two" {
 		t.Fatalf("expected switch target feat-two, got %q", target)
@@ -95,7 +95,7 @@ func TestPromptSwitchTargetForMergedBranchDeletionMultipleChildrenSelection(t *t
 		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one", in, out)
 	})
 	if !proceed {
-		t.Fatal("expected cleanup to proceed for valid child selection")
+		t.Fatal("expected clean to proceed for valid child selection")
 	}
 	if target != "feat-b" {
 		t.Fatalf("expected sorted selection to choose feat-b for input 2, got %q", target)
@@ -119,7 +119,7 @@ func TestPromptSwitchTargetForMergedBranchDeletionInvalidSelectionKeepsBranch(t 
 		return promptSwitchTargetForMergedBranchDeletion(state, "feat-one", in, out)
 	})
 	if proceed {
-		t.Fatal("expected cleanup to be cancelled for invalid selection")
+		t.Fatal("expected clean to be cancelled for invalid selection")
 	}
 	if target != "" {
 		t.Fatalf("expected empty switch target when cancelled, got %q", target)
@@ -129,49 +129,49 @@ func TestPromptSwitchTargetForMergedBranchDeletionInvalidSelectionKeepsBranch(t 
 	}
 }
 
-func TestChooseSubmitCleanupSwitchTargetUsesNextOnCleanup(t *testing.T) {
+func TestChooseSubmitCleanSwitchTargetUsesNextOnClean(t *testing.T) {
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{"feat-one": {Parent: "main"}}}
 	var out bytes.Buffer
 
-	target, proceed, used, err := chooseSubmitCleanupSwitchTarget(state, "feat-one", "feat-two", strings.NewReader(""), &out, submitCleanupTargetGitStub{local: map[string]bool{"feat-two": true}})
+	target, proceed, used, err := chooseSubmitCleanSwitchTarget(state, "feat-one", "feat-two", strings.NewReader(""), &out, submitCleanTargetGitStub{local: map[string]bool{"feat-two": true}})
 	if err != nil {
-		t.Fatalf("chooseSubmitCleanupSwitchTarget returned error: %v", err)
+		t.Fatalf("chooseSubmitCleanSwitchTarget returned error: %v", err)
 	}
 	if !proceed {
-		t.Fatal("expected cleanup to proceed with next-on-cleanup target")
+		t.Fatal("expected clean to proceed with next-on-clean target")
 	}
 	if !used {
-		t.Fatal("expected next-on-cleanup to be marked used")
+		t.Fatal("expected next-on-clean to be marked used")
 	}
 	if target != "feat-two" {
 		t.Fatalf("expected target feat-two, got %q", target)
 	}
-	if !strings.Contains(out.String(), "using --next-on-cleanup target feat-two before cleanup") {
-		t.Fatalf("expected next-on-cleanup output, got:\n%s", out.String())
+	if !strings.Contains(out.String(), "using --next-on-clean target feat-two before clean") {
+		t.Fatalf("expected next-on-clean output, got:\n%s", out.String())
 	}
 }
 
-func TestChooseSubmitCleanupSwitchTargetRejectsMissingNextOnCleanup(t *testing.T) {
+func TestChooseSubmitCleanSwitchTargetRejectsMissingNextOnClean(t *testing.T) {
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{"feat-one": {Parent: "main"}}}
 
-	_, _, used, err := chooseSubmitCleanupSwitchTarget(state, "feat-one", "feat-two", strings.NewReader(""), io.Discard, submitCleanupTargetGitStub{})
+	_, _, used, err := chooseSubmitCleanSwitchTarget(state, "feat-one", "feat-two", strings.NewReader(""), io.Discard, submitCleanTargetGitStub{})
 	if err == nil {
-		t.Fatal("expected missing next-on-cleanup target to fail")
+		t.Fatal("expected missing next-on-clean target to fail")
 	}
 	if !used {
-		t.Fatal("expected next-on-cleanup failure to mark flag as used")
+		t.Fatal("expected next-on-clean failure to mark flag as used")
 	}
 	if !strings.Contains(err.Error(), "does not exist locally") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestChooseSubmitCleanupSwitchTargetRejectsCurrentBranchTarget(t *testing.T) {
+func TestChooseSubmitCleanSwitchTargetRejectsCurrentBranchTarget(t *testing.T) {
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{"feat-one": {Parent: "main"}}}
 
-	_, _, _, err := chooseSubmitCleanupSwitchTarget(state, "feat-one", "feat-one", strings.NewReader(""), io.Discard, submitCleanupTargetGitStub{local: map[string]bool{"feat-one": true}})
+	_, _, _, err := chooseSubmitCleanSwitchTarget(state, "feat-one", "feat-one", strings.NewReader(""), io.Discard, submitCleanTargetGitStub{local: map[string]bool{"feat-one": true}})
 	if err == nil {
-		t.Fatal("expected same-branch next-on-cleanup target to fail")
+		t.Fatal("expected same-branch next-on-clean target to fail")
 	}
 	if !strings.Contains(err.Error(), "cannot be the branch being cleaned") {
 		t.Fatalf("unexpected error: %v", err)

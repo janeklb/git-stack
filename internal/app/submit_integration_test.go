@@ -137,7 +137,7 @@ func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *tes
 	})
 }
 
-func TestSubmitUsesNextOnCleanupToSwitchBeforeDeletingMergedCurrentBranch(t *testing.T) {
+func TestSubmitUsesNextOnCleanToSwitchBeforeDeletingMergedCurrentBranch(t *testing.T) {
 	repo := newTestRepo(t)
 	origin := newBareOrigin(t)
 
@@ -177,12 +177,12 @@ func TestSubmitUsesNextOnCleanupToSwitchBeforeDeletingMergedCurrentBranch(t *tes
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"submit", "--next-on-cleanup", "feat-two", "feat-one"})
+		out, code := runCLIAndCapture(t, cli, []string{"submit", "--next-on-clean", "feat-two", "feat-one"})
 		if code != 0 {
 			t.Fatalf("submit failed: exit=%d\n%s", code, out)
 		}
-		if !strings.Contains(out, "feat-one -> using --next-on-cleanup target feat-two before cleanup") {
-			t.Fatalf("expected next-on-cleanup output, got:\n%s", out)
+		if !strings.Contains(out, "feat-one -> using --next-on-clean target feat-two before clean") {
+			t.Fatalf("expected next-on-clean output, got:\n%s", out)
 		}
 		if !strings.Contains(out, "feat-one -> deleted local merged branch") {
 			t.Fatalf("expected local deletion message, got:\n%s", out)
@@ -197,7 +197,7 @@ func TestSubmitUsesNextOnCleanupToSwitchBeforeDeletingMergedCurrentBranch(t *tes
 	})
 }
 
-func TestSubmitFailsWhenNextOnCleanupTargetDoesNotExist(t *testing.T) {
+func TestSubmitFailsWhenNextOnCleanTargetDoesNotExist(t *testing.T) {
 	repo := newTestRepo(t)
 	origin := newBareOrigin(t)
 
@@ -236,11 +236,11 @@ func TestSubmitFailsWhenNextOnCleanupTargetDoesNotExist(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"submit", "--next-on-cleanup", "missing-branch", "feat-one"})
+		out, code := runCLIAndCapture(t, cli, []string{"submit", "--next-on-clean", "missing-branch", "feat-one"})
 		if code == 0 {
-			t.Fatalf("expected submit to fail when next-on-cleanup target is missing, got:\n%s", out)
+			t.Fatalf("expected submit to fail when next-on-clean target is missing, got:\n%s", out)
 		}
-		if !strings.Contains(out, "submit --next-on-cleanup branch does not exist locally: missing-branch") {
+		if !strings.Contains(out, "submit --next-on-clean branch does not exist locally: missing-branch") {
 			t.Fatalf("expected missing-target error, got:\n%s", out)
 		}
 		if current, err := currentBranch(); err != nil || current != "feat-one" {

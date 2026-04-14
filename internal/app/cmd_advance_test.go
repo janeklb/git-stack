@@ -66,7 +66,7 @@ func TestBuildAdvanceCandidateRequiresRemoteDeletion(t *testing.T) {
 		gh: fakeAdvanceGH{viewFn: func(number int) (*GhPR, error) {
 			return &GhPR{Number: number, State: "MERGED", BaseRefName: "main"}, nil
 		}},
-		mergedCleanupIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
+		mergedCleanIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
 			return true, nil
 		},
 		mergedBranchChildren: func(state *State, branch string) []string {

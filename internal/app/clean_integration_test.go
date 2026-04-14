@@ -203,7 +203,7 @@ func TestCleanWithoutInitializedStateAutoBootstraps(t *testing.T) {
 		t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "clean: nothing to do") {
-		t.Fatalf("expected noop cleanup output, got:\n%s", out)
+		t.Fatalf("expected noop clean output, got:\n%s", out)
 	}
 	if _, err := loadState(repo); err != nil {
 		t.Fatalf("expected state file to be persisted, got: %v", err)

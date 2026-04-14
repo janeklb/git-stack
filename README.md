@@ -62,7 +62,7 @@ git-stack advance
 ```text
 git-stack new <name> [--parent <branch>] [--template <template>] [--prefix-index]
 git-stack state
-git-stack submit [--all] [--next-on-cleanup <branch>] [branch]
+git-stack submit [--all] [--next-on-clean <branch>] [branch]
 git-stack restack [--mode rebase|merge] [--continue] [--abort]
 git-stack advance [--next <branch>]
 git-stack clean [--all] [--yes] [--include-squash] [--untracked]

@@ -61,8 +61,8 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find submit command: %v", err)
 	}
-	if submit.Flags().Lookup("next-on-cleanup") == nil {
-		t.Fatalf("expected submit next-on-cleanup flag to exist")
+	if submit.Flags().Lookup("next-on-clean") == nil {
+		t.Fatalf("expected submit next-on-clean flag to exist")
 	}
 	clean, _, err := root.Find([]string{"clean"})
 	if err != nil {
@@ -127,7 +127,7 @@ func TestInitHelpMarksCommandAsRepairFlow(t *testing.T) {
 	}
 }
 
-func TestSubmitHelpDescribesDefaultsAndCleanupFlag(t *testing.T) {
+func TestSubmitHelpDescribesDefaultsAndCleanFlag(t *testing.T) {
 	cli := New()
 	out, code := runCLIAndCapture(t, cli, []string{"help", "submit"})
 	if code != 0 {
@@ -139,8 +139,8 @@ func TestSubmitHelpDescribesDefaultsAndCleanupFlag(t *testing.T) {
 	if !strings.Contains(out, "force-pushes the local branch to origin with force-with-lease") {
 		t.Fatalf("expected submit help to describe push semantics, got:\n%s", out)
 	}
-	if !strings.Contains(out, "git-stack submit --next-on-cleanup feat/two feat/one") {
-		t.Fatalf("expected submit help to include cleanup example, got:\n%s", out)
+	if !strings.Contains(out, "git-stack submit --next-on-clean feat/two feat/one") {
+		t.Fatalf("expected submit help to include clean example, got:\n%s", out)
 	}
 }
 

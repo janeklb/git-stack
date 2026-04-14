@@ -10,7 +10,7 @@ func normalizeState(state *State) {
 	state.Trunk = strings.TrimSpace(state.Trunk)
 	state.RestackMode = strings.TrimSpace(state.RestackMode)
 	state.Naming.Template = strings.TrimSpace(state.Naming.Template)
-	state.Cleanup.MergeDetection = strings.TrimSpace(state.Cleanup.MergeDetection)
+	state.Clean.MergeDetection = strings.TrimSpace(state.Clean.MergeDetection)
 
 	if state.Branches == nil {
 		state.Branches = map[string]*BranchRef{}

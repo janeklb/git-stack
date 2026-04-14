@@ -94,8 +94,8 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 			saveCalled = true
 			return nil
 		},
-		cleanupMergedBranch: func(*State, string, string) (bool, error) {
-			t.Fatal("cleanup should not be called for empty queue")
+		cleanMergedBranch: func(*State, string, string) (bool, error) {
+			t.Fatal("clean should not be called for empty queue")
 			return false, nil
 		},
 	})
@@ -142,7 +142,7 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 			t.Fatal("save should not run when persisted=false")
 			return nil
 		},
-		cleanupMergedBranch: func(_ *State, branch string, _ string) (bool, error) {
+		cleanMergedBranch: func(_ *State, branch string, _ string) (bool, error) {
 			cleaned = branch
 			return false, nil
 		},
@@ -151,7 +151,7 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
 	}
 	if cleaned != "feat-one" {
-		t.Fatalf("expected cleanup for feat-one, got %q", cleaned)
+		t.Fatalf("expected clean for feat-one, got %q", cleaned)
 	}
 	if len(git.pushCalls) != 0 {
 		t.Fatalf("expected no push when PR is merged, got %v", git.pushCalls)
@@ -211,8 +211,8 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 			savedRoot = root
 			return nil
 		},
-		cleanupMergedBranch: func(*State, string, string) (bool, error) {
-			t.Fatal("cleanup should not be called for open PR path")
+		cleanMergedBranch: func(*State, string, string) (bool, error) {
+			t.Fatal("clean should not be called for open PR path")
 			return false, nil
 		},
 	})
@@ -269,7 +269,7 @@ func TestCmdSubmitSkipsMissingLocalBranch(t *testing.T) {
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
 		saveState:            func(string, *State) error { return nil },
-		cleanupMergedBranch:  func(*State, string, string) (bool, error) { return false, nil },
+		cleanMergedBranch:    func(*State, string, string) (bool, error) { return false, nil },
 	})
 	if err != nil {
 		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
@@ -306,7 +306,7 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
 		saveState:            func(string, *State) error { return nil },
-		cleanupMergedBranch:  func(*State, string, string) (bool, error) { return false, nil },
+		cleanMergedBranch:    func(*State, string, string) (bool, error) { return false, nil },
 	})
 	if err != nil {
 		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
@@ -319,7 +319,7 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 	}
 }
 
-func TestCmdSubmitPrintsNoteWhenNextOnCleanupUnused(t *testing.T) {
+func TestCmdSubmitPrintsNoteWhenNextOnCleanUnused(t *testing.T) {
 	var out strings.Builder
 	app := NewWithIO(strings.NewReader(""), &out, io.Discard)
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{"feat-one": {Parent: "main", PR: nil}}}
@@ -343,17 +343,17 @@ func TestCmdSubmitPrintsNoteWhenNextOnCleanupUnused(t *testing.T) {
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
 		saveState:            func(string, *State) error { return nil },
-		cleanupMergedBranch:  func(*State, string, string) (bool, error) { return false, nil },
+		cleanMergedBranch:    func(*State, string, string) (bool, error) { return false, nil },
 	})
 	if err != nil {
 		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
 	}
-	if !strings.Contains(out.String(), "submit: note: --next-on-cleanup was not used") {
-		t.Fatalf("expected unused next-on-cleanup note, got:\n%s", out.String())
+	if !strings.Contains(out.String(), "submit: note: --next-on-clean was not used") {
+		t.Fatalf("expected unused next-on-clean note, got:\n%s", out.String())
 	}
 }
 
-func TestCmdSubmitTrimsNextOnCleanupBeforeCleanupCallback(t *testing.T) {
+func TestCmdSubmitTrimsNextOnCleanBeforeCleanCallback(t *testing.T) {
 	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
 		"feat-one": {Parent: "main", PR: &PRMeta{Number: 7, URL: "https://old", Base: "main"}},
@@ -376,8 +376,8 @@ func TestCmdSubmitTrimsNextOnCleanupBeforeCleanupCallback(t *testing.T) {
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
 		saveState:            func(string, *State) error { return nil },
-		cleanupMergedBranch: func(_ *State, _ string, nextOnCleanup string) (bool, error) {
-			seen = nextOnCleanup
+		cleanMergedBranch: func(_ *State, _ string, nextOnClean string) (bool, error) {
+			seen = nextOnClean
 			return true, nil
 		},
 	})
@@ -385,6 +385,6 @@ func TestCmdSubmitTrimsNextOnCleanupBeforeCleanupCallback(t *testing.T) {
 		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
 	}
 	if seen != "feat-two" {
-		t.Fatalf("expected trimmed next-on-cleanup, got %q", seen)
+		t.Fatalf("expected trimmed next-on-clean, got %q", seen)
 	}
 }
