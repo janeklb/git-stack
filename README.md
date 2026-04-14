@@ -45,7 +45,7 @@ git add . && git commit -m "..."
 git-stack submit
 
 # Check the current stack graph
-git-stack status
+git-stack state
 
 # Start the next slice
 git-stack new my-feature-part-2
@@ -61,7 +61,7 @@ git-stack advance
 
 ```text
 git-stack new <name> [--parent <branch>] [--template <template>] [--prefix-index]
-git-stack status
+git-stack state
 git-stack submit [--all] [--next-on-cleanup <branch>] [branch]
 git-stack restack [--mode rebase|merge] [--continue] [--abort]
 git-stack advance [--next <branch>]

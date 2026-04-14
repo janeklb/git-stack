@@ -40,7 +40,7 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 
 It tracks branch parentage, restacks descendants after history changes, and submits pull requests in stack order. When git-stack is on your PATH, Git also exposes it as git stack <command>.
 
-Mutating commands require a clean worktree. Commands such as new, status, restack, submit, reparent, and cleanup can infer and persist stack state automatically when the workflow is unambiguous.`,
+Mutating commands require a clean worktree. Commands such as new, state, restack, submit, reparent, and cleanup can infer and persist stack state automatically when the workflow is unambiguous.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -118,28 +118,28 @@ With --adopt, stack does not create a branch. It tracks the current existing bra
 	_ = newCmd.RegisterFlagCompletionFunc("parent", completeBranchRefs(true))
 	root.AddCommand(newCmd)
 
-	var statusAll bool
-	var statusDrift bool
-	var statusNoColor bool
-	statusCmd := &cobra.Command{
-		Use:     "status",
-		Aliases: []string{"stat"},
+	var stateAll bool
+	var stateDrift bool
+	var stateNoColor bool
+	stateCmd := &cobra.Command{
+		Use:     "state",
+		Aliases: []string{"st"},
 		Short:   "Show stack graph and state",
 		Long: `Show the tracked branch graph for the current stack.
 
-By default, status shows the connected tracked component rooted at the topmost tracked ancestor of the current branch. When run from trunk, it shows every tracked stack. If persisted state is missing, status infers stack relationships from local branch ancestry without requiring initialization.
+	By default, state shows the connected tracked component rooted at the topmost tracked ancestor of the current branch. When run from trunk, it shows every tracked stack. If persisted state is missing, state infers stack relationships from local branch ancestry without requiring initialization.
 
-Each branch line includes its PR state: local-only when no PR metadata exists, submitted when a PR exists, and updated when an existing PR was updated on the last submit. Use --drift to surface parent mismatches such as parent-not-ancestor or missing-parent conditions.`,
-		Example: "  git-stack status\n  git-stack status --all\n  git-stack status --drift --no-color",
+	Each branch line includes its PR state: local-only when no PR metadata exists, submitted when a PR exists, and updated when an existing PR was updated on the last submit. Use --drift to surface parent mismatches such as parent-not-ancestor or missing-parent conditions.`,
+		Example: "  git-stack state\n  git-stack state --all\n  git-stack state --drift --no-color",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdStatus(statusAll, statusDrift, statusNoColor)
+			return a.cmdState(stateAll, stateDrift, stateNoColor)
 		},
 	}
-	statusCmd.Flags().BoolVar(&statusAll, "all", false, "show all tracked stacks instead of only the current stack component")
-	statusCmd.Flags().BoolVar(&statusDrift, "drift", false, "include drift markers when stored parentage does not match git ancestry")
-	statusCmd.Flags().BoolVar(&statusNoColor, "no-color", false, "disable ANSI colors even when stdout is a TTY")
-	root.AddCommand(statusCmd)
+	stateCmd.Flags().BoolVar(&stateAll, "all", false, "show all tracked stacks instead of only the current stack component")
+	stateCmd.Flags().BoolVar(&stateDrift, "drift", false, "include drift markers when stored parentage does not match git ancestry")
+	stateCmd.Flags().BoolVar(&stateNoColor, "no-color", false, "disable ANSI colors even when stdout is a TTY")
+	root.AddCommand(stateCmd)
 
 	var restackMode string
 	var restackContinue bool
@@ -256,9 +256,9 @@ For eligible merged branches, stack cleans them from local state, reparents surv
 		Short: "Delete merged local branches and reconcile stack state",
 		Long: `Delete local branches that are already merged and reconcile tracked stack state.
 
-cleanup requires a clean worktree, fetches origin with prune, builds a cleanup plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component. Use --all to consider every tracked branch.
+	cleanup requires a clean worktree, fetches origin with prune, builds a cleanup plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component. Use --all to consider every tracked branch.
 
-Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured cleanup policy. Children of deleted tracked branches are reparented in stack state. With --untracked, cleanup also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
+	Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured cleanup policy. Children of deleted tracked branches are reparented in stack state. With --untracked, cleanup also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
 		Example: "  git-stack cleanup\n  git-stack cleanup --yes\n  git-stack cleanup --all --yes\n  git-stack cleanup --yes --include-squash --untracked",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
