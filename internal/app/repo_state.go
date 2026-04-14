@@ -123,15 +123,15 @@ func prTemplatePath(repoRoot string) string {
 	return filepath.Join(repoRoot, ".git", "stack", "PR_TEMPLATE.md")
 }
 
-func loadPRTemplate(repoRoot string) (string, error) {
+func loadPRTemplate(repoRoot string) (string, bool, error) {
 	data, err := os.ReadFile(prTemplatePath(repoRoot))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", nil
+			return "", false, nil
 		}
-		return "", err
+		return "", false, err
 	}
-	return string(data), nil
+	return string(data), true, nil
 }
 
 func loadState(repoRoot string) (*State, error) {

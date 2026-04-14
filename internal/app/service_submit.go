@@ -23,11 +23,11 @@ func ensurePR(repoRoot, trunk, branch, parent string, existing *PRMeta, existing
 	if err != nil {
 		return nil, err
 	}
-	template, err := loadPRTemplate(repoRoot)
+	template, hasCustomTemplate, err := loadPRTemplate(repoRoot)
 	if err != nil {
 		return nil, err
 	}
-	defaultBody, err := composeBody(summary, "", template)
+	defaultBody, err := composeBody(summary, "", template, hasCustomTemplate)
 	if err != nil {
 		return nil, err
 	}

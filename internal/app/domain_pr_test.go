@@ -94,7 +94,7 @@ func TestComposeBodyUsesDefaultSummaryAndManagedSection(t *testing.T) {
 		URL:    "https://example.com/pr/11",
 		State:  "OPEN",
 	}})
-	body, err := composeBody([]string{"Added validation", "Refined output format"}, managed, "")
+	body, err := composeBody([]string{"Added validation", "Refined output format"}, managed, "", false)
 	if err != nil {
 		t.Fatalf("composeBody returned error: %v", err)
 	}
@@ -128,13 +128,13 @@ func TestComposeBodyUsesCustomTemplatePlaceholders(t *testing.T) {
 	template := strings.Join([]string{
 		"Before",
 		"{{- range .commits }}",
-		"- {{ .firstLineOfCommit }}",
+		"- {{ . }}",
 		"{{- end }}",
 		"Between",
 		"{{ .stackedPRsSection }}",
 		"After",
 	}, "\n\n")
-	body, err := composeBody([]string{"Added validation"}, managed, template)
+	body, err := composeBody([]string{"Added validation"}, managed, template, true)
 	if err != nil {
 		t.Fatalf("composeBody returned error: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestComposeBodyOmitsManagedSectionWhenTemplateDoesNotReferenceIt(t *testing
 		URL:    "https://example.com/pr/11",
 		State:  "OPEN",
 	}})
-	body, err := composeBody([]string{"Added validation"}, managed, "## Details\n\nCustom body")
+	body, err := composeBody([]string{"Added validation"}, managed, "## Details\n\nCustom body", true)
 	if err != nil {
 		t.Fatalf("composeBody returned error: %v", err)
 	}
@@ -174,10 +174,22 @@ func TestComposeBodyOmitsManagedSectionWhenTemplateDoesNotReferenceIt(t *testing
 	}
 }
 
+func TestComposeBodyUsesEmptyCustomTemplateVerbatim(t *testing.T) {
+	t.Parallel()
+
+	body, err := composeBody([]string{"Added validation"}, "managed", "", true)
+	if err != nil {
+		t.Fatalf("composeBody returned error: %v", err)
+	}
+	if body != "" {
+		t.Fatalf("expected empty custom template to stay empty, got %q", body)
+	}
+}
+
 func TestComposeBodyReturnsTemplateError(t *testing.T) {
 	t.Parallel()
 
-	if _, err := composeBody([]string{"Added validation"}, "", "{{ .unknownField }}"); err == nil {
+	if _, err := composeBody([]string{"Added validation"}, "", "{{ .unknownField }}", true); err == nil {
 		t.Fatal("expected template execution error for missing field")
 	}
 }

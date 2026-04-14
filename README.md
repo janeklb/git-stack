@@ -104,18 +104,19 @@ If `.git/stack/PR_TEMPLATE.md` exists, `submit` renders it as a Go `text/templat
 
 Template data:
 
-- `.commits` — list of commits included in the PR
-- `.commits[].firstLineOfCommit` — first line of each commit message
+- `.commits` — list of first-line commit subjects included in the PR
 - `.stackedPRsSection` — managed `## Stacked PRs` block
 
 If a custom template does not reference `.stackedPRsSection`, the PR body will not include the stacked-PR section.
+
+If `.git/stack/PR_TEMPLATE.md` exists but is empty, `submit` uses that empty template as-is rather than falling back to the default.
 
 When `.git/stack/PR_TEMPLATE.md` is absent, `submit` uses this default template:
 
 ```md
 ## Summary
 {{- range .commits }}
-- {{ .firstLineOfCommit }}
+- {{ . }}
 {{- end }}
 
 {{ .stackedPRsSection }}

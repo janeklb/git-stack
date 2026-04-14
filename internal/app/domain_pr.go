@@ -45,8 +45,8 @@ func branchSummary(parent, branch string) (string, []string, error) {
 	return latestTitle, lines, nil
 }
 
-func composeBody(summary []string, managed, templateText string) (string, error) {
-	if templateText == "" {
+func composeBody(summary []string, managed, templateText string, hasCustomTemplate bool) (string, error) {
+	if !hasCustomTemplate {
 		templateText = defaultPRBodyTemplate
 	}
 
@@ -65,14 +65,14 @@ func composeBody(summary []string, managed, templateText string) (string, error)
 	return body.String(), nil
 }
 
-func buildPRTemplateCommits(summary []string) []map[string]string {
-	commits := make([]map[string]string, 0, len(summary))
+func buildPRTemplateCommits(summary []string) []string {
+	commits := make([]string, 0, len(summary))
 	for _, item := range summary {
 		item = strings.TrimSpace(item)
 		if item == "" {
 			continue
 		}
-		commits = append(commits, map[string]string{"firstLineOfCommit": item})
+		commits = append(commits, item)
 	}
 	return commits
 }
