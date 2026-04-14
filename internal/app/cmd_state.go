@@ -6,16 +6,16 @@ import (
 	"strings"
 )
 
-type statusTheme struct {
+type stateTheme struct {
 	useColor bool
 }
 
-func (a *App) cmdStatus(all bool, showDrift bool, noColor bool) error {
+func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 	repoRoot, state, _, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
-	theme := statusTheme{useColor: !noColor && stdoutIsTTY(a.stdout)}
+	theme := stateTheme{useColor: !noColor && stdoutIsTTY(a.stdout)}
 
 	current, err := currentBranch()
 	if err != nil {
@@ -114,15 +114,15 @@ func branchPRState(pr *PRMeta) string {
 	return "submitted"
 }
 
-func (t statusTheme) branch(name string) string {
+func (t stateTheme) branch(name string) string {
 	return t.wrap(name, "1;36")
 }
 
-func (t statusTheme) trunk(name string) string {
+func (t stateTheme) trunk(name string) string {
 	return t.wrap(name+" (trunk)", "1;35")
 }
 
-func (t statusTheme) state(name string) string {
+func (t stateTheme) state(name string) string {
 	color := "36"
 	switch strings.ToLower(name) {
 	case "local-only":
@@ -135,15 +135,15 @@ func (t statusTheme) state(name string) string {
 	return t.wrap(name, color)
 }
 
-func (t statusTheme) link(url string) string {
+func (t stateTheme) link(url string) string {
 	return t.wrap(url, "34")
 }
 
-func (t statusTheme) warning(text string) string {
+func (t stateTheme) warning(text string) string {
 	return t.wrap(text, "31")
 }
 
-func (t statusTheme) wrap(text, code string) string {
+func (t stateTheme) wrap(text, code string) string {
 	if !t.useColor {
 		return text
 	}

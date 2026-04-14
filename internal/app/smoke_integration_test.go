@@ -79,9 +79,9 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"cleanup", "--yes", "--untracked"})
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes", "--untracked"})
 		if code != 0 {
-			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
+			t.Fatalf("clean failed: exit=%d\n%s", code, out)
 		}
 		if !strings.Contains(out, "old-feature -> deleted local branch") {
 			t.Fatalf("expected local branch deletion output, got:\n%s", out)
@@ -92,18 +92,18 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 	})
 }
 
-func TestIntegrationSmokeStatusShowsTrackedBranch(t *testing.T) {
+func TestIntegrationSmokeStateShowsTrackedBranch(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
 	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
 	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"status"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
 	if code != 0 {
-		t.Fatalf("status failed: exit=%d\n%s", code, out)
+		t.Fatalf("state failed: exit=%d\n%s", code, out)
 	}
 	if !strings.Contains(out, "main (trunk)") || !strings.Contains(out, "feat-one") {
-		t.Fatalf("expected trunk and branch in status output, got:\n%s", out)
+		t.Fatalf("expected trunk and branch in state output, got:\n%s", out)
 	}
 }
