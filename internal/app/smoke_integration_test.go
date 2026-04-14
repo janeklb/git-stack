@@ -79,9 +79,9 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"cleanup", "--yes", "--untracked"})
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes", "--untracked"})
 		if code != 0 {
-			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
+			t.Fatalf("clean failed: exit=%d\n%s", code, out)
 		}
 		if !strings.Contains(out, "old-feature -> deleted local branch") {
 			t.Fatalf("expected local branch deletion output, got:\n%s", out)

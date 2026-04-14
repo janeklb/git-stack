@@ -47,7 +47,7 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 	deps := pruneLocalPlanDeps{
 		git: fakePruneGit{
 			listLocalBranchesFn: func() ([]string, error) {
-				return []string{"main", "tracked", "cleanup", "remote", "ahead", "nopr", "wrong-base"}, nil
+				return []string{"main", "tracked", "old-clean", "remote", "ahead", "nopr", "wrong-base"}, nil
 			},
 			remoteBranchExistsFn: func(branch string) (bool, error) {
 				return branch == "remote", nil
@@ -66,7 +66,7 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 			switch branch {
 			case "tracked":
 				return &GhPR{Number: 10, URL: "https://example.invalid/pr/10", BaseRefName: "main", HeadRefOID: "h0", MergeCommit: &GhCommit{OID: "m0"}}, nil
-			case "cleanup":
+			case "old-clean":
 				return &GhPR{Number: 11, URL: "https://example.invalid/pr/11", BaseRefName: "main", HeadRefOID: "h1", MergeCommit: &GhCommit{OID: "m1"}}, nil
 			case "ahead":
 				return &GhPR{Number: 12, URL: "https://example.invalid/pr/12", BaseRefName: "main", HeadRefOID: "h2", MergeCommit: &GhCommit{OID: "m2"}}, nil
@@ -90,10 +90,10 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
 	}
 	if len(plan.Delete) != 2 {
-		t.Fatalf("expected tracked and cleanup branches to be deleted, got %#v", plan.Delete)
+		t.Fatalf("expected tracked and old-clean branches to be deleted, got %#v", plan.Delete)
 	}
-	if plan.Delete[0].Branch != "cleanup" || plan.Delete[1].Branch != "tracked" {
-		t.Fatalf("expected sorted delete list [cleanup tracked], got %#v", plan.Delete)
+	if plan.Delete[0].Branch != "old-clean" || plan.Delete[1].Branch != "tracked" {
+		t.Fatalf("expected sorted delete list [old-clean tracked], got %#v", plan.Delete)
 	}
 
 	reasons := map[string]string{}
@@ -270,6 +270,6 @@ func TestBuildPruneLocalPlanIncludeSquashAllowsIntegratedBranchWithoutMergeCommi
 		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
 	}
 	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "tracked" {
-		t.Fatalf("expected include-squash to allow cleanup, got %#v", plan.Delete)
+		t.Fatalf("expected include-squash to allow clean, got %#v", plan.Delete)
 	}
 }

@@ -40,7 +40,7 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 
 It tracks branch parentage, restacks descendants after history changes, and submits pull requests in stack order. When git-stack is on your PATH, Git also exposes it as git stack <command>.
 
-Mutating commands require a clean worktree. Commands such as new, state, restack, submit, reparent, and cleanup can infer and persist stack state automatically when the workflow is unambiguous.`,
+Mutating commands require a clean worktree. Commands such as new, state, restack, submit, reparent, and clean can infer and persist stack state automatically when the workflow is unambiguous.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -247,29 +247,29 @@ For eligible merged branches, stack cleans them from local state, reparents surv
 	_ = advanceCmd.RegisterFlagCompletionFunc("next", completeBranchRefs(false))
 	root.AddCommand(advanceCmd)
 
-	var cleanupYes bool
-	var cleanupAll bool
-	var cleanupIncludeSquash bool
-	var cleanupUntracked bool
-	cleanupCmd := &cobra.Command{
-		Use:   "cleanup",
+	var cleanYes bool
+	var cleanAll bool
+	var cleanIncludeSquash bool
+	var cleanUntracked bool
+	cleanCmd := &cobra.Command{
+		Use:   "clean",
 		Short: "Delete merged local branches and reconcile stack state",
 		Long: `Delete local branches that are already merged and reconcile tracked stack state.
 
-	cleanup requires a clean worktree, fetches origin with prune, builds a cleanup plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component. Use --all to consider every tracked branch.
+	clean requires a clean worktree, fetches origin with prune, builds a clean plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component. Use --all to consider every tracked branch.
 
-	Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured cleanup policy. Children of deleted tracked branches are reparented in stack state. With --untracked, cleanup also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
-		Example: "  git-stack cleanup\n  git-stack cleanup --yes\n  git-stack cleanup --all --yes\n  git-stack cleanup --yes --include-squash --untracked",
+	Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured cleanup policy. Children of deleted tracked branches are reparented in stack state. With --untracked, clean also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
+		Example: "  git-stack clean\n  git-stack clean --yes\n  git-stack clean --all --yes\n  git-stack clean --yes --include-squash --untracked",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdCleanup(cleanupYes, cleanupAll, cleanupIncludeSquash, cleanupUntracked)
+			return a.cmdClean(cleanYes, cleanAll, cleanIncludeSquash, cleanUntracked)
 		},
 	}
-	cleanupCmd.Flags().BoolVar(&cleanupYes, "yes", false, "apply the printed cleanup plan without an interactive confirmation prompt")
-	cleanupCmd.Flags().BoolVar(&cleanupAll, "all", false, "consider all tracked branches instead of only the current stack component")
-	cleanupCmd.Flags().BoolVar(&cleanupIncludeSquash, "include-squash", false, "allow cleanup of branches that were integrated by squash or other non-merge-commit flows")
-	cleanupCmd.Flags().BoolVar(&cleanupUntracked, "untracked", false, "also consider eligible untracked local branches outside persisted stack state")
-	root.AddCommand(cleanupCmd)
+	cleanCmd.Flags().BoolVar(&cleanYes, "yes", false, "apply the printed cleanup plan without an interactive confirmation prompt")
+	cleanCmd.Flags().BoolVar(&cleanAll, "all", false, "consider all tracked branches instead of only the current stack component")
+	cleanCmd.Flags().BoolVar(&cleanIncludeSquash, "include-squash", false, "allow cleanup of branches that were integrated by squash or other non-merge-commit flows")
+	cleanCmd.Flags().BoolVar(&cleanUntracked, "untracked", false, "also consider eligible untracked local branches outside persisted stack state")
+	root.AddCommand(cleanCmd)
 
 	return root
 }

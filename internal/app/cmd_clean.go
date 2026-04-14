@@ -137,7 +137,7 @@ func cleanupMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, pol
 	return true, ""
 }
 
-func (a *App) cmdCleanup(yes bool, all bool, includeSquash bool, untracked bool) error {
+func (a *App) cmdClean(yes bool, all bool, includeSquash bool, untracked bool) error {
 	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
@@ -153,7 +153,7 @@ func (a *App) runCleanupCommand(repoRoot string, state *State, yes bool, scope p
 		return err
 	}
 	if err := gitRun("fetch", "--prune", "origin"); err != nil {
-		return fmt.Errorf("cleanup fetch failed: %w", err)
+		return fmt.Errorf("clean fetch failed: %w", err)
 	}
 	if scope.trackedBranches == nil {
 		if scope.trackedFromCurrent {
@@ -172,13 +172,13 @@ func (a *App) runCleanupCommand(repoRoot string, state *State, yes bool, scope p
 		return err
 	}
 	if len(plan.Delete) == 0 {
-		a.println("cleanup: nothing to do")
+		a.println("clean: nothing to do")
 		return nil
 	}
 
 	printCleanupPlan(a.stdout, plan)
 	if !yes && !confirmCleanupApply(a.in, a.stdout) {
-		a.println("cleanup cancelled")
+		a.println("clean cancelled")
 		return nil
 	}
 
@@ -209,7 +209,7 @@ func (a *App) runCleanupCommand(repoRoot string, state *State, yes bool, scope p
 		a.printlnf("%s -> deleted local branch (merged PR #%d)", candidate.Branch, candidate.PR.Number)
 	}
 
-	a.println("cleanup completed")
+	a.println("clean completed")
 	return nil
 }
 
@@ -285,7 +285,7 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 }
 
 func printCleanupPlan(out io.Writer, plan *pruneLocalPlan) {
-	fmt.Fprintln(out, "cleanup plan:")
+	fmt.Fprintln(out, "clean plan:")
 	for _, candidate := range plan.Delete {
 		fmt.Fprintf(out, "- delete: %s (PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
 	}
@@ -296,7 +296,7 @@ func printCleanupPlan(out io.Writer, plan *pruneLocalPlan) {
 
 func confirmCleanupApply(in io.Reader, out io.Writer) bool {
 	reader := bufio.NewReader(in)
-	fmt.Fprint(out, "apply cleanup plan? [y/N]: ")
+	fmt.Fprint(out, "apply clean plan? [y/N]: ")
 	answer, err := readPromptLine(reader)
 	if err != nil {
 		return false
