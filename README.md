@@ -98,6 +98,14 @@ Stack state is local-only:
 
 - `.git/stack/state.json` — persisted branch graph and metadata
 - `.git/stack/operation.json` — present only while a `restack` is in progress
+- `.git/stack/PR_TEMPLATE.md` — optional per-repo PR body template for `submit`
+
+If `.git/stack/PR_TEMPLATE.md` exists, `submit` uses it when creating new PRs. The template may include:
+
+- `{{summary}}` — replaced with the generated `## Summary` commit list
+- `{{stackedPRsSection}}` — replaced with the managed `## Stacked PRs` block
+
+If `{{summary}}` is omitted, `submit` prepends the generated summary section. If `{{stackedPRsSection}}` is omitted, `submit` appends the managed stacked-PR block at the end.
 
 ## Behavior notes
 

@@ -9,6 +9,8 @@ const (
 	stateVersion              = 1
 	managedBlockStart         = "<!-- stack:managed:start -->"
 	managedBlockEnd           = "<!-- stack:managed:end -->"
+	prSummaryPlaceholder      = "{{summary}}"
+	stackedPRsPlaceholder     = "{{stackedPRsSection}}"
 	defaultRestackMode        = "rebase"
 	cleanMergeDetectionStrict = "strict"
 )

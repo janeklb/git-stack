@@ -119,6 +119,21 @@ func opPath(repoRoot string) string {
 	return filepath.Join(repoRoot, ".git", "stack", "operation.json")
 }
 
+func prTemplatePath(repoRoot string) string {
+	return filepath.Join(repoRoot, ".git", "stack", "PR_TEMPLATE.md")
+}
+
+func loadPRTemplate(repoRoot string) (string, error) {
+	data, err := os.ReadFile(prTemplatePath(repoRoot))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
 func loadState(repoRoot string) (*State, error) {
 	path := statePath(repoRoot)
 	data, err := os.ReadFile(path)

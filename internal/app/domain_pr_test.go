@@ -79,17 +79,82 @@ func TestManagedStackBlockKeepsHeadingInsideManagedMarkers(t *testing.T) {
 	}
 }
 
-func TestComposeBodyUsesSubmitTemplateSections(t *testing.T) {
+func TestComposeBodyUsesDefaultSummaryAndManagedSection(t *testing.T) {
 	t.Parallel()
 
-	body := composeBody([]string{"Added validation", "Refined output format"}, "")
-	for _, heading := range []string{"## Motivation", "## Modification(s)", "## Result"} {
-		if !strings.Contains(body, heading) {
-			t.Fatalf("expected body to include %q, got:\n%s", heading, body)
-		}
+	managed := managedStackBlock("feat-a", []StackPRLine{{
+		Branch: "feat-a",
+		Number: 11,
+		Title:  "Feature a",
+		URL:    "https://example.com/pr/11",
+		State:  "OPEN",
+	}})
+	body := composeBody([]string{"Added validation", "Refined output format"}, managed, "")
+	if !strings.Contains(body, "## Summary") {
+		t.Fatalf("expected body to include summary heading, got:\n%s", body)
 	}
 	if !strings.Contains(body, "- Added validation") || !strings.Contains(body, "- Refined output format") {
-		t.Fatalf("expected summary bullets to live under modifications, got:\n%s", body)
+		t.Fatalf("expected body to include summary bullets, got:\n%s", body)
+	}
+	if !strings.Contains(body, "## Stacked PRs") {
+		t.Fatalf("expected body to include managed stacked PR section, got:\n%s", body)
+	}
+	if !strings.HasSuffix(body, "\n") {
+		t.Fatalf("expected body to end with newline, got %q", body)
+	}
+	if strings.Index(body, "## Summary") > strings.Index(body, "## Stacked PRs") {
+		t.Fatalf("expected summary before stacked PRs, got:\n%s", body)
+	}
+}
+
+func TestComposeBodyUsesCustomTemplatePlaceholders(t *testing.T) {
+	t.Parallel()
+
+	managed := managedStackBlock("feat-a", []StackPRLine{{
+		Branch: "feat-a",
+		Number: 11,
+		Title:  "Feature a",
+		URL:    "https://example.com/pr/11",
+		State:  "OPEN",
+	}})
+	template := strings.Join([]string{
+		"Before",
+		prSummaryPlaceholder,
+		"Between",
+		stackedPRsPlaceholder,
+		"After",
+	}, "\n\n")
+	body := composeBody([]string{"Added validation"}, managed, template)
+	if !strings.Contains(body, "Before") || !strings.Contains(body, "Between") || !strings.Contains(body, "After") {
+		t.Fatalf("expected custom template text to be preserved, got:\n%s", body)
+	}
+	if !strings.Contains(body, "## Summary") || !strings.Contains(body, "- Added validation") {
+		t.Fatalf("expected summary placeholder to be replaced, got:\n%s", body)
+	}
+	if !strings.Contains(body, "## Stacked PRs") {
+		t.Fatalf("expected stacked PR placeholder to be replaced, got:\n%s", body)
+	}
+}
+
+func TestComposeBodyFallsBackWhenTemplateOmitsPlaceholders(t *testing.T) {
+	t.Parallel()
+
+	managed := managedStackBlock("feat-a", []StackPRLine{{
+		Branch: "feat-a",
+		Number: 11,
+		Title:  "Feature a",
+		URL:    "https://example.com/pr/11",
+		State:  "OPEN",
+	}})
+	body := composeBody([]string{"Added validation"}, managed, "## Details\n\nCustom body")
+	if !strings.Contains(body, "## Summary") || !strings.Contains(body, "## Details") {
+		t.Fatalf("expected summary prepended ahead of custom template, got:\n%s", body)
+	}
+	if !strings.Contains(body, "## Stacked PRs") {
+		t.Fatalf("expected managed section appended when placeholder missing, got:\n%s", body)
+	}
+	if strings.Index(body, "## Summary") > strings.Index(body, "## Details") {
+		t.Fatalf("expected summary before custom template, got:\n%s", body)
 	}
 }
 

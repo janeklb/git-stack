@@ -39,24 +39,43 @@ func branchSummary(parent, branch string) (string, []string, error) {
 	return latestTitle, lines, nil
 }
 
-func composeBody(summary []string, managed string) string {
+func composeBody(summary []string, managed, template string) string {
+	summarySection := composeSummarySection(summary)
+	managed = strings.TrimSpace(managed)
+	template = strings.TrimSpace(template)
+	if template == "" {
+		return stitchBody(summarySection, managed, "")
+	}
+
+	body := template
+	usedSummaryPlaceholder := strings.Contains(body, prSummaryPlaceholder)
+	if usedSummaryPlaceholder {
+		body = strings.ReplaceAll(body, prSummaryPlaceholder, summarySection)
+	}
+	if strings.Contains(body, stackedPRsPlaceholder) {
+		body = strings.ReplaceAll(body, stackedPRsPlaceholder, managed)
+	} else if managed != "" {
+		body = stitchBody(body, managed, "")
+	}
+	if !usedSummaryPlaceholder {
+		body = stitchBody(summarySection, strings.TrimSpace(body), "")
+	}
+	return strings.TrimSpace(body) + "\n"
+}
+
+func composeSummarySection(summary []string) string {
 	var b strings.Builder
-	b.WriteString("## Motivation\n")
-	b.WriteString("- TODO\n\n")
-	b.WriteString("## Modification(s)\n")
+	b.WriteString("## Summary\n\n")
 	for _, item := range summary {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
 		b.WriteString("- ")
 		b.WriteString(item)
 		b.WriteString("\n")
 	}
-	b.WriteString("\n## Result\n")
-	b.WriteString("- TODO\n")
-	if strings.TrimSpace(managed) != "" {
-		b.WriteString("\n")
-		b.WriteString(managed)
-		b.WriteString("\n")
-	}
-	return b.String()
+	return strings.TrimSpace(b.String())
 }
 
 func managedStackBlock(currentBranch string, lines []StackPRLine) string {
