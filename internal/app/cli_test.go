@@ -96,14 +96,14 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	}
 }
 
-func TestStatusHasStatAlias(t *testing.T) {
+func TestStateHasStAlias(t *testing.T) {
 	root := New().newRootCmd("git-stack")
-	cmd, _, err := root.Find([]string{"stat"})
+	cmd, _, err := root.Find([]string{"st"})
 	if err != nil {
-		t.Fatalf("find stat command: %v", err)
+		t.Fatalf("find st command: %v", err)
 	}
-	if cmd.Name() != "status" {
-		t.Fatalf("expected alias to resolve to status, got %q", cmd.Name())
+	if cmd.Name() != "state" {
+		t.Fatalf("expected alias to resolve to state, got %q", cmd.Name())
 	}
 }
 

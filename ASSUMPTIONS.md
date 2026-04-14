@@ -11,7 +11,7 @@ Use it when changing command semantics, relaxing constraints, or adding new work
 | Full-clone workflow with canonical remote `origin` | The tool resolves branches and trunk from `origin`, not from arbitrary remotes or single-branch clones. | All commands except root help/completion via `ensureSupportedCloneLayout()` |
 | `refs/remotes/origin/HEAD` exists | Trunk detection depends on a stable remote default branch. | `init` when `--trunk` is omitted; any flow that auto-infers state from trunk |
 | Clean worktree before mutation | Mutating commands should not have to reason about unrelated local edits, index state, or partially-applied history rewrites. | `init`, `new`, `restack` (new run), `submit`, `reparent`, `advance`, `cleanup` |
-| Persisted stack state is internal tool state | Commands may auto-bootstrap or persist state without treating state management as a user-facing workflow. | `new`, `restack`, `status`, `reparent`, `submit`, `cleanup` |
+| Persisted stack state is internal tool state | Commands may auto-bootstrap or persist state without treating state management as a user-facing workflow. | `new`, `restack`, `state`, `reparent`, `submit`, `cleanup` |
 | Single-writer tracked-stack model | A tracked stack is expected to be managed from one clone at a time. `stack` does not try to negotiate concurrent writers for the same tracked branches. | Primarily `submit`; indirectly `advance` after restacks/repairs |
 | Remote tracked branches are mirrors of local tracked branches | For tracked branches, the local branch plus stack state is the source of truth. Remote branch history may be replaced when the local stack is rewritten. | `submit`, `advance` |
 
