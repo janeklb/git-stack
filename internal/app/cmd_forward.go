@@ -49,6 +49,7 @@ func (a *App) cmdForward(next string) error {
 	if err != nil {
 		return err
 	}
+	forwardScope := branchesInCurrentStack(state, current)
 
 	deps := defaultForwardDeps()
 	candidates, err := buildForwardCandidatesWithDeps(state, current, deps)
@@ -131,7 +132,7 @@ func (a *App) cmdForward(next string) error {
 		},
 		ensurePR: ensurePR,
 		syncCurrentStackBody: func(state *State, all bool, target string) error {
-			return syncForwardStackBodies(state, restackRoots)
+			return syncForwardStackBodies(state, forwardScope)
 		},
 		saveState:         saveState,
 		cleanMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
@@ -467,11 +468,7 @@ func syncLocalTrunkToFetchedRemote(trunk string) error {
 	return gitRunQuiet("switch", current)
 }
 
-func syncForwardStackBodies(state *State, roots []string) error {
-	selected := map[string]bool{}
-	for _, branch := range forwardSubmitQueue(state, roots) {
-		selected[branch] = true
-	}
+func syncForwardStackBodies(state *State, selected map[string]bool) error {
 	ordered := orderedSelectedLineageBranches(state, selected)
 	snapshots := fetchStackBodySyncSnapshots(state, ordered)
 
