@@ -12,18 +12,25 @@ type submitDeps struct {
 	ensureCleanWorktree  func() error
 	loadState            func() (string, *State, bool, error)
 	submitQueue          func(*State, bool, []string) ([]string, error)
-	ensurePR             func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error)
+	ensurePR             func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error)
 	syncCurrentStackBody func(*State, bool, string) error
 	saveState            func(string, *State) error
 	cleanMergedBranch    func(*State, string, string) (bool, error)
 }
 
-func ensurePR(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+func ensurePR(repoRoot, trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 	latestTitle, summary, err := branchSummary(parent, branch)
 	if err != nil {
 		return nil, err
 	}
-	defaultBody := composeBody(summary, "")
+	template, hasCustomTemplate, err := loadPRTemplate(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	defaultBody, err := composeBody(summary, "", template, hasCustomTemplate)
+	if err != nil {
+		return nil, err
+	}
 	wantDraft := shouldUseDraftPR(trunk, parent)
 
 	if existing != nil && existing.Number > 0 {

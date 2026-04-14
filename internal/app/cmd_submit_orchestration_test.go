@@ -82,7 +82,7 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{}, nil
 		},
-		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for empty queue")
 			return nil, nil
 		},
@@ -131,7 +131,7 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for merged PR")
 			return nil, nil
 		},
@@ -170,6 +170,7 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	ensurePRBranch := ""
 	ensurePRBase := ""
 	ensurePRTrunk := ""
+	ensurePRRepoRoot := ""
 	syncedAll := false
 	syncedBranch := ""
 	savedRoot := ""
@@ -190,13 +191,14 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 			}
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+		ensurePR: func(repoRoot, trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 			if existing != nil {
 				t.Fatalf("expected nil existing PR, got %+v", existing)
 			}
 			if existingPR != nil {
 				t.Fatalf("expected nil existing GhPR snapshot, got %+v", existingPR)
 			}
+			ensurePRRepoRoot = repoRoot
 			ensurePRTrunk = trunk
 			ensurePRBranch = branch
 			ensurePRBase = parent
@@ -227,6 +229,9 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	}
 	if ensurePRTrunk != "main" {
 		t.Fatalf("expected trunk main, got %q", ensurePRTrunk)
+	}
+	if ensurePRRepoRoot != "/tmp/repo" {
+		t.Fatalf("expected repo root /tmp/repo, got %q", ensurePRRepoRoot)
 	}
 	if ensurePRBase != "main" {
 		t.Fatalf("expected trunk fallback parent main, got %q", ensurePRBase)
@@ -263,7 +268,7 @@ func TestCmdSubmitSkipsMissingLocalBranch(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not run for missing local branch")
 			return nil, nil
 		},
@@ -300,7 +305,7 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not run when branch has no commits beyond parent")
 			return nil, nil
 		},
@@ -335,9 +340,12 @@ func TestCmdSubmitPrintsNoteWhenNextOnCleanUnused(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+		ensurePR: func(_ string, trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 			if trunk != "main" {
 				t.Fatalf("expected trunk main, got %q", trunk)
+			}
+			if branch != "feat-one" {
+				t.Fatalf("expected branch feat-one, got %q", branch)
 			}
 			return &PRMeta{Number: 11, URL: "https://example.invalid/pr/11", Base: parent}, nil
 		},
@@ -370,7 +378,7 @@ func TestCmdSubmitTrimsNextOnCleanBeforeCleanCallback(t *testing.T) {
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for merged PR")
 			return nil, nil
 		},

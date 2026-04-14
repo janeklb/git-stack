@@ -1,9 +1,15 @@
 package app
 
 import (
+	"bytes"
+	_ "embed"
 	"fmt"
 	"strings"
+	"text/template"
 )
+
+//go:embed default_pr_body.md.tmpl
+var defaultPRBodyTemplate string
 
 type StackPRLine struct {
 	Branch string
@@ -39,24 +45,36 @@ func branchSummary(parent, branch string) (string, []string, error) {
 	return latestTitle, lines, nil
 }
 
-func composeBody(summary []string, managed string) string {
-	var b strings.Builder
-	b.WriteString("## Motivation\n")
-	b.WriteString("- TODO\n\n")
-	b.WriteString("## Modification(s)\n")
+func composeBody(summary []string, managed, templateText string, hasCustomTemplate bool) (string, error) {
+	if !hasCustomTemplate {
+		templateText = defaultPRBodyTemplate
+	}
+
+	tmpl, err := template.New("pr_body").Option("missingkey=error").Parse(templateText)
+	if err != nil {
+		return "", err
+	}
+	data := map[string]any{
+		"commits":           buildPRTemplateCommits(summary),
+		"stackedPRsSection": managed,
+	}
+	var body bytes.Buffer
+	if err := tmpl.Execute(&body, data); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
+func buildPRTemplateCommits(summary []string) []string {
+	commits := make([]string, 0, len(summary))
 	for _, item := range summary {
-		b.WriteString("- ")
-		b.WriteString(item)
-		b.WriteString("\n")
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		commits = append(commits, item)
 	}
-	b.WriteString("\n## Result\n")
-	b.WriteString("- TODO\n")
-	if strings.TrimSpace(managed) != "" {
-		b.WriteString("\n")
-		b.WriteString(managed)
-		b.WriteString("\n")
-	}
-	return b.String()
+	return commits
 }
 
 func managedStackBlock(currentBranch string, lines []StackPRLine) string {
@@ -93,11 +111,7 @@ func upsertManagedBlock(body, managed string) string {
 		before := strings.TrimSpace(body[:start])
 		return stitchBody(before, managed, "")
 	}
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return managed + "\n"
-	}
-	return body + "\n\n" + managed + "\n"
+	return body
 }
 
 func stackPRMarker(currentBranch, branch, state string) string {
