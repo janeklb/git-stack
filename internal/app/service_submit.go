@@ -212,12 +212,28 @@ func orderedSelectedLineageBranches(state *State, selected map[string]bool) []st
 		return nil
 	}
 
+	included := expandLineageSelection(state, selected)
+	children := lineageChildrenIndex(state, included)
+	ordered, seen := traverseChildren(children, state.Trunk)
+	for branch := range included {
+		if seen[branch] {
+			continue
+		}
+		ordered = append(ordered, branch)
+	}
+	return ordered
+}
+
+func expandLineageSelection(state *State, selected map[string]bool) map[string]bool {
 	included := map[string]bool{}
 	for branch := range selected {
 		included[branch] = true
 		collectLineageAncestors(state, branch, included)
 	}
+	return included
+}
 
+func lineageChildrenIndex(state *State, included map[string]bool) map[string][]string {
 	children := map[string][]string{}
 	for branch := range state.Branches {
 		if !included[branch] {
@@ -242,29 +258,7 @@ func orderedSelectedLineageBranches(state *State, selected map[string]bool) []st
 	for parent := range children {
 		sort.Strings(children[parent])
 	}
-
-	ordered := []string{}
-	seen := map[string]bool{}
-	var visit func(parent string)
-	visit = func(parent string) {
-		for _, child := range children[parent] {
-			if seen[child] {
-				continue
-			}
-			seen[child] = true
-			ordered = append(ordered, child)
-			visit(child)
-		}
-	}
-
-	visit(state.Trunk)
-	for branch := range included {
-		if seen[branch] {
-			continue
-		}
-		ordered = append(ordered, branch)
-	}
-	return ordered
+	return children
 }
 
 func collectLineageAncestors(state *State, branch string, included map[string]bool) {

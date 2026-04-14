@@ -33,34 +33,8 @@ func topoOrder(state *State) []string {
 }
 
 func topoOrderSelected(state *State, selected map[string]bool) []string {
-	visited := map[string]bool{}
-	order := []string{}
-	children := map[string][]string{}
-	for name, meta := range state.Branches {
-		if selected != nil && !selected[name] {
-			continue
-		}
-		p := meta.Parent
-		if p == "" {
-			p = state.Trunk
-		}
-		children[p] = append(children[p], name)
-	}
-	for key := range children {
-		sort.Strings(children[key])
-	}
-	var visit func(node string)
-	visit = func(node string) {
-		for _, child := range children[node] {
-			if visited[child] {
-				continue
-			}
-			visited[child] = true
-			order = append(order, child)
-			visit(child)
-		}
-	}
-	visit(state.Trunk)
+	children := branchChildrenIndex(state, selected)
+	order, visited := traverseChildren(children, state.Trunk)
 
 	for name := range state.Branches {
 		if selected != nil && !selected[name] {
@@ -72,6 +46,42 @@ func topoOrderSelected(state *State, selected map[string]bool) []string {
 		order = append(order, name)
 	}
 	return order
+}
+
+func branchChildrenIndex(state *State, selected map[string]bool) map[string][]string {
+	children := map[string][]string{}
+	for name, meta := range state.Branches {
+		if selected != nil && !selected[name] {
+			continue
+		}
+		parent := meta.Parent
+		if parent == "" {
+			parent = state.Trunk
+		}
+		children[parent] = append(children[parent], name)
+	}
+	for parent := range children {
+		sort.Strings(children[parent])
+	}
+	return children
+}
+
+func traverseChildren(children map[string][]string, root string) ([]string, map[string]bool) {
+	visited := map[string]bool{}
+	order := []string{}
+	var visit func(node string)
+	visit = func(node string) {
+		for _, child := range children[node] {
+			if visited[child] {
+				continue
+			}
+			visited[child] = true
+			order = append(order, child)
+			visit(child)
+		}
+	}
+	visit(root)
+	return order, visited
 }
 
 func detectDrift(branch, parent string) (bool, string) {
@@ -154,11 +164,12 @@ func branchesInCurrentStack(state *State, current string) map[string]bool {
 		return selected
 	}
 
-	children := map[string][]string{}
-	for branch, meta := range state.Branches {
-		children[meta.Parent] = append(children[meta.Parent], branch)
-	}
+	children := branchChildrenIndex(state, nil)
+	root := currentStackRoot(state, current)
+	return collectDescendants(children, root)
+}
 
+func currentStackRoot(state *State, current string) string {
 	root := current
 	seen := map[string]bool{}
 	for {
@@ -179,7 +190,11 @@ func branchesInCurrentStack(state *State, current string) map[string]bool {
 		}
 		root = parent
 	}
+	return root
+}
 
+func collectDescendants(children map[string][]string, root string) map[string]bool {
+	selected := map[string]bool{}
 	stack := []string{root}
 	for len(stack) > 0 {
 		node := stack[len(stack)-1]
