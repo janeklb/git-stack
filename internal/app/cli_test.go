@@ -50,12 +50,12 @@ func TestCompletionBashOutputsScript(t *testing.T) {
 
 func TestKeyCommandFlagsExist(t *testing.T) {
 	root := New().newRootCmd("git-stack")
-	advance, _, err := root.Find([]string{"advance"})
+	forward, _, err := root.Find([]string{"forward"})
 	if err != nil {
-		t.Fatalf("find advance command: %v", err)
+		t.Fatalf("find forward command: %v", err)
 	}
-	if advance.Flags().Lookup("next") == nil {
-		t.Fatalf("expected advance next flag to exist")
+	if forward.Flags().Lookup("next") == nil {
+		t.Fatalf("expected forward next flag to exist")
 	}
 	submit, _, err := root.Find([]string{"submit"})
 	if err != nil {
@@ -144,17 +144,17 @@ func TestSubmitHelpDescribesDefaultsAndCleanFlag(t *testing.T) {
 	}
 }
 
-func TestAdvanceHelpDescribesStrictPostMergeFlow(t *testing.T) {
+func TestForwardHelpDescribesStrictPostMergeFlow(t *testing.T) {
 	cli := New()
-	out, code := runCLIAndCapture(t, cli, []string{"help", "advance"})
+	out, code := runCLIAndCapture(t, cli, []string{"help", "forward"})
 	if code != 0 {
-		t.Fatalf("help advance failed: exit=%d\n%s", code, out)
+		t.Fatalf("help forward failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "advance is a strict post-merge workflow") {
-		t.Fatalf("expected advance help to describe strict post-merge behavior, got:\n%s", out)
+	if !strings.Contains(out, "forward is a strict post-merge workflow") {
+		t.Fatalf("expected forward help to describe strict post-merge behavior, got:\n%s", out)
 	}
 	if !strings.Contains(out, "whose remote branches have already been deleted") {
-		t.Fatalf("expected advance help to describe remote deletion precondition, got:\n%s", out)
+		t.Fatalf("expected forward help to describe remote deletion precondition, got:\n%s", out)
 	}
 }
 
@@ -240,11 +240,19 @@ func TestSubmitPositionalCompletionListsLocalBranches(t *testing.T) {
 	})
 }
 
-func TestAdvanceNextFlagCompletionListsOnlyLocalBranches(t *testing.T) {
+func TestForwardAliasesAndNextFlagCompletion(t *testing.T) {
 	repo := newTestRepo(t)
 
 	withRepoCwd(t, repo, func() {
 		cli := New()
+		root := cli.newRootCmd("git-stack")
+		cmd, _, err := root.Find([]string{"fw"})
+		if err != nil {
+			t.Fatalf("find fw alias: %v", err)
+		}
+		if cmd.Name() != "forward" {
+			t.Fatalf("expected fw alias to resolve to forward, got %q", cmd.Name())
+		}
 		mustGit(t, repo, "switch", "-c", "local-next")
 		mustWriteFile(t, filepath.Join(repo, "local.txt"), "local\n")
 		mustGit(t, repo, "add", "local.txt")
@@ -258,15 +266,15 @@ func TestAdvanceNextFlagCompletionListsOnlyLocalBranches(t *testing.T) {
 		mustGit(t, repo, "switch", "main")
 		mustGit(t, repo, "branch", "-D", "remote-next")
 
-		out, code := runCLIAndCapture(t, cli, []string{"__complete", "advance", "--next", ""})
+		out, code := runCLIAndCapture(t, cli, []string{"__complete", "forward", "--next", ""})
 		if code != 0 {
-			t.Fatalf("advance next completion failed: exit=%d\n%s", code, out)
+			t.Fatalf("forward next completion failed: exit=%d\n%s", code, out)
 		}
 		if !strings.Contains(out, "local-next") {
-			t.Fatalf("expected advance --next completion to include local-next, got:\n%s", out)
+			t.Fatalf("expected forward --next completion to include local-next, got:\n%s", out)
 		}
 		if strings.Contains(out, "remote-next") {
-			t.Fatalf("expected advance --next completion to exclude remote-only branches, got:\n%s", out)
+			t.Fatalf("expected forward --next completion to exclude remote-only branches, got:\n%s", out)
 		}
 	})
 }

@@ -10,22 +10,22 @@ import (
 	"strings"
 )
 
-type advanceCleanupCandidate struct {
+type forwardCleanupCandidate struct {
 	Branch   string
 	Base     string
 	HasLocal bool
 	Children []string
 }
 
-type advanceDeps struct {
-	git                   advanceGitClient
-	gh                    advanceGHClient
+type forwardDeps struct {
+	git                   forwardGitClient
+	gh                    forwardGHClient
 	mergedCleanIntegrated func(string, string, *GhPR) (bool, error)
 	mergedBranchChildren  func(*State, string) []string
 }
 
-func defaultAdvanceDeps() advanceDeps {
-	return advanceDeps{
+func defaultForwardDeps() forwardDeps {
+	return forwardDeps{
 		git:                   defaultGitClient{},
 		gh:                    defaultGHClient{},
 		mergedCleanIntegrated: mergedCleanIntegrated,
@@ -33,12 +33,12 @@ func defaultAdvanceDeps() advanceDeps {
 	}
 }
 
-func (a *App) cmdAdvance(next string) error {
+func (a *App) cmdForward(next string) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
 	if err := gitRun("fetch", "--prune", "origin"); err != nil {
-		return fmt.Errorf("advance fetch failed: %w", err)
+		return fmt.Errorf("forward fetch failed: %w", err)
 	}
 
 	repoRoot, state, err := loadStateFromRepo()
@@ -50,20 +50,20 @@ func (a *App) cmdAdvance(next string) error {
 		return err
 	}
 
-	deps := defaultAdvanceDeps()
-	candidates, err := buildAdvanceCandidatesWithDeps(state, current, deps)
+	deps := defaultForwardDeps()
+	candidates, err := buildForwardCandidatesWithDeps(state, current, deps)
 	if err != nil {
 		return err
 	}
 	if len(candidates) == 0 {
-		a.println("advance: nothing to do")
+		a.println("forward: nothing to do")
 		return nil
 	}
 	merged := map[string]bool{}
 	for _, candidate := range candidates {
 		merged[candidate.Branch] = true
 	}
-	target, err := chooseAdvanceTarget(a.in, a.stdout, state, current, merged, next, deps.git)
+	target, err := chooseForwardTarget(a.in, a.stdout, state, current, merged, next, deps.git)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (a *App) cmdAdvance(next string) error {
 
 	// Clean merged slices first, then restack only the surviving roots that were
 	// directly downstream of those merged branches.
-	a.printlnf("advance: clean merged branches in current stack, switch to %s, restack, submit all", target)
+	a.printlnf("forward: clean merged branches in current stack, switch to %s, restack, submit all", target)
 	restackRoots := []string{}
 	restackRootSet := map[string]bool{}
 	rebaseBases := map[string]string{}
@@ -95,7 +95,7 @@ func (a *App) cmdAdvance(next string) error {
 		if candidate.Branch == current {
 			switchTarget = target
 		}
-		if err := cleanMergedBranchForAdvance(a.stdout, state, candidate, switchTarget, deps.git); err != nil {
+		if err := cleanMergedBranchForForward(a.stdout, state, candidate, switchTarget, deps.git); err != nil {
 			return err
 		}
 		for _, child := range candidate.Children {
@@ -107,7 +107,7 @@ func (a *App) cmdAdvance(next string) error {
 			rebaseBases[child] = mergedBranchHead
 		}
 	}
-	restackQueue := advanceRestackQueue(state, restackRoots)
+	restackQueue := forwardRestackQueue(state, restackRoots)
 	if len(rebaseBases) == 0 {
 		rebaseBases = nil
 	}
@@ -127,33 +127,33 @@ func (a *App) cmdAdvance(next string) error {
 			return repoRoot, state, true, nil
 		},
 		submitQueue: func(state *State, all bool, args []string) ([]string, error) {
-			return advanceSubmitQueue(state, restackRoots), nil
+			return forwardSubmitQueue(state, restackRoots), nil
 		},
 		ensurePR: ensurePR,
 		syncCurrentStackBody: func(state *State, all bool, target string) error {
-			return syncAdvanceStackBodies(state, restackRoots)
+			return syncForwardStackBodies(state, restackRoots)
 		},
 		saveState:         saveState,
 		cleanMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
 	}); err != nil {
 		return err
 	}
-	if err := restoreAdvanceTarget(current, target, merged, deps.git); err != nil {
+	if err := restoreForwardTarget(current, target, merged, deps.git); err != nil {
 		return err
 	}
 
-	a.println("advance completed")
+	a.println("forward completed")
 	return nil
 }
 
-// Advance should look across the whole current stack component, not just the
+// Forward should look across the whole current stack component, not just the
 // checked-out branch, and clean merged slices from the top down.
-func buildAdvanceCandidatesWithDeps(state *State, current string, deps advanceDeps) ([]advanceCleanupCandidate, error) {
+func buildForwardCandidatesWithDeps(state *State, current string, deps forwardDeps) ([]forwardCleanupCandidate, error) {
 	selected := branchesInCurrentStack(state, current)
 	order := topoOrderSelected(state, selected)
-	candidates := []advanceCleanupCandidate{}
+	candidates := []forwardCleanupCandidate{}
 	for _, branch := range order {
-		candidate, eligible, err := detectAdvanceCandidateWithDeps(state, branch, deps)
+		candidate, eligible, err := detectForwardCandidateWithDeps(state, branch, deps)
 		if err != nil {
 			return nil, err
 		}
@@ -164,51 +164,51 @@ func buildAdvanceCandidatesWithDeps(state *State, current string, deps advanceDe
 	return candidates, nil
 }
 
-func buildAdvanceCandidateWithDeps(state *State, current string, deps advanceDeps) (advanceCleanupCandidate, error) {
-	candidate, eligible, err := detectAdvanceCandidateWithDeps(state, current, deps)
+func buildForwardCandidateWithDeps(state *State, current string, deps forwardDeps) (forwardCleanupCandidate, error) {
+	candidate, eligible, err := detectForwardCandidateWithDeps(state, current, deps)
 	if err != nil {
-		return advanceCleanupCandidate{}, err
+		return forwardCleanupCandidate{}, err
 	}
 	if !eligible {
 		meta := state.Branches[current]
 		if meta == nil {
-			return advanceCleanupCandidate{}, fmt.Errorf("advance requires current branch to be tracked in stack state: %s", current)
+			return forwardCleanupCandidate{}, fmt.Errorf("forward requires current branch to be tracked in stack state: %s", current)
 		}
 		if meta.PR == nil || meta.PR.Number <= 0 {
-			return advanceCleanupCandidate{}, fmt.Errorf("advance requires current branch to have PR metadata: %s", current)
+			return forwardCleanupCandidate{}, fmt.Errorf("forward requires current branch to have PR metadata: %s", current)
 		}
 		pr, err := deps.gh.View(meta.PR.Number)
 		if err != nil {
-			return advanceCleanupCandidate{}, fmt.Errorf("advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+			return forwardCleanupCandidate{}, fmt.Errorf("forward failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
 		}
-		return advanceCleanupCandidate{}, fmt.Errorf("advance requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
+		return forwardCleanupCandidate{}, fmt.Errorf("forward requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
 	}
 	return candidate, nil
 }
 
-func detectAdvanceCandidateWithDeps(state *State, current string, deps advanceDeps) (advanceCleanupCandidate, bool, error) {
+func detectForwardCandidateWithDeps(state *State, current string, deps forwardDeps) (forwardCleanupCandidate, bool, error) {
 	meta := state.Branches[current]
 	if meta == nil {
-		return advanceCleanupCandidate{}, false, nil
+		return forwardCleanupCandidate{}, false, nil
 	}
 	if meta.PR == nil || meta.PR.Number <= 0 {
-		return advanceCleanupCandidate{}, false, nil
+		return forwardCleanupCandidate{}, false, nil
 	}
 
 	pr, err := deps.gh.View(meta.PR.Number)
 	if err != nil {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+		return forwardCleanupCandidate{}, false, fmt.Errorf("forward failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
 	}
 	if !strings.EqualFold(pr.State, "MERGED") {
-		return advanceCleanupCandidate{}, false, nil
+		return forwardCleanupCandidate{}, false, nil
 	}
 
 	remoteExists, err := deps.git.RemoteBranchExists(current)
 	if err != nil {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance failed to check remote branch %s: %w", current, err)
+		return forwardCleanupCandidate{}, false, fmt.Errorf("forward failed to check remote branch %s: %w", current, err)
 	}
 	if remoteExists {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance aborted: origin/%s still exists; delete the remote branch first", current)
+		return forwardCleanupCandidate{}, false, fmt.Errorf("forward aborted: origin/%s still exists; delete the remote branch first", current)
 	}
 
 	base := state.Trunk
@@ -222,13 +222,13 @@ func detectAdvanceCandidateWithDeps(state *State, current string, deps advanceDe
 
 	integrated, err := deps.mergedCleanIntegrated(current, base, pr)
 	if err != nil {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance integration check failed for %s against %s: %w", current, base, err)
+		return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w", current, base, err)
 	}
 	if !integrated {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance aborted: %s has local commits not fully integrated into %s", current, base)
+		return forwardCleanupCandidate{}, false, fmt.Errorf("forward aborted: %s has local commits not fully integrated into %s", current, base)
 	}
 
-	return advanceCleanupCandidate{
+	return forwardCleanupCandidate{
 		Branch:   current,
 		Base:     base,
 		HasLocal: deps.git.LocalBranchExists(current),
@@ -236,27 +236,27 @@ func detectAdvanceCandidateWithDeps(state *State, current string, deps advanceDe
 	}, true, nil
 }
 
-func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current string, merged map[string]bool, next string, git advanceGitClient) (string, error) {
+func chooseForwardTarget(in io.Reader, out io.Writer, state *State, current string, merged map[string]bool, next string, git forwardGitClient) (string, error) {
 	if !merged[current] {
 		return current, nil
 	}
 	if next != "" {
 		if next == current {
-			return "", fmt.Errorf("advance --next cannot be the branch being cleaned: %s", next)
+			return "", fmt.Errorf("forward --next cannot be the branch being cleaned: %s", next)
 		}
 		if merged[next] {
-			return "", fmt.Errorf("advance --next cannot be another merged branch being cleaned: %s", next)
+			return "", fmt.Errorf("forward --next cannot be another merged branch being cleaned: %s", next)
 		}
-		exists, err := advanceTargetExists(git, next)
+		exists, err := forwardTargetExists(git, next)
 		if err != nil {
 			return "", err
 		}
 		if !exists {
-			return "", fmt.Errorf("advance --next branch does not exist: %s", next)
+			return "", fmt.Errorf("forward --next branch does not exist: %s", next)
 		}
 		return next, nil
 	}
-	options := advanceCleanupTargets(state, current, merged)
+	options := forwardCleanupTargets(state, current, merged)
 
 	if len(options) == 0 {
 		target := state.Trunk
@@ -264,19 +264,19 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 			target = "main"
 		}
 		if target == current {
-			return "", fmt.Errorf("advance could not choose a checkout target distinct from %s", current)
+			return "", fmt.Errorf("forward could not choose a checkout target distinct from %s", current)
 		}
 		return target, nil
 	}
 
 	if len(options) == 1 {
 		target := options[0]
-		exists, err := advanceTargetExists(git, target)
+		exists, err := forwardTargetExists(git, target)
 		if err != nil {
 			return "", err
 		}
 		if !exists {
-			return "", fmt.Errorf("advance next branch does not exist: %s", target)
+			return "", fmt.Errorf("forward next branch does not exist: %s", target)
 		}
 		return target, nil
 	}
@@ -289,26 +289,26 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 	fmt.Fprintf(out, "selection [1-%d]: ", len(options))
 	answer, err := readPromptLine(reader)
 	if err != nil {
-		return "", fmt.Errorf("advance failed to read selection: %w", err)
+		return "", fmt.Errorf("forward failed to read selection: %w", err)
 	}
 	choice, err := strconv.Atoi(answer)
 	if err != nil || choice < 1 || choice > len(options) {
-		return "", errors.New("advance invalid selection")
+		return "", errors.New("forward invalid selection")
 	}
 	target := options[choice-1]
-	exists, err := advanceTargetExists(git, target)
+	exists, err := forwardTargetExists(git, target)
 	if err != nil {
 		return "", err
 	}
 	if !exists {
-		return "", fmt.Errorf("advance selected branch does not exist: %s", target)
+		return "", fmt.Errorf("forward selected branch does not exist: %s", target)
 	}
 	return target, nil
 }
 
 // When the current branch is itself being deleted, pick the first surviving
 // descendants beneath it as candidate checkout targets.
-func advanceCleanupTargets(state *State, branch string, merged map[string]bool) []string {
+func forwardCleanupTargets(state *State, branch string, merged map[string]bool) []string {
 	children := map[string][]string{}
 	for name, meta := range state.Branches {
 		if meta == nil {
@@ -344,29 +344,29 @@ func advanceCleanupTargets(state *State, branch string, merged map[string]bool) 
 	return ordered
 }
 
-func advanceTargetExists(git advanceGitClient, branch string) (bool, error) {
+func forwardTargetExists(git forwardGitClient, branch string) (bool, error) {
 	if git.LocalBranchExists(branch) {
 		return true, nil
 	}
 	remoteExists, err := git.RemoteBranchExists(branch)
 	if err != nil {
-		return false, fmt.Errorf("advance failed to verify branch %s: %w", branch, err)
+		return false, fmt.Errorf("forward failed to verify branch %s: %w", branch, err)
 	}
 	return remoteExists, nil
 }
 
-func advanceSubmitQueue(state *State, roots []string) []string {
+func forwardSubmitQueue(state *State, roots []string) []string {
 	if len(roots) == 0 {
 		return nil
 	}
-	return advanceDescendantQueue(state, roots)
+	return forwardDescendantQueue(state, roots)
 }
 
-func advanceRestackQueue(state *State, roots []string) []string {
-	return advanceDescendantQueue(state, roots)
+func forwardRestackQueue(state *State, roots []string) []string {
+	return forwardDescendantQueue(state, roots)
 }
 
-func advanceRebaseBases(roots []string, oldBase string) map[string]string {
+func forwardRebaseBases(roots []string, oldBase string) map[string]string {
 	oldBase = strings.TrimSpace(oldBase)
 	if len(roots) == 0 || oldBase == "" {
 		return nil
@@ -385,7 +385,7 @@ func advanceRebaseBases(roots []string, oldBase string) map[string]string {
 	return bases
 }
 
-func advanceDescendantQueue(state *State, roots []string) []string {
+func forwardDescendantQueue(state *State, roots []string) []string {
 	if len(roots) == 0 {
 		return nil
 	}
@@ -467,9 +467,9 @@ func syncLocalTrunkToFetchedRemote(trunk string) error {
 	return gitRunQuiet("switch", current)
 }
 
-func syncAdvanceStackBodies(state *State, roots []string) error {
+func syncForwardStackBodies(state *State, roots []string) error {
 	selected := map[string]bool{}
-	for _, branch := range advanceSubmitQueue(state, roots) {
+	for _, branch := range forwardSubmitQueue(state, roots) {
 		selected[branch] = true
 	}
 	ordered := orderedSelectedLineageBranches(state, selected)
@@ -491,7 +491,7 @@ func syncAdvanceStackBodies(state *State, roots []string) error {
 	return applyStackBodyUpdates(lines, updates)
 }
 
-func cleanMergedBranchForAdvance(out io.Writer, state *State, candidate advanceCleanupCandidate, switchTarget string, git advanceGitClient) error {
+func cleanMergedBranchForForward(out io.Writer, state *State, candidate forwardCleanupCandidate, switchTarget string, git forwardGitClient) error {
 	if err := switchAwayThenDeleteMergedBranch(git, candidate.Branch, candidate.HasLocal, switchTarget); err != nil {
 		return err
 	}
@@ -501,9 +501,9 @@ func cleanMergedBranchForAdvance(out io.Writer, state *State, candidate advanceC
 	return nil
 }
 
-// Preserve the user's location when their starting branch survived the advance;
+// Preserve the user's location when their starting branch survived the forward;
 // otherwise stay on the fallback branch chosen during clean.
-func restoreAdvanceTarget(original, fallback string, merged map[string]bool, git advanceGitClient) error {
+func restoreForwardTarget(original, fallback string, merged map[string]bool, git forwardGitClient) error {
 	target := fallback
 	if !merged[original] {
 		target = original
