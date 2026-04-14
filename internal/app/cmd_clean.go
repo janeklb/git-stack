@@ -9,9 +9,10 @@ import (
 )
 
 type pruneLocalCandidate struct {
-	Branch string
-	PR     *GhPR
-	Base   string
+	Branch   string
+	PR       *GhPR
+	Base     string
+	HasLocal bool
 }
 
 type pruneLocalSkip struct {
@@ -39,6 +40,7 @@ type pruneLocalScope struct {
 
 func cleanDiscoveryBranches(state *State, branches []string, scope pruneLocalScope) []string {
 	selected := []string{}
+	seen := map[string]bool{}
 	for _, branch := range branches {
 		if branch == "" || branch == state.Trunk {
 			continue
@@ -49,6 +51,16 @@ func cleanDiscoveryBranches(state *State, branches []string, scope pruneLocalSco
 				continue
 			}
 		} else if !scope.includeUntracked {
+			continue
+		}
+		seen[branch] = true
+		selected = append(selected, branch)
+	}
+	for branch := range state.Branches {
+		if branch == "" || branch == state.Trunk || seen[branch] {
+			continue
+		}
+		if scope.trackedBranches != nil && !scope.trackedBranches[branch] {
 			continue
 		}
 		selected = append(selected, branch)
@@ -184,7 +196,7 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 
 	current, _ := currentBranch()
 	for _, candidate := range plan.Delete {
-		if current == candidate.Branch {
+		if candidate.HasLocal && current == candidate.Branch {
 			target := state.Trunk
 			if target == "" {
 				target = "main"
@@ -195,9 +207,11 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 			}
 			current = target
 		}
-		if err := deleteLocalBranch(candidate.Branch); err != nil {
-			a.printlnf("%s -> failed to delete local branch: %v", candidate.Branch, err)
-			continue
+		if candidate.HasLocal {
+			if err := deleteLocalBranch(candidate.Branch); err != nil {
+				a.printlnf("%s -> failed to delete local branch: %v", candidate.Branch, err)
+				continue
+			}
 		}
 
 		if _, tracked := state.Branches[candidate.Branch]; tracked {
@@ -206,7 +220,15 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 			}
 		}
 
-		a.printlnf("%s -> deleted local branch (merged PR #%d)", candidate.Branch, candidate.PR.Number)
+		if candidate.PR != nil {
+			if candidate.HasLocal {
+				a.printlnf("%s -> deleted local branch (merged PR #%d)", candidate.Branch, candidate.PR.Number)
+			} else {
+				a.printlnf("%s -> pruned tracked branch from stack state (merged PR #%d)", candidate.Branch, candidate.PR.Number)
+			}
+			continue
+		}
+		a.printlnf("%s -> pruned missing tracked branch from stack state", candidate.Branch)
 	}
 
 	a.println("clean completed")
@@ -235,6 +257,10 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 	if err != nil {
 		return nil, err
 	}
+	localBranches := map[string]bool{}
+	for _, branch := range branches {
+		localBranches[branch] = true
+	}
 	plan := &pruneLocalPlan{}
 	for _, branch := range cleanDiscoveryBranches(state, branches, scope) {
 		remoteExists, remoteErr := deps.git.RemoteBranchExists(branch)
@@ -247,10 +273,32 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 			continue
 		}
 
+		hasLocal := localBranches[branch]
+		if !hasLocal {
+			candidate, ok, err := buildMissingTrackedBranchCandidate(state, deps.gh, branch)
+			if err != nil {
+				plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merged PR lookup failed"})
+				continue
+			}
+			if ok {
+				plan.Delete = append(plan.Delete, candidate)
+				continue
+			}
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "no merged PR found"})
+			continue
+		}
+
 		pr, prErr := deps.gh.FindMergedByHead(branch)
 		if prErr != nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merged PR lookup failed"})
 			continue
+		}
+		if pr == nil {
+			pr, prErr = cleanTrackedMergedPR(state, deps.gh, branch)
+			if prErr != nil {
+				plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merged PR lookup failed"})
+				continue
+			}
 		}
 		if pr == nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "no merged PR found"})
@@ -272,7 +320,7 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 			continue
 		}
 
-		plan.Delete = append(plan.Delete, pruneLocalCandidate{Branch: branch, PR: pr, Base: base})
+		plan.Delete = append(plan.Delete, pruneLocalCandidate{Branch: branch, PR: pr, Base: base, HasLocal: true})
 	}
 
 	sort.Slice(plan.Delete, func(i, j int) bool {
@@ -284,9 +332,55 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 	return plan, nil
 }
 
+func buildMissingTrackedBranchCandidate(state *State, gh pruneGHClient, branch string) (pruneLocalCandidate, bool, error) {
+	meta := state.Branches[branch]
+	if meta == nil {
+		return pruneLocalCandidate{}, false, nil
+	}
+	base := meta.Parent
+	if base == "" {
+		base = state.Trunk
+	}
+	pr, err := cleanTrackedMergedPR(state, gh, branch)
+	if err != nil {
+		return pruneLocalCandidate{}, false, err
+	}
+	if pr != nil {
+		if pr.BaseRefName != "" {
+			base = pr.BaseRefName
+		} else if meta.PR != nil && meta.PR.Base != "" {
+			base = meta.PR.Base
+		}
+		return pruneLocalCandidate{Branch: branch, PR: pr, Base: base}, true, nil
+	}
+	if meta.PR == nil || meta.PR.Number <= 0 {
+		return pruneLocalCandidate{Branch: branch, Base: base}, true, nil
+	}
+	return pruneLocalCandidate{}, false, nil
+}
+
+func cleanTrackedMergedPR(state *State, gh pruneGHClient, branch string) (*GhPR, error) {
+	meta := state.Branches[branch]
+	if meta == nil || meta.PR == nil || meta.PR.Number <= 0 {
+		return nil, nil
+	}
+	pr, err := gh.View(meta.PR.Number)
+	if err != nil {
+		return nil, err
+	}
+	if pr == nil || !strings.EqualFold(pr.State, "MERGED") {
+		return nil, nil
+	}
+	return pr, nil
+}
+
 func printCleanPlan(out io.Writer, plan *pruneLocalPlan) {
 	fmt.Fprintln(out, "clean plan:")
 	for _, candidate := range plan.Delete {
+		if candidate.PR == nil {
+			fmt.Fprintf(out, "- delete: %s (stale tracked state)\n", candidate.Branch)
+			continue
+		}
 		fmt.Fprintf(out, "- delete: %s (PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
 	}
 	for _, skipped := range plan.Skip {

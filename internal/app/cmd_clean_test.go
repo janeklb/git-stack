@@ -35,10 +35,18 @@ func (f fakePruneGit) BranchFullyIntegrated(branch, base string) (bool, error) {
 
 type fakePruneGH struct {
 	findMergedByHeadFn func(string) (*GhPR, error)
+	viewFn             func(int) (*GhPR, error)
 }
 
 func (f fakePruneGH) FindMergedByHead(branch string) (*GhPR, error) {
 	return f.findMergedByHeadFn(branch)
+}
+
+func (f fakePruneGH) View(number int) (*GhPR, error) {
+	if f.viewFn == nil {
+		return nil, nil
+	}
+	return f.viewFn(number)
 }
 
 func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) {
@@ -271,5 +279,77 @@ func TestBuildPruneLocalPlanIncludeSquashAllowsIntegratedBranchWithoutMergeCommi
 	}
 	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "tracked" {
 		t.Fatalf("expected include-squash to allow clean, got %#v", plan.Delete)
+	}
+}
+
+func TestBuildPruneLocalPlanFallsBackToTrackedPRMetadataWhenHeadLookupMisses(t *testing.T) {
+	t.Parallel()
+
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "tracked"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			branchAtOrBehindFn:   func(string, string) (bool, error) { return true, nil },
+			baseContainsCommitFn: func(string, string) (bool, error) { return true, nil },
+		},
+		gh: fakePruneGH{
+			findMergedByHeadFn: func(string) (*GhPR, error) { return nil, nil },
+			viewFn: func(number int) (*GhPR, error) {
+				if number != 42 {
+					return nil, nil
+				}
+				return &GhPR{Number: 42, URL: "https://example.invalid/pr/42", BaseRefName: "main", HeadRefOID: "h0", State: "MERGED", MergeCommit: &GhCommit{OID: "m0"}}, nil
+			},
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"tracked": {Parent: "main", PR: &PRMeta{Number: 42, Base: "main"}},
+		},
+	}
+
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "tracked" {
+		t.Fatalf("expected tracked branch selected via persisted PR metadata, got %#v", plan.Delete)
+	}
+	if !plan.Delete[0].HasLocal {
+		t.Fatalf("expected tracked branch with local ref to stay marked local, got %#v", plan.Delete[0])
+	}
+}
+
+func TestBuildPruneLocalPlanPrunesMissingTrackedStateWithoutPR(t *testing.T) {
+	t.Parallel()
+
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+		},
+		gh: fakePruneGH{
+			findMergedByHeadFn: func(string) (*GhPR, error) { return nil, nil },
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"ghost": {Parent: "main"},
+		},
+	}
+
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "ghost" {
+		t.Fatalf("expected missing tracked state pruned, got %#v", plan.Delete)
+	}
+	if plan.Delete[0].HasLocal {
+		t.Fatalf("expected ghost branch to have no local ref, got %#v", plan.Delete[0])
 	}
 }

@@ -22,6 +22,7 @@ type pruneGitClient interface {
 
 type pruneGHClient interface {
 	FindMergedByHead(branch string) (*GhPR, error)
+	View(number int) (*GhPR, error)
 }
 
 type submitGitClient interface {
