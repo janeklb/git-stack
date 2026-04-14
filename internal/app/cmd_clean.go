@@ -226,9 +226,9 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 			} else {
 				a.printlnf("%s -> pruned tracked branch from stack state (merged PR #%d)", candidate.Branch, candidate.PR.Number)
 			}
-			continue
+		} else {
+			a.printlnf("%s -> pruned missing tracked branch from stack state", candidate.Branch)
 		}
-		a.printlnf("%s -> pruned missing tracked branch from stack state", candidate.Branch)
 	}
 
 	a.println("clean completed")
