@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestDoctorReportsParentNotAncestorAsError(t *testing.T) {
+func TestCheckReportsParentNotAncestorAsError(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
@@ -35,7 +35,7 @@ func TestDoctorReportsParentNotAncestorAsError(t *testing.T) {
 	}
 }
 
-func TestDoctorReportsInfoForLocalUntrackedBranches(t *testing.T) {
+func TestCheckReportsInfoForLocalUntrackedBranches(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
@@ -57,7 +57,7 @@ func TestDoctorReportsInfoForLocalUntrackedBranches(t *testing.T) {
 	}
 }
 
-func TestDoctorErrorsWhenStateIsNotInitialized(t *testing.T) {
+func TestCheckErrorsWhenStateIsNotInitialized(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 

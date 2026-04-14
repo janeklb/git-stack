@@ -37,7 +37,7 @@ func (s checkSeverity) String() string {
 	}
 }
 
-func (a *App) cmdDoctor() error {
+func (a *App) cmdCheck() error {
 	report := checkReport{out: a.stdout}
 
 	repoRoot, state, err := loadStateFromRepo()

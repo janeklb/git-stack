@@ -223,7 +223,7 @@ doctor does not mutate the repository. It exits non-zero when it finds errors an
 		Example: "  git-stack doctor",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdDoctor()
+			return a.cmdCheck()
 		},
 	}
 	root.AddCommand(doctorCmd)
