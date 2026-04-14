@@ -23,7 +23,7 @@ func TestStatusShowsDriftWhenParentIsNotAncestor(t *testing.T) {
 	mustGit(t, repo, "switch", "feat-two")
 	mustGit(t, repo, "rebase", "--onto", "main", "feat-one")
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"status", "--drift"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state", "--drift"})
 	if code != 0 {
 		t.Fatalf("status failed: exit=%d\n%s", code, out)
 	}
@@ -44,7 +44,7 @@ func TestStatusWorksWithoutInitializedState(t *testing.T) {
 	mustGit(t, repo, "add", "feature1.txt")
 	mustGit(t, repo, "commit", "-m", "feat one")
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"status"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
 	if code != 0 {
 		t.Fatalf("status failed: exit=%d\n%s", code, out)
 	}
@@ -70,7 +70,7 @@ func TestStatusShowsStatelessStackCreatedByStackNew(t *testing.T) {
 
 	mustRunCLIInRepo(t, repo, []string{"new", "feat-two"})
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"status"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
 	if code != 0 {
 		t.Fatalf("status failed: exit=%d\n%s", code, out)
 	}

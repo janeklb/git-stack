@@ -40,7 +40,7 @@ func (a *App) newRootCmd(invocation string) *cobra.Command {
 
 It tracks branch parentage, restacks descendants after history changes, and submits pull requests in stack order. When git-stack is on your PATH, Git also exposes it as git stack <command>.
 
-Mutating commands require a clean worktree. Commands such as new, status, restack, submit, reparent, and cleanup can infer and persist stack state automatically when the workflow is unambiguous.`,
+Mutating commands require a clean worktree. Commands such as new, state, restack, submit, reparent, and clean can infer and persist stack state automatically when the workflow is unambiguous.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -122,7 +122,7 @@ With --adopt, stack does not create a branch. It tracks the current existing bra
 	var statusDrift bool
 	var statusNoColor bool
 	statusCmd := &cobra.Command{
-		Use:     "status",
+		Use:     "state",
 		Aliases: []string{"stat"},
 		Short:   "Show stack graph and state",
 		Long: `Show the tracked branch graph for the current stack.
@@ -172,7 +172,7 @@ If git stops for conflicts, stack records the in-progress operation under .git/s
 
 By default, submit operates on the current stack component in topological order. If [branch] is given, submit uses the stack containing that tracked branch. Use --all to submit every tracked branch. This command requires a clean worktree and auto-persists inferred state if needed.
 
-For each eligible tracked branch, stack force-pushes the local branch to origin with force-with-lease, then creates or updates its PR against the recorded parent branch. Branches are skipped when the local branch is missing or when there are no commits beyond the parent. If a tracked branch already has a merged PR and its remote branch has been deleted, submit may also clean up the local merged branch after confirming it is fully integrated.`,
+For each eligible tracked branch, stack force-pushes the local branch to origin with force-with-lease, then creates or updates its PR against the recorded parent branch. Branches are skipped when the local branch is missing or when there are no commits beyond the parent. If a tracked branch already has a merged PR and its remote branch has been deleted, submit may also automatically clean up the local merged branch when its commits are confirmed fully integrated into the PR base.`,
 		Example: "  git-stack submit\n  git-stack submit feat/login\n  git-stack submit --all\n  git-stack submit --next-on-cleanup feat/two feat/one",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -213,14 +213,14 @@ Implementation-wise this is a rebase: git-stack switches to the target branch an
 	root.AddCommand(reparentCmd)
 
 	doctorCmd := &cobra.Command{
-		Use:   "doctor",
+		Use:   "check",
 		Short: "Diagnose local stack metadata health",
 		Long: `Inspect persisted stack metadata and report structural problems.
 
-doctor reads the saved stack state and validates trunk existence, parent references, parent ancestry, cycles, unrooted tracked branches, and any recorded restack operation. It also reports local branches that exist in git but are missing from stack state as informational output.
+check reads the saved stack state and validates trunk existence, parent references, parent ancestry, cycles, unrooted tracked branches, and any recorded restack operation. It also reports local branches that exist in git but are missing from stack state as informational output.
 
-doctor does not mutate the repository. It exits non-zero when it finds errors and zero when the report contains only warnings or infos. Unlike most other commands, doctor requires initialized stack state and does not auto-bootstrap it.`,
-		Example: "  git-stack doctor",
+check does not mutate the repository. It exits non-zero when it finds errors and zero when the report contains only warnings or infos. Unlike most other commands, check requires initialized stack state and does not auto-bootstrap it.`,
+		Example: "  git-stack check",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdDoctor()
@@ -230,20 +230,21 @@ doctor does not mutate the repository. It exits non-zero when it finds errors an
 
 	var advanceNext string
 	advanceCmd := &cobra.Command{
-		Use:   "advance",
-		Short: "Advance after the current branch merges",
+		Use:     "forward",
+		Aliases: []string{"fw"},
+		Short:   "Clean up merged branches and restack remaining branches",
 		Long: `Advance the current stack after one or more branches in that stack have merged.
 
-advance is a strict post-merge workflow. It requires a clean worktree, fetches origin with prune, then scans the current stack component for tracked branches whose PRs are merged, whose remote branches have already been deleted, and whose local commits are fully integrated into their PR base.
+forward is a strict post-merge workflow. It requires a clean worktree, fetches origin with prune, then scans the current stack component for tracked branches whose PRs are merged, whose remote branches have already been deleted, and whose local commits are fully integrated into their PR base.
 
 For eligible merged branches, stack cleans them from local state, reparents surviving children, restacks the surviving descendants, submits those updated branches, and restores you to an appropriate local branch. If the current branch is being cleaned and there are multiple surviving descendants, stack prompts for the next branch unless --next is provided.`,
-		Example: "  git-stack advance\n  git-stack advance --next feat-two",
+		Example: "  git-stack forward\n  git-stack forward --next feat-two",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdAdvance(advanceNext)
 		},
 	}
-	advanceCmd.Flags().StringVar(&advanceNext, "next", "", "when the current branch is deleted during advance, switch to this existing surviving branch instead of prompting")
+	advanceCmd.Flags().StringVar(&advanceNext, "next", "", "when the current branch is deleted during forward, switch to this existing surviving branch instead of prompting")
 	_ = advanceCmd.RegisterFlagCompletionFunc("next", completeBranchRefs(false))
 	root.AddCommand(advanceCmd)
 
@@ -252,14 +253,14 @@ For eligible merged branches, stack cleans them from local state, reparents surv
 	var cleanupIncludeSquash bool
 	var cleanupUntracked bool
 	cleanupCmd := &cobra.Command{
-		Use:   "cleanup",
+		Use:   "clean",
 		Short: "Delete merged local branches and reconcile stack state",
 		Long: `Delete local branches that are already merged and reconcile tracked stack state.
 
-cleanup requires a clean worktree, fetches origin with prune, builds a cleanup plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component. Use --all to consider every tracked branch.
+This command requires a clean worktree, fetches origin with prune, builds a cleanup plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component. Use --all to consider every tracked branch.
 
-Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured cleanup policy. Children of deleted tracked branches are reparented in stack state. With --untracked, cleanup also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
-		Example: "  git-stack cleanup\n  git-stack cleanup --yes\n  git-stack cleanup --all --yes\n  git-stack cleanup --yes --include-squash --untracked",
+Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured cleanup policy. Children of deleted tracked branches are reparented in stack state. With --untracked, clean also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
+		Example: "  git-stack clean\n  git-stack clean --yes\n  git-stack clean --all --yes\n  git-stack clean --yes --include-squash --untracked",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.cmdCleanup(cleanupYes, cleanupAll, cleanupIncludeSquash, cleanupUntracked)

@@ -148,7 +148,7 @@ func (r *doctorReport) exitError() error {
 	if r.errors == 0 {
 		return nil
 	}
-	return fmt.Errorf("doctor found %d error(s)", r.errors)
+	return fmt.Errorf("check found %d error(s)", r.errors)
 }
 
 func sortedBranchNames(branches map[string]*BranchRef) []string {

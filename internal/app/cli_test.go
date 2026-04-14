@@ -50,12 +50,12 @@ func TestCompletionBashOutputsScript(t *testing.T) {
 
 func TestKeyCommandFlagsExist(t *testing.T) {
 	root := New().newRootCmd("git-stack")
-	advance, _, err := root.Find([]string{"advance"})
+	advance, _, err := root.Find([]string{"forward"})
 	if err != nil {
-		t.Fatalf("find advance command: %v", err)
+		t.Fatalf("find forward command: %v", err)
 	}
 	if advance.Flags().Lookup("next") == nil {
-		t.Fatalf("expected advance next flag to exist")
+		t.Fatalf("expected forward next flag to exist")
 	}
 	submit, _, err := root.Find([]string{"submit"})
 	if err != nil {
@@ -64,21 +64,21 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	if submit.Flags().Lookup("next-on-cleanup") == nil {
 		t.Fatalf("expected submit next-on-cleanup flag to exist")
 	}
-	cleanup, _, err := root.Find([]string{"cleanup"})
+	cleanup, _, err := root.Find([]string{"clean"})
 	if err != nil {
-		t.Fatalf("find cleanup command: %v", err)
+		t.Fatalf("find clean command: %v", err)
 	}
 	if cleanup.Flags().Lookup("yes") == nil {
-		t.Fatalf("expected cleanup yes flag to exist")
+		t.Fatalf("expected clean yes flag to exist")
 	}
 	if cleanup.Flags().Lookup("all") == nil {
-		t.Fatalf("expected cleanup all flag to exist")
+		t.Fatalf("expected clean all flag to exist")
 	}
 	if cleanup.Flags().Lookup("include-squash") == nil {
-		t.Fatalf("expected cleanup include-squash flag to exist")
+		t.Fatalf("expected clean include-squash flag to exist")
 	}
 	if cleanup.Flags().Lookup("untracked") == nil {
-		t.Fatalf("expected cleanup untracked flag to exist")
+		t.Fatalf("expected clean untracked flag to exist")
 	}
 	reparent, _, err := root.Find([]string{"reparent"})
 	if err != nil {
@@ -102,8 +102,8 @@ func TestStatusHasStatAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find stat command: %v", err)
 	}
-	if cmd.Name() != "status" {
-		t.Fatalf("expected alias to resolve to status, got %q", cmd.Name())
+	if cmd.Name() != "state" {
+		t.Fatalf("expected alias to resolve to state, got %q", cmd.Name())
 	}
 }
 
@@ -144,31 +144,31 @@ func TestSubmitHelpDescribesDefaultsAndCleanupFlag(t *testing.T) {
 	}
 }
 
-func TestAdvanceHelpDescribesStrictPostMergeFlow(t *testing.T) {
+func TestForwardHelpDescribesStrictPostMergeFlow(t *testing.T) {
 	cli := New()
-	out, code := runCLIAndCapture(t, cli, []string{"help", "advance"})
+	out, code := runCLIAndCapture(t, cli, []string{"help", "forward"})
 	if code != 0 {
-		t.Fatalf("help advance failed: exit=%d\n%s", code, out)
+		t.Fatalf("help forward failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "advance is a strict post-merge workflow") {
-		t.Fatalf("expected advance help to describe strict post-merge behavior, got:\n%s", out)
+	if !strings.Contains(out, "forward is a strict post-merge workflow") {
+		t.Fatalf("expected forward help to describe strict post-merge behavior, got:\n%s", out)
 	}
 	if !strings.Contains(out, "whose remote branches have already been deleted") {
-		t.Fatalf("expected advance help to describe remote deletion precondition, got:\n%s", out)
+		t.Fatalf("expected forward help to describe remote deletion precondition, got:\n%s", out)
 	}
 }
 
-func TestCleanupHelpDescribesPlanAndScope(t *testing.T) {
+func TestCleanHelpDescribesPlanAndScope(t *testing.T) {
 	cli := New()
-	out, code := runCLIAndCapture(t, cli, []string{"help", "cleanup"})
+	out, code := runCLIAndCapture(t, cli, []string{"help", "clean"})
 	if code != 0 {
-		t.Fatalf("help cleanup failed: exit=%d\n%s", code, out)
+		t.Fatalf("help clean failed: exit=%d\n%s", code, out)
 	}
 	if !strings.Contains(out, "builds a cleanup plan, prints that plan") {
-		t.Fatalf("expected cleanup help to describe plan output, got:\n%s", out)
+		t.Fatalf("expected clean help to describe plan output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "By default it only considers tracked branches in the current stack component") {
-		t.Fatalf("expected cleanup help to describe default scope, got:\n%s", out)
+		t.Fatalf("expected clean help to describe default scope, got:\n%s", out)
 	}
 }
 
@@ -258,15 +258,15 @@ func TestAdvanceNextFlagCompletionListsOnlyLocalBranches(t *testing.T) {
 		mustGit(t, repo, "switch", "main")
 		mustGit(t, repo, "branch", "-D", "remote-next")
 
-		out, code := runCLIAndCapture(t, cli, []string{"__complete", "advance", "--next", ""})
+		out, code := runCLIAndCapture(t, cli, []string{"__complete", "forward", "--next", ""})
 		if code != 0 {
-			t.Fatalf("advance next completion failed: exit=%d\n%s", code, out)
+			t.Fatalf("forward next completion failed: exit=%d\n%s", code, out)
 		}
 		if !strings.Contains(out, "local-next") {
-			t.Fatalf("expected advance --next completion to include local-next, got:\n%s", out)
+			t.Fatalf("expected forward --next completion to include local-next, got:\n%s", out)
 		}
 		if strings.Contains(out, "remote-next") {
-			t.Fatalf("expected advance --next completion to exclude remote-only branches, got:\n%s", out)
+			t.Fatalf("expected forward --next completion to exclude remote-only branches, got:\n%s", out)
 		}
 	})
 }

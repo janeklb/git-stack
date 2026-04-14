@@ -38,7 +38,7 @@ func (a *App) cmdAdvance(next string) error {
 		return err
 	}
 	if err := gitRun("fetch", "--prune", "origin"); err != nil {
-		return fmt.Errorf("advance fetch failed: %w", err)
+		return fmt.Errorf("forward fetch failed: %w", err)
 	}
 
 	repoRoot, state, err := loadStateFromRepo()
@@ -56,7 +56,7 @@ func (a *App) cmdAdvance(next string) error {
 		return err
 	}
 	if len(candidates) == 0 {
-		a.println("advance: nothing to do")
+		a.println("forward: nothing to do")
 		return nil
 	}
 	merged := map[string]bool{}
@@ -82,7 +82,7 @@ func (a *App) cmdAdvance(next string) error {
 
 	// Clean merged slices first, then restack only the surviving roots that were
 	// directly downstream of those merged branches.
-	a.printlnf("advance: cleanup merged branches in current stack, switch to %s, restack, submit all", target)
+	a.printlnf("forward: clean up merged branches in current stack, switch to %s, restack, submit all", target)
 	restackRoots := []string{}
 	restackRootSet := map[string]bool{}
 	rebaseBases := map[string]string{}
@@ -142,7 +142,7 @@ func (a *App) cmdAdvance(next string) error {
 		return err
 	}
 
-	a.println("advance completed")
+	a.println("forward completed")
 	return nil
 }
 
@@ -172,16 +172,16 @@ func buildAdvanceCandidateWithDeps(state *State, current string, deps advanceDep
 	if !eligible {
 		meta := state.Branches[current]
 		if meta == nil {
-			return advanceCleanupCandidate{}, fmt.Errorf("advance requires current branch to be tracked in stack state: %s", current)
+			return advanceCleanupCandidate{}, fmt.Errorf("forward requires current branch to be tracked in stack state: %s", current)
 		}
 		if meta.PR == nil || meta.PR.Number <= 0 {
-			return advanceCleanupCandidate{}, fmt.Errorf("advance requires current branch to have PR metadata: %s", current)
+			return advanceCleanupCandidate{}, fmt.Errorf("forward requires current branch to have PR metadata: %s", current)
 		}
 		pr, err := deps.gh.View(meta.PR.Number)
 		if err != nil {
-			return advanceCleanupCandidate{}, fmt.Errorf("advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+			return advanceCleanupCandidate{}, fmt.Errorf("forward failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
 		}
-		return advanceCleanupCandidate{}, fmt.Errorf("advance requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
+		return advanceCleanupCandidate{}, fmt.Errorf("forward requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
 	}
 	return candidate, nil
 }
@@ -197,7 +197,7 @@ func detectAdvanceCandidateWithDeps(state *State, current string, deps advanceDe
 
 	pr, err := deps.gh.View(meta.PR.Number)
 	if err != nil {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+		return advanceCleanupCandidate{}, false, fmt.Errorf("forward failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
 	}
 	if !strings.EqualFold(pr.State, "MERGED") {
 		return advanceCleanupCandidate{}, false, nil
@@ -205,10 +205,10 @@ func detectAdvanceCandidateWithDeps(state *State, current string, deps advanceDe
 
 	remoteExists, err := deps.git.RemoteBranchExists(current)
 	if err != nil {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance failed to check remote branch %s: %w", current, err)
+		return advanceCleanupCandidate{}, false, fmt.Errorf("forward failed to check remote branch %s: %w", current, err)
 	}
 	if remoteExists {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance aborted: origin/%s still exists; delete the remote branch first", current)
+		return advanceCleanupCandidate{}, false, fmt.Errorf("forward aborted: origin/%s still exists; delete the remote branch first", current)
 	}
 
 	base := state.Trunk
@@ -222,10 +222,10 @@ func detectAdvanceCandidateWithDeps(state *State, current string, deps advanceDe
 
 	integrated, err := deps.mergedCleanupIntegrated(current, base, pr)
 	if err != nil {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance integration check failed for %s against %s: %w", current, base, err)
+		return advanceCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w", current, base, err)
 	}
 	if !integrated {
-		return advanceCleanupCandidate{}, false, fmt.Errorf("advance aborted: %s has local commits not fully integrated into %s", current, base)
+		return advanceCleanupCandidate{}, false, fmt.Errorf("forward aborted: %s has local commits not fully integrated into %s", current, base)
 	}
 
 	return advanceCleanupCandidate{
@@ -242,17 +242,17 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 	}
 	if next != "" {
 		if next == current {
-			return "", fmt.Errorf("advance --next cannot be the branch being cleaned: %s", next)
+			return "", fmt.Errorf("forward --next cannot be the branch being cleaned: %s", next)
 		}
 		if merged[next] {
-			return "", fmt.Errorf("advance --next cannot be another merged branch being cleaned: %s", next)
+			return "", fmt.Errorf("forward --next cannot be another merged branch being cleaned: %s", next)
 		}
 		exists, err := advanceTargetExists(git, next)
 		if err != nil {
 			return "", err
 		}
 		if !exists {
-			return "", fmt.Errorf("advance --next branch does not exist: %s", next)
+			return "", fmt.Errorf("forward --next branch does not exist: %s", next)
 		}
 		return next, nil
 	}
@@ -264,7 +264,7 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 			target = "main"
 		}
 		if target == current {
-			return "", fmt.Errorf("advance could not choose a checkout target distinct from %s", current)
+			return "", fmt.Errorf("forward could not choose a checkout target distinct from %s", current)
 		}
 		return target, nil
 	}
@@ -276,7 +276,7 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 			return "", err
 		}
 		if !exists {
-			return "", fmt.Errorf("advance next branch does not exist: %s", target)
+			return "", fmt.Errorf("forward next branch does not exist: %s", target)
 		}
 		return target, nil
 	}
@@ -289,11 +289,11 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 	fmt.Fprintf(out, "selection [1-%d]: ", len(options))
 	answer, err := readPromptLine(reader)
 	if err != nil {
-		return "", fmt.Errorf("advance failed to read selection: %w", err)
+		return "", fmt.Errorf("forward failed to read selection: %w", err)
 	}
 	choice, err := strconv.Atoi(answer)
 	if err != nil || choice < 1 || choice > len(options) {
-		return "", errors.New("advance invalid selection")
+		return "", errors.New("forward invalid selection")
 	}
 	target := options[choice-1]
 	exists, err := advanceTargetExists(git, target)
@@ -301,7 +301,7 @@ func chooseAdvanceTarget(in io.Reader, out io.Writer, state *State, current stri
 		return "", err
 	}
 	if !exists {
-		return "", fmt.Errorf("advance selected branch does not exist: %s", target)
+		return "", fmt.Errorf("forward selected branch does not exist: %s", target)
 	}
 	return target, nil
 }
@@ -350,7 +350,7 @@ func advanceTargetExists(git advanceGitClient, branch string) (bool, error) {
 	}
 	remoteExists, err := git.RemoteBranchExists(branch)
 	if err != nil {
-		return false, fmt.Errorf("advance failed to verify branch %s: %w", branch, err)
+		return false, fmt.Errorf("forward failed to verify branch %s: %w", branch, err)
 	}
 	return remoteExists, nil
 }

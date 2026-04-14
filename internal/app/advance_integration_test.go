@@ -50,11 +50,11 @@ func TestAdvanceSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
 
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code != 0 {
 		t.Fatalf("advance failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "advance completed") {
+	if !strings.Contains(out, "forward completed") {
 		t.Fatalf("expected advance completion output, got:\n%s", out)
 	}
 
@@ -123,11 +123,11 @@ func TestAdvanceFromOpenChildCleansMergedAncestorAndRestoresCurrentBranch(t *tes
 	if err := os.Chmod(ghPath, 0o755); err != nil {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code != 0 {
 		t.Fatalf("advance failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "advance completed") {
+	if !strings.Contains(out, "forward completed") {
 		t.Fatalf("expected advance completion output, got:\n%s", out)
 	}
 
@@ -189,11 +189,11 @@ func TestAdvanceNoopsWhenCurrentStackHasNoMergedBranches(t *testing.T) {
 	if err := os.Chmod(ghPath, 0o755); err != nil {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code != 0 {
 		t.Fatalf("advance failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "advance: nothing to do") {
+	if !strings.Contains(out, "forward: nothing to do") {
 		t.Fatalf("expected no-op output, got:\n%s", out)
 	}
 
@@ -244,7 +244,7 @@ func TestAdvanceAbortsWhenRemoteBranchStillExists(t *testing.T) {
 	if err := os.Chmod(ghPath, 0o755); err != nil {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code == 0 {
 		t.Fatalf("expected advance to fail when remote still exists, output:\n%s", out)
 	}
@@ -319,7 +319,7 @@ func TestAdvanceDoesNotCleanupUnrelatedMergedTrackedBranches(t *testing.T) {
 	if err := os.Chmod(ghPath, 0o755); err != nil {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code != 0 {
 		t.Fatalf("advance failed: exit=%d\n%s", code, out)
 	}
@@ -380,11 +380,11 @@ func TestAdvanceUsesFetchedRemoteTrunkWhenLocalTrunkIsStale(t *testing.T) {
 	if err := os.Chmod(ghPath, 0o755); err != nil {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code != 0 {
 		t.Fatalf("advance failed with stale local trunk: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "advance completed") {
+	if !strings.Contains(out, "forward completed") {
 		t.Fatalf("expected advance completion output, got:\n%s", out)
 	}
 	remaining := mustGitOutput(t, repo, "log", "--format=%s", "origin/main..feat-two")
@@ -430,11 +430,11 @@ func TestAdvanceFastForwardsLocalTrunkForMergedLastSlice(t *testing.T) {
 	if err := os.Chmod(ghPath, 0o755); err != nil {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code != 0 {
 		t.Fatalf("advance failed with stale local trunk: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "advance completed") {
+	if !strings.Contains(out, "forward completed") {
 		t.Fatalf("expected advance completion output, got:\n%s", out)
 	}
 
@@ -493,7 +493,7 @@ func TestAdvanceAbortsBeforeCleanupWhenLocalTrunkDiverged(t *testing.T) {
 	if err := os.Chmod(ghPath, 0o755); err != nil {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code == 0 {
 		t.Fatalf("expected advance to fail when local trunk diverged, output:\n%s", out)
 	}
@@ -567,7 +567,7 @@ func TestAdvanceRestacksOnlyAffectedStack(t *testing.T) {
 	if err := os.Chmod(ghPath, 0o755); err != nil {
 		t.Fatalf("chmod fake gh: %v", err)
 	}
-	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"advance"})
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
 	if code != 0 {
 		t.Fatalf("advance failed: exit=%d\n%s", code, out)
 	}

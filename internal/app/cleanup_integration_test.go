@@ -67,7 +67,7 @@ func TestCleanupDefaultsToCurrentStackScope(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"cleanup", "--yes"})
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes"})
 		if code != 0 {
 			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
 		}
@@ -175,7 +175,7 @@ func TestCleanupUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"cleanup", "--yes", "--untracked"})
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes", "--untracked"})
 		if code != 0 {
 			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
 		}
@@ -195,7 +195,7 @@ func TestCleanupWithoutInitializedStateAutoBootstraps(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"cleanup"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"clean"})
 	if code != 0 {
 		t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
 	}

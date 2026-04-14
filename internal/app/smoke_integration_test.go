@@ -79,7 +79,7 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 		}
 		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		out, code := runCLIAndCapture(t, cli, []string{"cleanup", "--yes", "--untracked"})
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes", "--untracked"})
 		if code != 0 {
 			t.Fatalf("cleanup failed: exit=%d\n%s", code, out)
 		}
@@ -99,7 +99,7 @@ func TestIntegrationSmokeStatusShowsTrackedBranch(t *testing.T) {
 	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
 	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"status"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
 	if code != 0 {
 		t.Fatalf("status failed: exit=%d\n%s", code, out)
 	}

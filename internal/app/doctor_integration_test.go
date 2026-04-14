@@ -23,7 +23,7 @@ func TestDoctorReportsParentNotAncestorAsError(t *testing.T) {
 	mustGit(t, repo, "switch", "feat-two")
 	mustGit(t, repo, "rebase", "--onto", "main", "feat-one")
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"doctor"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"check"})
 	if code == 0 {
 		t.Fatalf("expected non-zero exit for doctor with errors, got output:\n%s", out)
 	}
@@ -45,7 +45,7 @@ func TestDoctorReportsInfoForLocalUntrackedBranches(t *testing.T) {
 	mustGit(t, repo, "add", "scratch.txt")
 	mustGit(t, repo, "commit", "-m", "scratch")
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"doctor"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"check"})
 	if code != 0 {
 		t.Fatalf("expected zero exit for info-only doctor output, got exit=%d\n%s", code, out)
 	}
@@ -61,7 +61,7 @@ func TestDoctorErrorsWhenStateIsNotInitialized(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"doctor"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"check"})
 	if code == 0 {
 		t.Fatalf("expected non-zero exit when state is not initialized, got output:\n%s", out)
 	}
