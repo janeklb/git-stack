@@ -1,9 +1,15 @@
 package app
 
 import (
+	"bytes"
+	_ "embed"
 	"fmt"
 	"strings"
+	"text/template"
 )
+
+//go:embed default_pr_body.md.tmpl
+var defaultPRBodyTemplate string
 
 type StackPRLine struct {
 	Branch string
@@ -39,43 +45,36 @@ func branchSummary(parent, branch string) (string, []string, error) {
 	return latestTitle, lines, nil
 }
 
-func composeBody(summary []string, managed, template string) string {
-	summarySection := composeSummarySection(summary)
-	managed = strings.TrimSpace(managed)
-	template = strings.TrimSpace(template)
-	if template == "" {
-		return stitchBody(summarySection, managed, "")
+func composeBody(summary []string, managed, templateText string) (string, error) {
+	if templateText == "" {
+		templateText = defaultPRBodyTemplate
 	}
 
-	body := template
-	usedSummaryPlaceholder := strings.Contains(body, prSummaryPlaceholder)
-	if usedSummaryPlaceholder {
-		body = strings.ReplaceAll(body, prSummaryPlaceholder, summarySection)
+	tmpl, err := template.New("pr_body").Option("missingkey=error").Parse(templateText)
+	if err != nil {
+		return "", err
 	}
-	if strings.Contains(body, stackedPRsPlaceholder) {
-		body = strings.ReplaceAll(body, stackedPRsPlaceholder, managed)
-	} else if managed != "" {
-		body = stitchBody(body, managed, "")
+	data := map[string]any{
+		"commits":           buildPRTemplateCommits(summary),
+		"stackedPRsSection": managed,
 	}
-	if !usedSummaryPlaceholder {
-		body = stitchBody(summarySection, strings.TrimSpace(body), "")
+	var body bytes.Buffer
+	if err := tmpl.Execute(&body, data); err != nil {
+		return "", err
 	}
-	return strings.TrimSpace(body) + "\n"
+	return body.String(), nil
 }
 
-func composeSummarySection(summary []string) string {
-	var b strings.Builder
-	b.WriteString("## Summary\n\n")
+func buildPRTemplateCommits(summary []string) []map[string]string {
+	commits := make([]map[string]string, 0, len(summary))
 	for _, item := range summary {
 		item = strings.TrimSpace(item)
 		if item == "" {
 			continue
 		}
-		b.WriteString("- ")
-		b.WriteString(item)
-		b.WriteString("\n")
+		commits = append(commits, map[string]string{"firstLineOfCommit": item})
 	}
-	return strings.TrimSpace(b.String())
+	return commits
 }
 
 func managedStackBlock(currentBranch string, lines []StackPRLine) string {
@@ -112,11 +111,7 @@ func upsertManagedBlock(body, managed string) string {
 		before := strings.TrimSpace(body[:start])
 		return stitchBody(before, managed, "")
 	}
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return managed + "\n"
-	}
-	return body + "\n\n" + managed + "\n"
+	return body
 }
 
 func stackPRMarker(currentBranch, branch, state string) string {

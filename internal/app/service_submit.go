@@ -27,7 +27,10 @@ func ensurePR(repoRoot, trunk, branch, parent string, existing *PRMeta, existing
 	if err != nil {
 		return nil, err
 	}
-	defaultBody := composeBody(summary, "", template)
+	defaultBody, err := composeBody(summary, "", template)
+	if err != nil {
+		return nil, err
+	}
 	wantDraft := shouldUseDraftPR(trunk, parent)
 
 	if existing != nil && existing.Number > 0 {

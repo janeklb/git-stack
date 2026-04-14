@@ -131,7 +131,7 @@ func loadPRTemplate(repoRoot string) (string, error) {
 		}
 		return "", err
 	}
-	return strings.TrimSpace(string(data)), nil
+	return string(data), nil
 }
 
 func loadState(repoRoot string) (*State, error) {

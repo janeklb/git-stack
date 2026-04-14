@@ -19,9 +19,14 @@ func TestUpsertManagedBlockAppendsAndReplaces(t *testing.T) {
 	if !strings.Contains(body, "User body") {
 		t.Fatalf("expected original body to be preserved, got:\n%s", body)
 	}
-	if !strings.Contains(body, "## Stacked PRs") {
-		t.Fatalf("expected managed block to be appended, got:\n%s", body)
+	if strings.Contains(body, "## Stacked PRs") {
+		t.Fatalf("expected body without managed markers to remain unchanged, got:\n%s", body)
 	}
+	if body != "User body" {
+		t.Fatalf("expected no-op when markers are absent, got:\n%s", body)
+	}
+
+	bodyWithManaged := strings.Join([]string{"User body", managedOne}, "\n\n")
 
 	managedTwo := managedStackBlock("feat-one", []StackPRLine{{
 		Branch: "feat-zero",
@@ -30,7 +35,7 @@ func TestUpsertManagedBlockAppendsAndReplaces(t *testing.T) {
 		URL:    "https://example.com/pr/9",
 		State:  "MERGED",
 	}})
-	replaced := upsertManagedBlock(body, managedTwo)
+	replaced := upsertManagedBlock(bodyWithManaged, managedTwo)
 	if strings.Contains(replaced, "#10 Feature one") {
 		t.Fatalf("expected old managed block to be replaced, got:\n%s", replaced)
 	}
@@ -89,7 +94,10 @@ func TestComposeBodyUsesDefaultSummaryAndManagedSection(t *testing.T) {
 		URL:    "https://example.com/pr/11",
 		State:  "OPEN",
 	}})
-	body := composeBody([]string{"Added validation", "Refined output format"}, managed, "")
+	body, err := composeBody([]string{"Added validation", "Refined output format"}, managed, "")
+	if err != nil {
+		t.Fatalf("composeBody returned error: %v", err)
+	}
 	if !strings.Contains(body, "## Summary") {
 		t.Fatalf("expected body to include summary heading, got:\n%s", body)
 	}
@@ -119,24 +127,29 @@ func TestComposeBodyUsesCustomTemplatePlaceholders(t *testing.T) {
 	}})
 	template := strings.Join([]string{
 		"Before",
-		prSummaryPlaceholder,
+		"{{- range .commits }}",
+		"- {{ .firstLineOfCommit }}",
+		"{{- end }}",
 		"Between",
-		stackedPRsPlaceholder,
+		"{{ .stackedPRsSection }}",
 		"After",
 	}, "\n\n")
-	body := composeBody([]string{"Added validation"}, managed, template)
+	body, err := composeBody([]string{"Added validation"}, managed, template)
+	if err != nil {
+		t.Fatalf("composeBody returned error: %v", err)
+	}
 	if !strings.Contains(body, "Before") || !strings.Contains(body, "Between") || !strings.Contains(body, "After") {
 		t.Fatalf("expected custom template text to be preserved, got:\n%s", body)
 	}
-	if !strings.Contains(body, "## Summary") || !strings.Contains(body, "- Added validation") {
-		t.Fatalf("expected summary placeholder to be replaced, got:\n%s", body)
+	if !strings.Contains(body, "- Added validation") {
+		t.Fatalf("expected commits to be rendered through template, got:\n%s", body)
 	}
 	if !strings.Contains(body, "## Stacked PRs") {
 		t.Fatalf("expected stacked PR placeholder to be replaced, got:\n%s", body)
 	}
 }
 
-func TestComposeBodyFallsBackWhenTemplateOmitsPlaceholders(t *testing.T) {
+func TestComposeBodyOmitsManagedSectionWhenTemplateDoesNotReferenceIt(t *testing.T) {
 	t.Parallel()
 
 	managed := managedStackBlock("feat-a", []StackPRLine{{
@@ -146,15 +159,26 @@ func TestComposeBodyFallsBackWhenTemplateOmitsPlaceholders(t *testing.T) {
 		URL:    "https://example.com/pr/11",
 		State:  "OPEN",
 	}})
-	body := composeBody([]string{"Added validation"}, managed, "## Details\n\nCustom body")
-	if !strings.Contains(body, "## Summary") || !strings.Contains(body, "## Details") {
-		t.Fatalf("expected summary prepended ahead of custom template, got:\n%s", body)
+	body, err := composeBody([]string{"Added validation"}, managed, "## Details\n\nCustom body")
+	if err != nil {
+		t.Fatalf("composeBody returned error: %v", err)
 	}
-	if !strings.Contains(body, "## Stacked PRs") {
-		t.Fatalf("expected managed section appended when placeholder missing, got:\n%s", body)
+	if body != "## Details\n\nCustom body" {
+		t.Fatalf("expected custom template to be rendered as-is, got:\n%s", body)
 	}
-	if strings.Index(body, "## Summary") > strings.Index(body, "## Details") {
-		t.Fatalf("expected summary before custom template, got:\n%s", body)
+	if strings.Contains(body, "## Stacked PRs") {
+		t.Fatalf("expected stacked PRs to be omitted when template does not reference them, got:\n%s", body)
+	}
+	if strings.Contains(body, "Added validation") {
+		t.Fatalf("expected commits to be omitted when template does not reference them, got:\n%s", body)
+	}
+}
+
+func TestComposeBodyReturnsTemplateError(t *testing.T) {
+	t.Parallel()
+
+	if _, err := composeBody([]string{"Added validation"}, "", "{{ .unknownField }}"); err == nil {
+		t.Fatal("expected template execution error for missing field")
 	}
 }
 
