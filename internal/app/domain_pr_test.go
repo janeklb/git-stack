@@ -84,6 +84,31 @@ func TestManagedStackBlockKeepsHeadingInsideManagedMarkers(t *testing.T) {
 	}
 }
 
+func TestManagedStackPlaceholderSeedsMarkersAndHeading(t *testing.T) {
+	t.Parallel()
+
+	managed := managedStackPlaceholder()
+	if !strings.Contains(managed, managedBlockStart) || !strings.Contains(managed, managedBlockEnd) {
+		t.Fatalf("expected placeholder to include managed markers, got:\n%s", managed)
+	}
+	if !strings.Contains(managed, "## Stacked PRs") {
+		t.Fatalf("expected placeholder to include stacked PR heading, got:\n%s", managed)
+	}
+	if strings.Contains(managed, "Legend:") {
+		t.Fatalf("expected placeholder to stay minimal, got:\n%s", managed)
+	}
+	updated := upsertManagedBlock(managed, managedStackBlock("feat-a", []StackPRLine{{
+		Branch: "feat-a",
+		Number: 11,
+		Title:  "Feature a",
+		URL:    "https://example.com/pr/11",
+		State:  "OPEN",
+	}}))
+	if !strings.Contains(updated, "#11 Feature a") {
+		t.Fatalf("expected placeholder to be replaceable with full managed block, got:\n%s", updated)
+	}
+}
+
 func TestComposeBodyUsesDefaultSummaryAndManagedSection(t *testing.T) {
 	t.Parallel()
 
