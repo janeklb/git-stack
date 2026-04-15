@@ -39,7 +39,6 @@ type pruneLocalScope struct {
 }
 
 func cleanDiscoveryBranches(state *State, branches []string, scope pruneLocalScope) []string {
-	selected := []string{}
 	seen := map[string]bool{}
 	for _, branch := range branches {
 		if branch == "" || branch == state.Trunk {
@@ -54,7 +53,6 @@ func cleanDiscoveryBranches(state *State, branches []string, scope pruneLocalSco
 			continue
 		}
 		seen[branch] = true
-		selected = append(selected, branch)
 	}
 	for branch := range state.Branches {
 		if branch == "" || branch == state.Trunk || seen[branch] {
@@ -63,8 +61,13 @@ func cleanDiscoveryBranches(state *State, branches []string, scope pruneLocalSco
 		if scope.trackedBranches != nil && !scope.trackedBranches[branch] {
 			continue
 		}
+		seen[branch] = true
+	}
+	selected := make([]string, 0, len(seen))
+	for branch := range seen {
 		selected = append(selected, branch)
 	}
+	sort.Strings(selected)
 	return selected
 }
 
