@@ -90,7 +90,9 @@ git-stack completion fish | source
 git-stack completion powershell | Out-String | Invoke-Expression
 ```
 
-Completion targets `git-stack` directly. The `git stack ...` extension form needs separate shell-specific setup if you want argument completion there too.
+The generated script covers both `git-stack ...` and `git stack ...`.
+
+On Bash and Zsh, the `git stack` form plugs into Git's normal subcommand completion, so your shell still needs Git's base completion enabled alongside the `git-stack` script.
 
 ## State
 
