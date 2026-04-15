@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -168,5 +169,63 @@ func TestStateShowsUnrootedBranchAsSeparateStatusItems(t *testing.T) {
 	}
 	if strings.Contains(out, "state=") {
 		t.Fatalf("expected unrooted output without state= prefix, got:\n%s", out)
+	}
+}
+
+func TestStateShowsMetadataMissingBranchExplicitly(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
+
+	state := readStateFile(t, repo)
+	delete(state.Branches, "feat-one")
+	writeStateFile(t, repo, state)
+
+	statePath := filepath.Join(repo, ".git", "stack", "state.json")
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatalf("read state: %v", err)
+	}
+	updated := strings.Replace(string(data), "\"branches\": {}", "\"branches\": {\n    \"feat-one\": null\n  }", 1)
+	if err := os.WriteFile(statePath, []byte(updated), 0o600); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
+	if code != 0 {
+		t.Fatalf("state failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "? feat-one [invalid, metadata-missing]") {
+		t.Fatalf("expected metadata-missing branch in state output, got:\n%s", out)
+	}
+}
+
+func TestStateShowsCyclesExplicitly(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-two"})
+
+	state := readStateFile(t, repo)
+	state.Branches["feat-one"] = testBranchReference{Parent: "feat-two", LineageParent: "main"}
+	state.Branches["feat-two"] = testBranchReference{Parent: "feat-one", LineageParent: "feat-one"}
+	writeStateFile(t, repo, state)
+
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
+	if code != 0 {
+		t.Fatalf("state failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "? feat-one [cycle, local-only]") {
+		t.Fatalf("expected cycle root in state output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "└─ feat-two [cycle, local-only]") {
+		t.Fatalf("expected cycle child in state output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "└─ feat-one [cycle]") {
+		t.Fatalf("expected cycle closure in state output, got:\n%s", out)
 	}
 }

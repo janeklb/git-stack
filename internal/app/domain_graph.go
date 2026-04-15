@@ -54,6 +54,9 @@ func branchChildrenIndex(state *State, selected map[string]bool) map[string][]st
 		if selected != nil && !selected[name] {
 			continue
 		}
+		if meta == nil {
+			continue
+		}
 		parent := meta.Parent
 		if parent == "" {
 			parent = state.Trunk

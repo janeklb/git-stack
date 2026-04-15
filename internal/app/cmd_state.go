@@ -58,6 +58,9 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 
 	children := map[string][]string{}
 	for branch, meta := range state.Branches {
+		if meta == nil {
+			continue
+		}
 		children[meta.Parent] = append(children[meta.Parent], branch)
 	}
 	for k := range children {
@@ -104,6 +107,41 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 	a.println(trunkLine)
 	walk(state.Trunk, strings.Repeat("   ", len(stateArchivedLineageChainForSelection(state, selected))))
 
+	missingMeta := []string{}
+	for _, branch := range sortedStateBranchNames(state.Branches) {
+		if !selected[branch] || printed[branch] {
+			continue
+		}
+		if state.Branches[branch] != nil {
+			continue
+		}
+		missingMeta = append(missingMeta, branch)
+	}
+	for _, branch := range missingMeta {
+		printed[branch] = true
+		line := theme.warning("? ") + theme.branch(branch) + stateStatusBox(theme, []stateStatusItem{
+			{text: "invalid", kind: stateStatusAlert},
+			{text: "metadata-missing", kind: stateStatusAlert},
+		})
+		a.println(line)
+	}
+
+	cycleNodes := map[string]bool{}
+	for _, branch := range sortedStateBranchNames(state.Branches) {
+		if !selected[branch] || printed[branch] || cycleNodes[branch] {
+			continue
+		}
+		cycle := stateCycleForBranch(state, selected, branch)
+		if len(cycle) == 0 {
+			continue
+		}
+		for _, name := range cycle {
+			cycleNodes[name] = true
+			printed[name] = true
+		}
+		renderStateCycle(a, theme, state, cycle, localBranchSet, showDrift)
+	}
+
 	unrooted := []string{}
 	for branch := range state.Branches {
 		if selected[branch] && !printed[branch] {
@@ -125,6 +163,27 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 		a.printlnf("restack in progress: mode=%s index=%d/%d", op.Mode, op.Index, len(op.Queue))
 	}
 	return nil
+}
+
+func renderStateCycle(a *App, theme stateTheme, state *State, cycle []string, localBranches map[string]bool, showDrift bool) {
+	for i, branch := range cycle {
+		meta := state.Branches[branch]
+		items := []stateStatusItem{{text: "cycle", kind: stateStatusAlert}}
+		items = append(items, stateBranchStatusItems(branch, meta, localBranches, showDrift)...)
+		prefix := ""
+		if i == 0 {
+			prefix = theme.warning("? ")
+		} else {
+			prefix = strings.Repeat("   ", i-1) + "└─ "
+		}
+		line := prefix + theme.branch(branch) + stateStatusBox(theme, items)
+		if meta != nil && meta.PR != nil {
+			line += fmt.Sprintf(" (PR #%d %s)", meta.PR.Number, theme.link(meta.PR.URL))
+		}
+		a.println(line)
+	}
+	closurePrefix := strings.Repeat("   ", len(cycle)-1) + "└─ "
+	a.println(closurePrefix + theme.branch(cycle[0]) + stateStatusBox(theme, []stateStatusItem{{text: "cycle", kind: stateStatusAlert}}))
 }
 
 func branchStateLabel(pr *PRMeta) string {
@@ -245,6 +304,47 @@ func stateArchivedLineageChain(state *State, branch string) []string {
 		chain[i], chain[j] = chain[j], chain[i]
 	}
 	return chain
+}
+
+func stateCycleForBranch(state *State, selected map[string]bool, branch string) []string {
+	order := []string{}
+	index := map[string]int{}
+	cur := branch
+	for cur != "" {
+		if idx, ok := index[cur]; ok {
+			cycle := append([]string{}, order[idx:]...)
+			return canonicalizeStateCycle(cycle)
+		}
+		if !selected[cur] {
+			return nil
+		}
+		meta := state.Branches[cur]
+		if meta == nil {
+			return nil
+		}
+		index[cur] = len(order)
+		order = append(order, cur)
+		if meta.Parent == "" || meta.Parent == state.Trunk {
+			return nil
+		}
+		cur = meta.Parent
+	}
+	return nil
+}
+
+func canonicalizeStateCycle(cycle []string) []string {
+	if len(cycle) == 0 {
+		return nil
+	}
+	best := 0
+	for i := 1; i < len(cycle); i++ {
+		if cycle[i] < cycle[best] {
+			best = i
+		}
+	}
+	ordered := append([]string{}, cycle[best:]...)
+	ordered = append(ordered, cycle[:best]...)
+	return ordered
 }
 
 func (t stateTheme) branch(name string) string {
