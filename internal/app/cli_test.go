@@ -46,6 +46,29 @@ func TestCompletionBashOutputsScript(t *testing.T) {
 	if !strings.Contains(out, "__start_git-stack") {
 		t.Fatalf("expected bash completion function in output, got:\n%s", out)
 	}
+	if !strings.Contains(out, "_git_stack()") {
+		t.Fatalf("expected bash completion to include git subcommand wrapper, got:\n%s", out)
+	}
+	if !strings.Contains(out, "words=(\"git-stack\" \"${git_stack_words[@]:2}\")") {
+		t.Fatalf("expected bash completion to rewrite git stack args to git-stack, got:\n%s", out)
+	}
+}
+
+func TestCompletionZshOutputsGitSubcommandWrapper(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"completion", "zsh"})
+	if code != 0 {
+		t.Fatalf("completion zsh failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "__git_stack_zsh()") {
+		t.Fatalf("expected zsh completion to retain the generated handler under a private name, got:\n%s", out)
+	}
+	if !strings.Contains(out, "if [[ ${words[1]} == stack ]]; then") {
+		t.Fatalf("expected zsh completion to detect git stack subcommand context, got:\n%s", out)
+	}
+	if !strings.Contains(out, "words=(\"git-stack\" \"${words[@]:2}\")") {
+		t.Fatalf("expected zsh completion to rewrite git stack args to git-stack, got:\n%s", out)
+	}
 }
 
 func TestKeyCommandFlagsExist(t *testing.T) {
