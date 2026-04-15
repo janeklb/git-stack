@@ -139,6 +139,23 @@ func TestWriteCommandHelpAppliesColorTheme(t *testing.T) {
 	}
 }
 
+func TestWriteCommandHelpKeepsColoredCommandDescriptionsAligned(t *testing.T) {
+	cmd := &cobra.Command{Use: "git-stack", Short: "A concise summary line."}
+	cmd.AddCommand(&cobra.Command{Use: "init", Short: "Initialize or repair stack state"})
+	cmd.AddCommand(&cobra.Command{Use: "reparent", Short: "Change the parent branch for a stack branch"})
+
+	var buf bytes.Buffer
+	writeCommandHelp(&buf, cmd, 0, helpTheme{useColor: true})
+	got := stripANSI(buf.String())
+
+	if !strings.Contains(got, "  init      Initialize or repair stack state\n") {
+		t.Fatalf("expected shorter colored command entry to keep padding, got:\n%s", got)
+	}
+	if !strings.Contains(got, "  reparent  Change the parent branch for a stack branch\n") {
+		t.Fatalf("expected longer colored command entry to align with shorter one, got:\n%s", got)
+	}
+}
+
 func TestHelpColorEnabledHonorsNoColor(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	read, write, err := os.Pipe()

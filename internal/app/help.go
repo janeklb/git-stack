@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +18,8 @@ const (
 	preferredHelpWrapWidth = 88
 	minimumHelpWrapWidth   = 100
 )
+
+var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func (a *App) helpFunc(cmd *cobra.Command, _ []string) {
 	theme := helpTheme{useColor: helpColorEnabled(cmd.OutOrStdout())}
@@ -264,13 +267,13 @@ func writeAlignedEntry(out io.Writer, name, description string, nameWidth int, w
 		fmt.Fprintf(out, "  %s\n", name)
 		return
 	}
-	prefix := fmt.Sprintf("  %-*s  ", nameWidth, name)
+	prefix := "  " + name + strings.Repeat(" ", max(0, nameWidth-visibleRuneWidth(name))) + "  "
 	if wrapWidth <= 0 {
 		fmt.Fprintf(out, "%s%s\n", prefix, description)
 		return
 	}
-	continuation := strings.Repeat(" ", runeWidth(prefix))
-	lines := wrapLine(description, wrapWidth-runeWidth(prefix))
+	continuation := strings.Repeat(" ", visibleRuneWidth(prefix))
+	lines := wrapLine(description, wrapWidth-visibleRuneWidth(prefix))
 	for i, line := range lines {
 		if i == 0 {
 			fmt.Fprintf(out, "%s%s\n", prefix, line)
@@ -349,6 +352,14 @@ func leadingWhitespace(text string) string {
 
 func runeWidth(text string) int {
 	return utf8.RuneCountInString(text)
+}
+
+func visibleRuneWidth(text string) int {
+	return runeWidth(stripANSI(text))
+}
+
+func stripANSI(text string) string {
+	return ansiEscapePattern.ReplaceAllString(text, "")
 }
 
 type helpTheme struct {
