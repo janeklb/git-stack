@@ -77,6 +77,14 @@ func buildPRTemplateCommits(summary []string) []string {
 	return commits
 }
 
+func managedStackPlaceholder() string {
+	return strings.Join([]string{
+		managedBlockStart,
+		"## Stacked PRs",
+		managedBlockEnd,
+	}, "\n")
+}
+
 func managedStackBlock(currentBranch string, lines []StackPRLine) string {
 	var b strings.Builder
 	b.WriteString(managedBlockStart)
