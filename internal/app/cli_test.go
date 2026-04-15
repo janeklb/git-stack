@@ -71,6 +71,40 @@ func TestCompletionZshOutputsGitSubcommandWrapper(t *testing.T) {
 	}
 }
 
+func TestCompletionFishOutputsGitSubcommandWrapper(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"completion", "fish"})
+	if code != 0 {
+		t.Fatalf("completion fish failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "function __git_stack_from_git_is_active") {
+		t.Fatalf("expected fish completion to include git stack activation helper, got:\n%s", out)
+	}
+	if !strings.Contains(out, "git-stack __complete $args[3..-1] $lastArg") {
+		t.Fatalf("expected fish completion to delegate git stack completion to git-stack, got:\n%s", out)
+	}
+	if !strings.Contains(out, "complete -c git -n '__git_stack_from_git_is_active") {
+		t.Fatalf("expected fish completion to register git stack completions on git, got:\n%s", out)
+	}
+}
+
+func TestCompletionPowerShellOutputsGitSubcommandWrapper(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"completion", "powershell"})
+	if code != 0 {
+		t.Fatalf("completion powershell failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "Register-ArgumentCompleter -CommandName 'git' -ScriptBlock ${__git_stackGitCompleterBlock}") {
+		t.Fatalf("expected powershell completion to register a git completer, got:\n%s", out)
+	}
+	if !strings.Contains(out, "if (\"$($CommandElements[1])\" -ne \"stack\")") {
+		t.Fatalf("expected powershell completion to detect git stack subcommand context, got:\n%s", out)
+	}
+	if !strings.Contains(out, "$RequestComp=\"$Program __complete $Arguments\"") {
+		t.Fatalf("expected powershell completion to delegate git stack completion to git-stack, got:\n%s", out)
+	}
+}
+
 func TestKeyCommandFlagsExist(t *testing.T) {
 	root := New().newRootCmd("git-stack")
 	forward, _, err := root.Find([]string{"forward"})
