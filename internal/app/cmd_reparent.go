@@ -9,10 +9,14 @@ import (
 
 func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error {
 	if strings.TrimSpace(target) == "" {
-		return errors.New("usage: git-stack reparent <branch> --parent <new-parent>")
+		current, err := currentBranch()
+		if err != nil {
+			return err
+		}
+		target = current
 	}
 	if strings.TrimSpace(newParent) == "" {
-		return errors.New("--parent is required")
+		return errors.New("--onto is required")
 	}
 	if err := ensureCleanWorktree(); err != nil {
 		return err

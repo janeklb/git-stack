@@ -87,6 +87,12 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	if reparent.Flags().Lookup("preserve-lineage") == nil {
 		t.Fatalf("expected reparent preserve-lineage flag to exist")
 	}
+	if reparent.Flags().Lookup("onto") == nil {
+		t.Fatalf("expected reparent onto flag to exist")
+	}
+	if reparent.Flags().Lookup("parent") != nil {
+		t.Fatalf("expected reparent parent flag to be removed")
+	}
 	newCmd, _, err := root.Find([]string{"new"})
 	if err != nil {
 		t.Fatalf("find new command: %v", err)
@@ -196,7 +202,7 @@ func TestReparentPositionalCompletionListsLocalBranches(t *testing.T) {
 	})
 }
 
-func TestReparentParentFlagCompletionIncludesOriginBranches(t *testing.T) {
+func TestReparentOntoFlagCompletionIncludesOriginBranches(t *testing.T) {
 	repo := newTestRepo(t)
 
 	withRepoCwd(t, repo, func() {
@@ -209,12 +215,12 @@ func TestReparentParentFlagCompletionIncludesOriginBranches(t *testing.T) {
 		mustGit(t, repo, "switch", "main")
 		mustGit(t, repo, "branch", "-D", "remote-parent")
 
-		out, code := runCLIAndCapture(t, cli, []string{"__complete", "reparent", "feat-one", "--parent", "rem"})
+		out, code := runCLIAndCapture(t, cli, []string{"__complete", "reparent", "feat-one", "--onto", "rem"})
 		if code != 0 {
-			t.Fatalf("reparent parent completion failed: exit=%d\n%s", code, out)
+			t.Fatalf("reparent onto completion failed: exit=%d\n%s", code, out)
 		}
 		if !strings.Contains(out, "remote-parent") {
-			t.Fatalf("expected reparent --parent completion to include remote-parent, got:\n%s", out)
+			t.Fatalf("expected reparent --onto completion to include remote-parent, got:\n%s", out)
 		}
 	})
 }

@@ -66,7 +66,7 @@ git-stack submit [--all] [--next-on-clean <branch>] [branch]
 git-stack restack [--mode rebase|merge] [--continue] [--abort]
 git-stack forward [--next <branch>]
 git-stack clean [--all] [--yes] [--include-squash] [--untracked]
-git-stack reparent <branch> --parent <new-parent>
+git-stack reparent [branch] --onto <new-parent>
 git-stack check
 git-stack init [--trunk <branch>] [--mode rebase|merge]
 git-stack completion [bash|zsh|fish|powershell]

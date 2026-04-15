@@ -189,27 +189,31 @@ For each eligible tracked branch, stack force-pushes the local branch to origin 
 	_ = submitCmd.RegisterFlagCompletionFunc("next-on-clean", completeBranchRefs(false))
 	root.AddCommand(submitCmd)
 
-	var reparentParent string
+	var reparentOnto string
 	var reparentPreserveLineage bool
 	reparentCmd := &cobra.Command{
-		Use:   "reparent <branch>",
+		Use:   "reparent [branch] --onto <new-parent>",
 		Short: "Change the parent branch for a stack branch",
 		Long: `Change the recorded parent for a tracked branch and rewrite its history onto the new base.
 
-reparent requires a clean worktree. The target branch must already be tracked, and the new parent must exist locally or on origin. git-stack checks for invalid parent cycles before rewriting history.
+reparent requires a clean worktree. The target branch must already be tracked, and the new parent must exist locally or on origin. If [branch] is omitted, reparent targets the current branch. git-stack checks for invalid parent cycles before rewriting history.
 
 Implementation-wise this is a rebase: git-stack switches to the target branch and runs git rebase --onto <new-parent> <old-parent>. If the branch already has PR metadata, git-stack also updates the PR base on GitHub. By default both Parent and LineageParent move to the new parent; use --preserve-lineage to keep the old lineage relationship for stack body/history context.`,
-		Example: "  git-stack reparent feat-two --parent main\n  git-stack reparent feat-two --parent feat-base --preserve-lineage",
-		Args:    cobra.ExactArgs(1),
+		Example: "  git-stack reparent --onto main\n  git-stack reparent feat-two --onto feat-base --preserve-lineage",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.cmdReparent(args[0], reparentParent, reparentPreserveLineage)
+			branch := ""
+			if len(args) > 0 {
+				branch = args[0]
+			}
+			return a.cmdReparent(branch, reparentOnto, reparentPreserveLineage)
 		},
 	}
-	reparentCmd.Flags().StringVar(&reparentParent, "parent", "", "new parent branch for the target; required")
+	reparentCmd.Flags().StringVar(&reparentOnto, "onto", "", "new parent branch for the target; required")
 	reparentCmd.Flags().BoolVar(&reparentPreserveLineage, "preserve-lineage", false, "keep the existing lineage parent instead of rewriting lineage to the new parent")
 	reparentCmd.ValidArgsFunction = completeSingleBranchArg(false)
-	_ = reparentCmd.RegisterFlagCompletionFunc("parent", completeBranchRefs(true))
-	_ = reparentCmd.MarkFlagRequired("parent")
+	_ = reparentCmd.RegisterFlagCompletionFunc("onto", completeBranchRefs(true))
+	_ = reparentCmd.MarkFlagRequired("onto")
 	root.AddCommand(reparentCmd)
 
 	checkCmd := &cobra.Command{
