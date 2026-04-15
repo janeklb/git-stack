@@ -21,6 +21,14 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 	if err != nil {
 		return err
 	}
+	localBranches, err := listLocalBranches()
+	if err != nil {
+		return err
+	}
+	localBranchSet := map[string]bool{}
+	for _, branch := range localBranches {
+		localBranchSet[branch] = true
+	}
 	selected := map[string]bool{}
 	if all || current == state.Trunk {
 		for branch := range state.Branches {
@@ -28,6 +36,13 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 		}
 	} else {
 		selected = branchesInCurrentStack(state, current)
+	}
+
+	for _, warning := range stateValidationWarnings(state, selected, localBranchSet) {
+		a.println(theme.warning("WARN " + warning))
+	}
+	for _, archived := range stateArchivedLineageLines(state, selected, theme) {
+		a.println(archived)
 	}
 
 	children := map[string][]string{}
@@ -63,10 +78,13 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 			}
 			line := prefix + connector + theme.branch(branch)
 			line += fmt.Sprintf(" [%s]", theme.state(branchStateLabel(meta.PR)))
+			if !localBranchSet[branch] {
+				line += fmt.Sprintf(" [%s]", theme.warning("invalid: missing-local"))
+			}
 			if meta.PR != nil {
 				line += fmt.Sprintf(" (PR #%d %s)", meta.PR.Number, theme.link(meta.PR.URL))
 			}
-			if showDrift {
+			if showDrift && localBranchSet[branch] {
 				if drift, reason := detectDrift(branch, meta.Parent); drift {
 					line += fmt.Sprintf(" [%s]", theme.warning("drift: "+reason))
 				}
@@ -112,6 +130,62 @@ func branchStateLabel(pr *PRMeta) string {
 		return "updated"
 	}
 	return "submitted"
+}
+
+func stateValidationWarnings(state *State, selected map[string]bool, localBranches map[string]bool) []string {
+	warnings := []string{}
+	if !localBranches[state.Trunk] {
+		warnings = append(warnings, fmt.Sprintf("trunk missing locally: %s", state.Trunk))
+	}
+	for _, branch := range sortedStateBranchNames(state.Branches) {
+		if !selected[branch] {
+			continue
+		}
+		meta := state.Branches[branch]
+		if meta == nil {
+			warnings = append(warnings, fmt.Sprintf("tracked branch metadata missing: %s", branch))
+			continue
+		}
+		if !localBranches[branch] {
+			warnings = append(warnings, fmt.Sprintf("tracked branch missing locally: %s", branch))
+		}
+		if meta.Parent != "" && !localBranches[meta.Parent] {
+			warnings = append(warnings, fmt.Sprintf("tracked branch parent missing locally: %s -> %s", branch, meta.Parent))
+		}
+	}
+	return warnings
+}
+
+func sortedStateBranchNames(branches map[string]*BranchRef) []string {
+	names := make([]string, 0, len(branches))
+	for name := range branches {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func stateArchivedLineageLines(state *State, selected map[string]bool, theme stateTheme) []string {
+	ordered := orderedSelectedLineageBranches(state, selected)
+	lines := []string{}
+	for _, branch := range ordered {
+		archived := state.Archived[branch]
+		if archived == nil {
+			continue
+		}
+		parent := archived.Parent
+		if parent == "" {
+			parent = state.Trunk
+		}
+		parentLabel := theme.branch(parent)
+		if parent == state.Trunk {
+			parentLabel = theme.trunk(parent)
+		} else if state.Archived[parent] != nil {
+			parentLabel = theme.warning(parent + " (archived)")
+		}
+		lines = append(lines, theme.warning(branch+" (archived)")+" -> "+parentLabel)
+	}
+	return lines
 }
 
 func (t stateTheme) branch(name string) string {

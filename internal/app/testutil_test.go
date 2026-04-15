@@ -12,13 +12,18 @@ import (
 )
 
 type testState struct {
-	Trunk    string                         `json:"trunk"`
-	Branches map[string]testBranchReference `json:"branches"`
+	Trunk    string                           `json:"trunk"`
+	Branches map[string]testBranchReference   `json:"branches"`
+	Archived map[string]testArchivedReference `json:"archived,omitempty"`
 }
 
 type testBranchReference struct {
 	Parent        string `json:"parent"`
 	LineageParent string `json:"lineageParent"`
+}
+
+type testArchivedReference struct {
+	Parent string `json:"parent"`
 }
 
 func newTestRepo(t *testing.T) string {
@@ -162,7 +167,21 @@ func readStateFile(t *testing.T, repo string) testState {
 	if state.Branches == nil {
 		state.Branches = map[string]testBranchReference{}
 	}
+	if state.Archived == nil {
+		state.Archived = map[string]testArchivedReference{}
+	}
 	return state
+}
+
+func writeStateFile(t *testing.T, repo string, state testState) {
+	t.Helper()
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal state: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".git", "stack", "state.json"), data, 0o600); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
 }
 
 func corruptStateParent(t *testing.T, repo, branch, parent string) {
@@ -171,13 +190,7 @@ func corruptStateParent(t *testing.T, repo, branch, parent string) {
 	entry := state.Branches[branch]
 	entry.Parent = parent
 	state.Branches[branch] = entry
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal corrupted state: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(repo, ".git", "stack", "state.json"), data, 0o600); err != nil {
-		t.Fatalf("write corrupted state: %v", err)
-	}
+	writeStateFile(t, repo, state)
 }
 
 func runCLIAndCapture(t *testing.T, _ *App, args []string) (string, int) {
