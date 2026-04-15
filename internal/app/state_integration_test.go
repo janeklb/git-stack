@@ -30,7 +30,7 @@ func TestStateShowsDriftWhenParentIsNotAncestor(t *testing.T) {
 	if !strings.Contains(out, "feat-two") {
 		t.Fatalf("expected state to include feat-two, got:\n%s", out)
 	}
-	if !strings.Contains(out, "[drift: parent-not-ancestor]") {
+	if !strings.Contains(out, "[local-only, drifted-from-ancestor]") {
 		t.Fatalf("expected drift marker in state output, got:\n%s", out)
 	}
 }
@@ -97,10 +97,10 @@ func TestStateWarnsWhenTrackedBranchIsMissingLocally(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("state failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "WARN tracked branch missing locally: ghost") {
-		t.Fatalf("expected missing-local warning in state output, got:\n%s", out)
+	if strings.Contains(out, "WARN ") {
+		t.Fatalf("expected inline invalid annotation without top warnings, got:\n%s", out)
 	}
-	if !strings.Contains(out, "ghost [local-only] [invalid: missing-local]") {
+	if !strings.Contains(out, "ghost [local-only, invalid]") {
 		t.Fatalf("expected missing-local annotation in state graph, got:\n%s", out)
 	}
 }
@@ -120,21 +120,53 @@ func TestStateShowsArchivedLineageParentsBeforeTrunk(t *testing.T) {
 	state := readStateFile(t, repo)
 	delete(state.Branches, "feat-one")
 	state.Branches["feat-two"] = testBranchReference{Parent: "main", LineageParent: "feat-one"}
-	state.Archived["feat-one"] = testArchivedReference{Parent: "main"}
+	state.Archived["feat-zero"] = testArchivedReference{Parent: "main"}
+	state.Archived["feat-one"] = testArchivedReference{Parent: "feat-zero"}
 	writeStateFile(t, repo, state)
 
 	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
 	if code != 0 {
 		t.Fatalf("state failed: exit=%d\n%s", code, out)
 	}
-	archivedLine := "feat-one (archived) -> main (trunk)"
-	if !strings.Contains(out, archivedLine) {
-		t.Fatalf("expected archived lineage line in state output, got:\n%s", out)
+	if !strings.Contains(out, "feat-zero [merged]") {
+		t.Fatalf("expected oldest archived lineage line in state output, got:\n%s", out)
 	}
-	if strings.Index(out, archivedLine) > strings.Index(out, "main (trunk)") {
+	if !strings.Contains(out, "└─ feat-one [merged]") {
+		t.Fatalf("expected newest archived lineage line in state output, got:\n%s", out)
+	}
+	if strings.Index(out, "feat-zero [merged]") > strings.Index(out, "└─ feat-one [merged]") {
+		t.Fatalf("expected archived lineage oldest-to-newest, got:\n%s", out)
+	}
+	if strings.Index(out, "└─ feat-one [merged]") > strings.Index(out, "   └─ main (trunk)") {
 		t.Fatalf("expected archived lineage before trunk, got:\n%s", out)
+	}
+	if !strings.Contains(out, "   └─ main (trunk)") {
+		t.Fatalf("expected trunk indented beneath archived lineage, got:\n%s", out)
 	}
 	if !strings.Contains(out, "feat-two") {
 		t.Fatalf("expected active descendant in state output, got:\n%s", out)
+	}
+}
+
+func TestStateShowsUnrootedBranchAsSeparateStatusItems(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
+
+	state := readStateFile(t, repo)
+	state.Branches["feat-one"] = testBranchReference{Parent: "ghost-parent", LineageParent: "ghost-parent"}
+	writeStateFile(t, repo, state)
+
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
+	if code != 0 {
+		t.Fatalf("state failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "? feat-one [unrooted, local-only, missing-parent=ghost-parent]") {
+		t.Fatalf("expected unrooted output to use separate status items, got:\n%s", out)
+	}
+	if strings.Contains(out, "state=") {
+		t.Fatalf("expected unrooted output without state= prefix, got:\n%s", out)
 	}
 }
