@@ -117,21 +117,7 @@ func printCapturedOutput(captured string, dest io.Writer, theme subprocessTheme,
 	if captured == "" {
 		return
 	}
-	reader := bufio.NewReader(strings.NewReader(captured))
-	for {
-		line, err := reader.ReadString('\n')
-		if len(line) > 0 {
-			trimmed := strings.TrimSuffix(line, "\n")
-			_, _ = io.WriteString(dest, theme.formatLine(trimmed, styleFn)+"\n")
-		}
-		if err == nil {
-			continue
-		}
-		if err == io.EOF {
-			return
-		}
-		return
-	}
+	writeDecoratedSegments(strings.NewReader(captured), nil, dest, theme, styleFn, nil)
 }
 
 func runCommandPassthrough(name string, args []string) (commandRunResult, error) {
@@ -149,24 +135,47 @@ func runCommandPassthrough(name string, args []string) (commandRunResult, error)
 }
 
 func copyDecoratedOutput(src io.Reader, capture io.Writer, dest io.Writer, theme subprocessTheme, styleFn func(string) string, mu *sync.Mutex) {
+	writeDecoratedSegments(src, capture, dest, theme, styleFn, mu)
+}
+
+func writeDecoratedSegments(src io.Reader, capture io.Writer, dest io.Writer, theme subprocessTheme, styleFn func(string) string, mu *sync.Mutex) {
 	reader := bufio.NewReader(src)
+	var segment bytes.Buffer
 	for {
-		line, err := reader.ReadString('\n')
-		if len(line) > 0 {
-			_, _ = io.WriteString(capture, line)
-			trimmed := strings.TrimSuffix(line, "\n")
-			mu.Lock()
-			_, _ = io.WriteString(dest, theme.formatLine(trimmed, styleFn)+"\n")
-			mu.Unlock()
-		}
+		b, err := reader.ReadByte()
 		if err == nil {
+			if capture != nil {
+				_, _ = capture.Write([]byte{b})
+			}
+			switch b {
+			case '\r':
+				flushDecoratedSegment(segment.String(), dest, theme, styleFn, mu)
+				segment.Reset()
+			case '\n':
+				flushDecoratedSegment(segment.String(), dest, theme, styleFn, mu)
+				segment.Reset()
+			default:
+				segment.WriteByte(b)
+			}
 			continue
 		}
 		if err == io.EOF {
+			flushDecoratedSegment(segment.String(), dest, theme, styleFn, mu)
 			return
 		}
 		return
 	}
+}
+
+func flushDecoratedSegment(segment string, dest io.Writer, theme subprocessTheme, styleFn func(string) string, mu *sync.Mutex) {
+	if segment == "" {
+		return
+	}
+	if mu != nil {
+		mu.Lock()
+		defer mu.Unlock()
+	}
+	_, _ = io.WriteString(dest, theme.formatLine(segment, styleFn)+"\n")
 }
 
 func shouldDecorateSubprocessOutput() bool {
