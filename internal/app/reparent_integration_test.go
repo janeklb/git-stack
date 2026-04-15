@@ -20,7 +20,7 @@ func TestReparentChangesParentInState(t *testing.T) {
 	mustGit(t, repo, "add", "feature2.txt")
 	mustGit(t, repo, "commit", "-m", "feat two")
 
-	mustRunCLIInRepo(t, repo, []string{"reparent", "--parent", "main", "feat-two"})
+	mustRunCLIInRepo(t, repo, []string{"reparent", "--onto", "main", "feat-two"})
 
 	state := readStateFile(t, repo)
 	if got := state.Branches["feat-two"].Parent; got != "main" {
@@ -48,7 +48,7 @@ func TestReparentPreserveLineageKeepsExistingLineageParent(t *testing.T) {
 	mustGit(t, repo, "add", "feature2.txt")
 	mustGit(t, repo, "commit", "-m", "feat two")
 
-	mustRunCLIInRepo(t, repo, []string{"reparent", "--parent", "main", "--preserve-lineage", "feat-two"})
+	mustRunCLIInRepo(t, repo, []string{"reparent", "--onto", "main", "--preserve-lineage", "feat-two"})
 
 	state := readStateFile(t, repo)
 	if got := state.Branches["feat-two"].Parent; got != "main" {
@@ -75,7 +75,7 @@ func TestReparentWithoutInitializedStateAutoBootstraps(t *testing.T) {
 	mustGit(t, repo, "add", "feature2.txt")
 	mustGit(t, repo, "commit", "-m", "feat two")
 
-	out, code := runCLIInRepoAndCapture(t, repo, []string{"reparent", "--parent", "main", "feat-two"})
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"reparent", "--onto", "main", "feat-two"})
 	if code != 0 {
 		t.Fatalf("reparent failed: exit=%d\n%s", code, out)
 	}
@@ -84,5 +84,31 @@ func TestReparentWithoutInitializedStateAutoBootstraps(t *testing.T) {
 	}
 	if _, err := loadState(repo); err != nil {
 		t.Fatalf("expected state file to be persisted, got: %v", err)
+	}
+}
+
+func TestReparentDefaultsTargetToCurrentBranch(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
+	mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+	mustGit(t, repo, "add", "feature1.txt")
+	mustGit(t, repo, "commit", "-m", "feat one")
+
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-two"})
+	mustWriteFile(t, filepath.Join(repo, "feature2.txt"), "two\n")
+	mustGit(t, repo, "add", "feature2.txt")
+	mustGit(t, repo, "commit", "-m", "feat two")
+
+	mustRunCLIInRepo(t, repo, []string{"reparent", "--onto", "main"})
+
+	state := readStateFile(t, repo)
+	if got := state.Branches["feat-two"].Parent; got != "main" {
+		t.Fatalf("expected current branch feat-two parent main after reparent, got %q", got)
+	}
+	if got := currentBranchInRepo(t, repo); got != "feat-two" {
+		t.Fatalf("expected to remain on feat-two after reparent, got %q", got)
 	}
 }
