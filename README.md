@@ -22,6 +22,12 @@ go install github.com/janeklb/git-stack/cmd/git-stack@latest
 
 Release binaries are also published on the GitHub Releases page for tagged versions.
 
+Homebrew installation is available via the custom tap:
+
+```bash
+brew install janeklb/tap/git-stack
+```
+
 This installs `git-stack` to your Go bin directory (`GOBIN` if set, otherwise `$(go env GOPATH)/bin`). Make sure that directory is on your `PATH`.
 
 Once installed, `git-stack` also works as a Git extension — `git stack <command>` is equivalent when `git-stack` is on your `PATH`.
@@ -79,6 +85,8 @@ git-stack completion [bash|zsh|fish|powershell]
 
 ## Shell completion
 
+Homebrew installs completion files with the package, but your shell still needs Homebrew's completion support enabled for them to load automatically.
+
 ```bash
 # Bash
 source <(git-stack completion bash)
@@ -94,6 +102,8 @@ git-stack completion powershell | Out-String | Invoke-Expression
 ```
 
 Completion targets `git-stack` directly. The `git stack ...` extension form needs separate shell-specific setup if you want argument completion there too.
+
+For maintainer-facing release details, including the Homebrew handoff, see [`docs/releasing.md`](docs/releasing.md).
 
 ## State
 
