@@ -33,3 +33,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Homebrew release metadata
+        run: scripts/release-homebrew-metadata.sh "${{ github.ref_name }}" dist/homebrew-release.json
+
+      - name: Upload Homebrew release metadata
+        run: gh release upload "${{ github.ref_name }}" dist/homebrew-release.json#homebrew-release.json --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
