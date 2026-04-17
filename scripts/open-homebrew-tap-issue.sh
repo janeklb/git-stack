@@ -25,7 +25,10 @@ existing_url="$(gh issue list \
   --search "\"$title\" in:title" \
   --limit 1 \
   --json url \
-  --jq '.[0].url // ""')"
+  --jq '.[0].url // ""')" || {
+  printf 'failed to query issues in %s; check GH_TOKEN repository and issues permissions.\n' "$tap_repo" >&2
+  exit 1
+}
 
 if [ -n "$existing_url" ]; then
   printf 'reusing existing tap issue: %s\n' "$existing_url"
@@ -58,4 +61,7 @@ trap cleanup EXIT
 gh issue create \
   --repo "$tap_repo" \
   --title "$title" \
-  --body-file "$body_file"
+  --body-file "$body_file" || {
+  printf 'failed to create an issue in %s; check GH_TOKEN issues write permission.\n' "$tap_repo" >&2
+  exit 1
+}
