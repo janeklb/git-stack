@@ -24,7 +24,7 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	if err := ensureCleanWorktree(); err != nil {
 		return err
 	}
-	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
+	if err := requirePersistedTrackedState(state, persisted, "restack"); err != nil {
 		return err
 	}
 	op, _ := loadOperation(repoRoot)

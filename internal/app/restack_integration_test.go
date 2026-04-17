@@ -53,7 +53,7 @@ func TestRestackContinueAndAbortWithoutOperationFail(t *testing.T) {
 	})
 }
 
-func TestRestackWithoutInitializedStateUsesInferredStack(t *testing.T) {
+func TestRestackWithoutInitializedStateFails(t *testing.T) {
 	repo := newTestRepo(t)
 
 	withRepoCwd(t, repo, func() {
@@ -76,18 +76,12 @@ func TestRestackWithoutInitializedStateUsesInferredStack(t *testing.T) {
 
 		mustGit(t, repo, "switch", "feat-two")
 		out, code := runCLIAndCapture(t, cli, []string{"restack"})
-		if code != 0 {
-			t.Fatalf("restack failed: exit=%d\n%s", code, out)
+		if code == 0 {
+			t.Fatalf("expected restack to fail without initialized state, output:\n%s", out)
 		}
-		if !strings.Contains(out, "initialized stack state") {
-			t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
+		if !strings.Contains(out, "restack requires initialized stack state") {
+			t.Fatalf("expected initialized state error, got:\n%s", out)
 		}
-		if _, err := loadState(repo); err != nil {
-			t.Fatalf("expected state file to be persisted, got: %v", err)
-		}
-
-		mustGit(t, repo, "merge-base", "--is-ancestor", "main", "feat-one")
-		mustGit(t, repo, "merge-base", "--is-ancestor", "feat-one", "feat-two")
 	})
 }
 

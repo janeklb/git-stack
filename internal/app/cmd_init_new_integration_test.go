@@ -75,7 +75,7 @@ func TestInitAfterStatelessWorkPreservesInferredBranches(t *testing.T) {
 	}
 }
 
-func TestNewOnUntrackedCurrentBranchAutoTracksAndStacksFromIt(t *testing.T) {
+func TestNewOnUntrackedCurrentBranchTracksOnlyNewBranch(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
@@ -93,8 +93,8 @@ func TestNewOnUntrackedCurrentBranchAutoTracksAndStacksFromIt(t *testing.T) {
 	if got := state.Branches["auto-child"].Parent; got != "manual-child" {
 		t.Fatalf("expected auto-child parent manual-child, got %q", got)
 	}
-	if _, ok := state.Branches["manual-child"]; !ok {
-		t.Fatalf("expected manual-child to be auto-tracked")
+	if _, ok := state.Branches["manual-child"]; ok {
+		t.Fatalf("expected manual-child to remain untracked")
 	}
 }
 
@@ -134,6 +134,19 @@ func TestInitPreservesInferredNextIndexForPrefixNaming(t *testing.T) {
 	}
 
 	mustGit(t, repo, "show-ref", "--verify", "--quiet", "refs/heads/002-feature")
+}
+
+func TestInitDoesNotInferExistingBranchesIntoTrackedState(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustGit(t, repo, "switch", "-c", "manual-branch")
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+
+	state := readStateFile(t, repo)
+	if len(state.Branches) != 0 {
+		t.Fatalf("expected init to leave existing local branches untracked, got %+v", state.Branches)
+	}
 }
 
 func TestInitFailsInSingleBranchClone(t *testing.T) {

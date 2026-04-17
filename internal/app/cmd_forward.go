@@ -120,24 +120,27 @@ func (a *App) cmdForward(next string) error {
 	if err := runRestackQueue(repoRoot, state, state.RestackMode, restackQueue, rebaseBases, a.stdout); err != nil {
 		return err
 	}
-	if err := a.cmdSubmitWithDeps(false, "", "", submitDeps{
-		git:                 defaultGitClient{},
-		gh:                  defaultGHClient{},
-		ensureCleanWorktree: ensureCleanWorktree,
-		loadState: func() (string, *State, bool, error) {
-			return repoRoot, state, true, nil
-		},
-		submitQueue: func(state *State, all bool, args []string) ([]string, error) {
-			return forwardSubmitQueue(state, restackRoots), nil
-		},
-		ensurePR: ensurePR,
-		syncCurrentStackBody: func(state *State, all bool, target string) error {
-			return syncForwardStackBodies(state, forwardScope)
-		},
-		saveState:         saveState,
-		cleanMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
-	}); err != nil {
-		return err
+	submitQueue := forwardSubmitQueue(state, restackRoots)
+	if len(submitQueue) > 0 {
+		if err := a.cmdSubmitWithDeps(false, "", "", submitDeps{
+			git:                 defaultGitClient{},
+			gh:                  defaultGHClient{},
+			ensureCleanWorktree: ensureCleanWorktree,
+			loadState: func() (string, *State, bool, error) {
+				return repoRoot, state, true, nil
+			},
+			submitQueue: func(state *State, all bool, args []string) ([]string, error) {
+				return submitQueue, nil
+			},
+			ensurePR: ensurePR,
+			syncCurrentStackBody: func(state *State, all bool, target string) error {
+				return syncForwardStackBodies(state, forwardScope)
+			},
+			saveState:         saveState,
+			cleanMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
+		}); err != nil {
+			return err
+		}
 	}
 	if err := restoreForwardTarget(current, target, merged, deps.git); err != nil {
 		return err

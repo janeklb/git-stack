@@ -65,12 +65,10 @@ func (f fakeSubmitGHClient) View(number int) (*GhPR, error) {
 	return nil, errors.New("not found")
 }
 
-func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
+func TestCmdSubmitFailsWhenNoTrackedBranchesExist(t *testing.T) {
 	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
 	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
 	git := &fakeSubmitGitClient{}
-	syncCalled := false
-	saveCalled := false
 
 	err := app.cmdSubmitWithDeps(false, "", "", submitDeps{
 		git:                 git,
@@ -87,11 +85,11 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 			return nil, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error {
-			syncCalled = true
+			t.Fatal("sync should not run when no tracked branches exist")
 			return nil
 		},
 		saveState: func(string, *State) error {
-			saveCalled = true
+			t.Fatal("save should not run when no tracked branches exist")
 			return nil
 		},
 		cleanMergedBranch: func(*State, string, string) (bool, error) {
@@ -99,17 +97,14 @@ func TestCmdSubmitNoQueueSkipsSyncAndSave(t *testing.T) {
 			return false, nil
 		},
 	})
-	if err != nil {
-		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
-	}
-	if syncCalled {
-		t.Fatal("expected sync not to run when queue is empty")
-	}
-	if saveCalled {
-		t.Fatal("expected save not to run when queue is empty")
+	if err == nil {
+		t.Fatal("expected submit to fail when no tracked branches exist")
 	}
 	if len(git.pushCalls) != 0 {
 		t.Fatalf("expected no pushes, got %v", git.pushCalls)
+	}
+	if !strings.Contains(err.Error(), "submit requires at least one tracked branch") {
+		t.Fatalf("expected tracked-branch error, got %v", err)
 	}
 }
 
@@ -120,13 +115,14 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 	}}
 	git := &fakeSubmitGitClient{}
 	cleaned := ""
+	saveCalled := false
 
 	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
 		git:                 git,
 		gh:                  fakeSubmitGHClient{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
 		ensureCleanWorktree: func() error { return nil },
 		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, false, nil
+			return "/tmp/repo", state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
@@ -139,7 +135,7 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 			return nil
 		},
 		saveState: func(string, *State) error {
-			t.Fatal("save should not run when persisted=false")
+			saveCalled = true
 			return nil
 		},
 		cleanMergedBranch: func(_ *State, branch string, _ string) (bool, error) {
@@ -155,6 +151,9 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 	}
 	if len(git.pushCalls) != 0 {
 		t.Fatalf("expected no push when PR is merged, got %v", git.pushCalls)
+	}
+	if !saveCalled {
+		t.Fatal("expected save after merged PR metadata refresh")
 	}
 	if got := state.Branches["feat-one"].PR.URL; got != "https://new" {
 		t.Fatalf("expected PR URL refreshed from gh view, got %q", got)
@@ -263,7 +262,7 @@ func TestCmdSubmitSkipsMissingLocalBranch(t *testing.T) {
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
 		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, false, nil
+			return "/tmp/repo", state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
@@ -300,7 +299,7 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
 		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, false, nil
+			return "/tmp/repo", state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
@@ -335,7 +334,7 @@ func TestCmdSubmitPrintsNoteWhenNextOnCleanUnused(t *testing.T) {
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
 		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, false, nil
+			return "/tmp/repo", state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
@@ -373,7 +372,7 @@ func TestCmdSubmitTrimsNextOnCleanBeforeCleanCallback(t *testing.T) {
 		gh:                  fakeSubmitGHClient{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
 		ensureCleanWorktree: func() error { return nil },
 		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, false, nil
+			return "/tmp/repo", state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil

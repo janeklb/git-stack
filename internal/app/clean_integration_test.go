@@ -191,13 +191,26 @@ func TestCleanUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 	})
 }
 
-func TestCleanWithoutInitializedStateAutoBootstraps(t *testing.T) {
+func TestCleanWithoutInitializedStateFailsWithoutUntracked(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
 	out, code := runCLIInRepoAndCapture(t, repo, []string{"clean"})
+	if code == 0 {
+		t.Fatalf("expected clean to fail without initialized tracked state, output:\n%s", out)
+	}
+	if !strings.Contains(out, "clean requires initialized stack state") {
+		t.Fatalf("expected initialized state error, got:\n%s", out)
+	}
+}
+
+func TestCleanWithoutInitializedStateAllowsUntrackedMode(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"clean", "--untracked"})
 	if code != 0 {
-		t.Fatalf("clean failed: exit=%d\n%s", code, out)
+		t.Fatalf("clean --untracked failed: exit=%d\n%s", code, out)
 	}
 	if !strings.Contains(out, "initialized stack state") {
 		t.Fatalf("expected auto-bootstrap output, got:\n%s", out)

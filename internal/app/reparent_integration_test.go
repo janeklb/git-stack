@@ -2,6 +2,7 @@ package app
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -61,7 +62,7 @@ func TestReparentPreserveLineageKeepsExistingLineageParent(t *testing.T) {
 	mustGit(t, repo, "merge-base", "--is-ancestor", "main", "feat-two")
 }
 
-func TestReparentWithoutInitializedStateAutoBootstraps(t *testing.T) {
+func TestReparentWithoutInitializedStateFails(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
@@ -76,14 +77,11 @@ func TestReparentWithoutInitializedStateAutoBootstraps(t *testing.T) {
 	mustGit(t, repo, "commit", "-m", "feat two")
 
 	out, code := runCLIInRepoAndCapture(t, repo, []string{"reparent", "--onto", "main", "feat-two"})
-	if code != 0 {
-		t.Fatalf("reparent failed: exit=%d\n%s", code, out)
+	if code == 0 {
+		t.Fatalf("expected reparent to fail without initialized state, output:\n%s", out)
 	}
-	if got := readStateFile(t, repo).Branches["feat-two"].Parent; got != "main" {
-		t.Fatalf("expected feat-two parent main after auto-bootstrapped reparent, got %q", got)
-	}
-	if _, err := loadState(repo); err != nil {
-		t.Fatalf("expected state file to be persisted, got: %v", err)
+	if !strings.Contains(out, "reparent requires initialized stack state") {
+		t.Fatalf("expected initialized state error, got:\n%s", out)
 	}
 }
 

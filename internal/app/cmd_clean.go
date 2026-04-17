@@ -157,8 +157,14 @@ func (a *App) cmdClean(yes bool, all bool, includeSquash bool, untracked bool) e
 	if err != nil {
 		return err
 	}
-	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
-		return err
+	if untracked {
+		if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
+			return err
+		}
+	} else {
+		if err := requirePersistedTrackedState(state, persisted, "clean"); err != nil {
+			return err
+		}
 	}
 	return a.runCleanCommand(repoRoot, state, yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, mergeDetection: cleanMergeDetectionPolicy(state, includeSquash), includeUntracked: untracked})
 }
