@@ -22,6 +22,8 @@ esac
 source_url="https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz"
 tmpdir="$(mktemp -d)"
 archive_path="${tmpdir}/source.tar.gz"
+build_commit="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+build_date="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 cleanup() {
   rm -rf "$tmpdir"
@@ -43,6 +45,8 @@ cat > "$output_path" <<EOF
 {
   "tag": "${tag}",
   "version": "${tag#v}",
+  "build_commit": "${build_commit}",
+  "build_date": "${build_date}",
   "source_url": "${source_url}",
   "sha256": "${sha256}"
 }
