@@ -25,6 +25,9 @@ jobs:
       - name: Run tests
         run: make test
 
+      - name: Generate Homebrew release metadata
+        run: scripts/release-homebrew-metadata.sh "${{ github.ref_name }}" homebrew-release.json
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -34,18 +37,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate Homebrew release metadata
-        run: scripts/release-homebrew-metadata.sh "${{ github.ref_name }}" dist/homebrew-release.json
-
-      - name: Upload Homebrew release metadata
-        run: gh release upload "${{ github.ref_name }}" dist/homebrew-release.json#homebrew-release.json --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Open Homebrew tap update issue
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          source_url="$(jq -r '.source_url' dist/homebrew-release.json)"
-          sha256="$(jq -r '.sha256' dist/homebrew-release.json)"
+          source_url="$(jq -r '.source_url' homebrew-release.json)"
+          sha256="$(jq -r '.sha256' homebrew-release.json)"
           scripts/open-homebrew-tap-issue.sh janeklb/homebrew-tap "${{ github.ref_name }}" "$source_url" "$sha256"

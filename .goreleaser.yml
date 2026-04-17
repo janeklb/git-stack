@@ -53,3 +53,5 @@ changelog:
 
 release:
   prerelease: auto
+  extra_files:
+    - glob: ./homebrew-release.json
