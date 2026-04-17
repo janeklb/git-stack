@@ -30,6 +30,8 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 		return err
 	}
 	if !persisted {
+		// The shared loader returns inferred defaults only when state is missing.
+		// State display is the one caller that opts into the full inferred graph.
 		state, err = inferStateGraph(repoRoot)
 		if err != nil {
 			return err

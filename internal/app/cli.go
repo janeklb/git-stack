@@ -76,7 +76,7 @@ Mutating commands require a clean worktree. Commands such as new, state, restack
 
 This command writes stack metadata under .git/stack/state.json. It is primarily a repair and reconfiguration flow: normal mutating commands should auto-bootstrap state when possible instead of requiring init first.
 
-			init requires a clean worktree. When --trunk is omitted, stack detects trunk from origin/HEAD. Existing persisted branch relationships are preserved when possible while trunk, restack mode, and naming settings are refreshed.`,
+init requires a clean worktree. When --trunk is omitted, stack detects trunk from origin/HEAD. Existing persisted branch relationships are preserved when possible while trunk, restack mode, and naming settings are refreshed.`,
 		Example: "  git-stack init\n  git-stack init --trunk main --mode rebase\n  git-stack init --template \"feature/{slug}\" --prefix-index",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -98,9 +98,9 @@ This command writes stack metadata under .git/stack/state.json. It is primarily 
 		Short: "Create or adopt a branch in stack",
 		Long: `Create a new tracked branch, or adopt the current branch into stack state.
 
-			Without --adopt, stack creates a new branch from the chosen parent and starts tracking only that new branch. The default parent is the current branch. If [name] is omitted, stack generates a temporary slug. The final branch name is built from the configured template, where {slug} expands to the normalized name and {n} expands to the next zero-padded index.
+Without --adopt, stack creates a new branch from the chosen parent and starts tracking only that new branch. The default parent is the current branch. If [name] is omitted, stack generates a temporary slug. The final branch name is built from the configured template, where {slug} expands to the normalized name and {n} expands to the next zero-padded index.
 
-			With --adopt, stack does not create a branch. It tracks the current existing branch instead. If --parent is omitted during adopt, stack infers the parent from local branch ancestry. This command requires a clean worktree and auto-bootstraps config defaults if needed.`,
+With --adopt, stack does not create a branch. It tracks the current existing branch instead. If --parent is omitted during adopt, stack infers the parent from local branch ancestry. This command requires a clean worktree and auto-bootstraps config defaults if needed.`,
 		Example: "  git-stack new add-search\n  git-stack new api/auth --parent main\n  git-stack new polish-login --template \"feature/{slug}\"\n  git-stack new --adopt\n  git-stack new --adopt --parent feature/base",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -127,7 +127,7 @@ This command writes stack metadata under .git/stack/state.json. It is primarily 
 		Short:   "Show stack graph and state",
 		Long: `Show the tracked branch graph for the current stack.
 
-			By default, state shows the connected tracked component rooted at the topmost tracked ancestor of the current branch. When run from trunk, it shows every tracked stack. If persisted state is missing, state shows an inferred local graph without requiring initialization.
+By default, state shows the connected tracked component rooted at the topmost tracked ancestor of the current branch. When run from trunk, it shows every tracked stack. If persisted state is missing, state shows an inferred local graph without requiring initialization.
 
 	Each branch line includes its PR state: local-only when no PR metadata exists, submitted when a PR exists, and updated when an existing PR was updated on the last submit. Use --drift to surface parent mismatches such as parent-not-ancestor or missing-parent conditions.`,
 		Example: "  git-stack state\n  git-stack state --all\n  git-stack state --drift --no-color",
@@ -149,7 +149,7 @@ This command writes stack metadata under .git/stack/state.json. It is primarily 
 		Short: "Restack branches onto their parents",
 		Long: `Rewrite tracked branches so each branch is based on its recorded parent.
 
-			On a fresh run, restack requires a clean worktree and initialized tracked state, then processes tracked branches in stack order using the configured restack mode. The default mode comes from stack state and is usually rebase unless changed with git-stack init.
+On a fresh run, restack requires a clean worktree and initialized tracked state, then processes tracked branches in stack order using the configured restack mode. The default mode comes from stack state and is usually rebase unless changed with git-stack init.
 
 If git stops for conflicts, stack records the in-progress operation under .git/stack/operation.json. Resolve the conflicts with normal git commands, then run git-stack restack --continue. Use --abort to abandon the recorded restack operation.`,
 		Example: "  git-stack restack\n  git-stack restack --mode merge\n  git-stack restack --continue\n  git-stack restack --abort",
@@ -170,7 +170,7 @@ If git stops for conflicts, stack records the in-progress operation under .git/s
 		Short: "Push branches and create/update PRs",
 		Long: `Push tracked branches to origin and create or update GitHub pull requests.
 
-			By default, submit operates on the current stack component in topological order. If [branch] is given, submit uses the stack containing that tracked branch. Use --all to submit every tracked branch. This command requires a clean worktree and initialized tracked state.
+By default, submit operates on the current stack component in topological order. If [branch] is given, submit uses the stack containing that tracked branch. Use --all to submit every tracked branch. This command requires a clean worktree and initialized tracked state.
 
 For each eligible tracked branch, stack force-pushes the local branch to origin with force-with-lease, then creates or updates its PR against the recorded parent branch. Branches are skipped when the local branch is missing or when there are no commits beyond the parent. If a tracked branch already has a merged PR and its remote branch has been deleted, submit may also clean up the local merged branch after confirming it is fully integrated.`,
 		Example: "  git-stack submit\n  git-stack submit feat/login\n  git-stack submit --all\n  git-stack submit --next-on-clean feat/two feat/one",
@@ -261,7 +261,7 @@ For eligible merged branches, stack cleans them from local state, reparents surv
 		Short: "Delete merged local branches and reconcile stack state",
 		Long: `Delete local branches that are already merged and reconcile tracked stack state.
 
-			clean requires a clean worktree, fetches origin with prune, builds a clean plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component and requires initialized tracked state. Use --all to consider every tracked branch.
+clean requires a clean worktree, fetches origin with prune, builds a clean plan, prints that plan, and applies it after confirmation unless --yes is set. By default it only considers tracked branches in the current stack component and requires initialized tracked state. Use --all to consider every tracked branch.
 
 	Tracked branches are eligible only when their remote branch is gone, a merged PR can be found for that branch head, the PR targeted trunk, and the branch is confirmed merged according to the configured merge-detection policy. Children of deleted tracked branches are reparented in stack state. With --untracked, clean also considers eligible untracked local branches globally. --include-squash relaxes merge detection so squash-integrated branches can be deleted when they are fully integrated into trunk.`,
 		Example: "  git-stack clean\n  git-stack clean --yes\n  git-stack clean --all --yes\n  git-stack clean --yes --include-squash --untracked",

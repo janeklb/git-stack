@@ -122,23 +122,7 @@ func (a *App) cmdForward(next string) error {
 	}
 	submitQueue := forwardSubmitQueue(state, restackRoots)
 	if len(submitQueue) > 0 {
-		if err := a.cmdSubmitWithDeps(false, "", "", submitDeps{
-			git:                 defaultGitClient{},
-			gh:                  defaultGHClient{},
-			ensureCleanWorktree: ensureCleanWorktree,
-			loadState: func() (string, *State, bool, error) {
-				return repoRoot, state, true, nil
-			},
-			submitQueue: func(state *State, all bool, args []string) ([]string, error) {
-				return submitQueue, nil
-			},
-			ensurePR: ensurePR,
-			syncCurrentStackBody: func(state *State, all bool, target string) error {
-				return syncForwardStackBodies(state, forwardScope)
-			},
-			saveState:         saveState,
-			cleanMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
-		}); err != nil {
+		if err := a.cmdSubmitWithDeps(false, "", "", forwardSubmitDeps(repoRoot, state, submitQueue, forwardScope)); err != nil {
 			return err
 		}
 	}
@@ -148,6 +132,26 @@ func (a *App) cmdForward(next string) error {
 
 	a.println("forward completed")
 	return nil
+}
+
+func forwardSubmitDeps(repoRoot string, state *State, queue []string, forwardScope map[string]bool) submitDeps {
+	return submitDeps{
+		git:                 defaultGitClient{},
+		gh:                  defaultGHClient{},
+		ensureCleanWorktree: ensureCleanWorktree,
+		loadState: func() (string, *State, bool, error) {
+			return repoRoot, state, true, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return queue, nil
+		},
+		ensurePR: ensurePR,
+		syncCurrentStackBody: func(state *State, all bool, target string) error {
+			return syncForwardStackBodies(state, forwardScope)
+		},
+		saveState:         saveState,
+		cleanMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
+	}
 }
 
 // Forward should look across the whole current stack component, not just the
