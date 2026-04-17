@@ -47,7 +47,7 @@ Mutating commands require a clean worktree. Commands such as new, state, restack
 			if cmd == root {
 				return nil
 			}
-			if cmd.Name() == "help" || strings.HasPrefix(cmd.Name(), "__complete") {
+			if cmd.Name() == "help" || cmd.Name() == "version" || strings.HasPrefix(cmd.Name(), "__complete") {
 				return nil
 			}
 			for current := cmd; current != nil; current = current.Parent() {
@@ -64,6 +64,14 @@ Mutating commands require a clean worktree. Commands such as new, state, restack
 	}
 	root.CompletionOptions.DisableDefaultCmd = false
 	root.SetHelpFunc(a.helpFunc)
+	root.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Show build version information",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			a.println(formatVersion())
+		},
+	})
 
 	var initTrunk string
 	var initMode string

@@ -20,6 +20,8 @@ The tool is intentionally opinionated and low-configuration: it targets one work
 go install github.com/janeklb/git-stack/cmd/git-stack@latest
 ```
 
+Release binaries are also published on the GitHub Releases page for tagged versions.
+
 This installs `git-stack` to your Go bin directory (`GOBIN` if set, otherwise `$(go env GOPATH)/bin`). Make sure that directory is on your `PATH`.
 
 Once installed, `git-stack` also works as a Git extension — `git stack <command>` is equivalent when `git-stack` is on your `PATH`.
@@ -69,6 +71,7 @@ git-stack clean [--all] [--yes] [--include-squash] [--untracked]
 git-stack reparent [branch] --onto <new-parent>
 git-stack check
 git-stack init [--trunk <branch>] [--mode rebase|merge]
+git-stack version
 git-stack completion [bash|zsh|fish|powershell]
 ```
 
