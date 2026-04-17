@@ -27,9 +27,7 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 	branches := map[string]*BranchRef{}
 	archived := map[string]*ArchivedRef{}
 	nextIndex := 1
-	if inferred, inferErr := inferState(repoRoot); inferErr == nil {
-		branches = inferred.Branches
-		archived = inferred.Archived
+	if inferred, inferErr := inferStateDefaults(repoRoot); inferErr == nil {
 		if inferred.Naming.NextIndex > nextIndex {
 			nextIndex = inferred.Naming.NextIndex
 		}

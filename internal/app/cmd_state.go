@@ -25,9 +25,18 @@ type stateStatusItem struct {
 }
 
 func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
-	repoRoot, state, _, err := loadStateFromRepoOrInfer()
+	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
+	}
+	if !persisted {
+		// The shared loader returns inferred defaults only when state is missing.
+		// State display is the one caller that opts into the full inferred graph.
+		state, err = inferStateGraph(repoRoot)
+		if err != nil {
+			return err
+		}
+		a.println("state: inferred local graph (no persisted stack state)")
 	}
 	current, err := currentBranch()
 	if err != nil {

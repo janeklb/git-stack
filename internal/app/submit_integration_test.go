@@ -7,36 +7,30 @@ import (
 	"testing"
 )
 
-func TestSubmitWithNoTrackedBranchesIsNoop(t *testing.T) {
+func TestSubmitWithNoTrackedBranchesFails(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
 	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
 	out, code := runCLIInRepoAndCapture(t, repo, []string{"submit", "--all"})
-	if code != 0 {
-		t.Fatalf("submit failed: exit=%d\n%s", code, out)
+	if code == 0 {
+		t.Fatalf("expected submit to fail with no tracked branches, output:\n%s", out)
 	}
-	if !strings.Contains(out, "nothing to submit") {
-		t.Fatalf("expected noop submit message, got:\n%s", out)
+	if !strings.Contains(out, "submit requires at least one tracked branch") {
+		t.Fatalf("expected tracked-branch error, got:\n%s", out)
 	}
 }
 
-func TestSubmitWithoutInitializedStateIsNoop(t *testing.T) {
+func TestSubmitWithoutInitializedStateFails(t *testing.T) {
 	t.Parallel()
 	repo := newTestRepo(t)
 
 	out, code := runCLIInRepoAndCapture(t, repo, []string{"submit", "--all"})
-	if code != 0 {
-		t.Fatalf("submit failed: exit=%d\n%s", code, out)
+	if code == 0 {
+		t.Fatalf("expected submit to fail without initialized state, output:\n%s", out)
 	}
-	if !strings.Contains(out, "nothing to submit") {
-		t.Fatalf("expected noop submit message, got:\n%s", out)
-	}
-	if !strings.Contains(out, "initialized stack state") {
-		t.Fatalf("expected auto-bootstrap output, got:\n%s", out)
-	}
-	if _, err := loadState(repo); err != nil {
-		t.Fatalf("expected state file to be persisted, got: %v", err)
+	if !strings.Contains(out, "submit requires initialized stack state") {
+		t.Fatalf("expected initialized state error, got:\n%s", out)
 	}
 }
 

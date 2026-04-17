@@ -49,6 +49,9 @@ func TestStateWorksWithoutInitializedState(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("state failed: exit=%d\n%s", code, out)
 	}
+	if !strings.Contains(out, "state: inferred local graph") {
+		t.Fatalf("expected inferred-state label in output, got:\n%s", out)
+	}
 	if !strings.Contains(out, "main (trunk)") {
 		t.Fatalf("expected trunk in state output, got:\n%s", out)
 	}

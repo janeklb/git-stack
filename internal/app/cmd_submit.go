@@ -39,7 +39,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submi
 	if err != nil {
 		return err
 	}
-	if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
+	if err := requirePersistedTrackedState(state, persisted, "submit"); err != nil {
 		return err
 	}
 

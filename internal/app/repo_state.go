@@ -28,6 +28,16 @@ func ensurePersistedState(repoRoot string, state *State, persisted bool, out io.
 	return true, nil
 }
 
+func requirePersistedTrackedState(state *State, persisted bool, command string) error {
+	if !persisted {
+		return fmt.Errorf("%s requires initialized stack state; track a branch first with git-stack new or git-stack new --adopt", command)
+	}
+	if len(state.Branches) == 0 {
+		return fmt.Errorf("%s requires at least one tracked branch; track a branch first with git-stack new or git-stack new --adopt", command)
+	}
+	return nil
+}
+
 func loadStateFromRepo() (string, *State, error) {
 	repoRoot, err := repoRoot()
 	if err != nil {
@@ -52,7 +62,7 @@ func loadStateFromRepoOrInfer() (string, *State, bool, error) {
 	if !errors.Is(err, errStateNotInitialized) {
 		return "", nil, false, err
 	}
-	state, err = inferState(repoRoot)
+	state, err = inferStateDefaults(repoRoot)
 	if err != nil {
 		return "", nil, false, err
 	}
@@ -67,7 +77,7 @@ func repoRoot() (string, error) {
 	return strings.TrimSpace(repoRoot), nil
 }
 
-func inferState(repoRoot string) (*State, error) {
+func inferStateDefaults(repoRoot string) (*State, error) {
 	trunk, err := detectTrunk()
 	if err != nil {
 		return nil, err
@@ -96,17 +106,34 @@ func inferState(repoRoot string) (*State, error) {
 		if branch == trunk {
 			continue
 		}
-		parent, err := inferParent(branch, branches, trunk)
-		if err != nil {
-			return nil, err
-		}
-		state.Branches[branch] = &BranchRef{Parent: parent, LineageParent: parent}
 		if idx := parseLeadingIndex(branch); idx > maxIndex {
 			maxIndex = idx
 		}
 	}
 	if maxIndex > 0 {
 		state.Naming.NextIndex = maxIndex + 1
+	}
+	return state, nil
+}
+
+func inferStateGraph(repoRoot string) (*State, error) {
+	state, err := inferStateDefaults(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	branches, err := listLocalBranches()
+	if err != nil {
+		return nil, err
+	}
+	for _, branch := range branches {
+		if branch == state.Trunk {
+			continue
+		}
+		parent, err := inferParent(branch, branches, state.Trunk)
+		if err != nil {
+			return nil, err
+		}
+		state.Branches[branch] = &BranchRef{Parent: parent, LineageParent: parent}
 	}
 	return state, nil
 }
