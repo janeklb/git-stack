@@ -52,6 +52,7 @@ changelog:
       - '^chore:'
 
 release:
+  draft: true
   prerelease: auto
   extra_files:
     - glob: ./homebrew-release.json
