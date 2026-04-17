@@ -1,0 +1,55 @@
+version: 2
+
+project_name: git-stack
+
+builds:
+  - id: git-stack
+    main: ./cmd/git-stack
+    binary: git-stack
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - >-
+        -s -w
+        -X github.com/janeklb/git-stack/internal/app.buildVersion={{ .Version }}
+        -X github.com/janeklb/git-stack/internal/app.buildCommit={{ .Commit }}
+        -X github.com/janeklb/git-stack/internal/app.buildDate={{ .Date }}
+
+archives:
+  - id: default
+    ids:
+      - git-stack
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+release:
+  prerelease: auto

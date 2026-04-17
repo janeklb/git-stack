@@ -37,6 +37,23 @@ func TestBareRootOutputOmitsRootLongDescription(t *testing.T) {
 	}
 }
 
+func TestVersionOutputsBuildMetadataWithoutRepoChecks(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"version"})
+	if code != 0 {
+		t.Fatalf("version failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "version=dev") {
+		t.Fatalf("expected version output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "commit=none") {
+		t.Fatalf("expected commit output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "date=unknown") {
+		t.Fatalf("expected date output, got:\n%s", out)
+	}
+}
+
 func TestCompletionBashOutputsScript(t *testing.T) {
 	cli := New()
 	out, code := runCLIAndCapture(t, cli, []string{"completion", "bash"})
