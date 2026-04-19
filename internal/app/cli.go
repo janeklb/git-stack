@@ -62,7 +62,7 @@ Mutating commands require a clean worktree. Commands such as new, state, restack
 			return nil
 		},
 	}
-	root.CompletionOptions.DisableDefaultCmd = false
+	root.CompletionOptions.DisableDefaultCmd = true
 	root.SetHelpFunc(a.helpFunc)
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
@@ -283,6 +283,7 @@ clean requires a clean worktree, fetches origin with prune, builds a clean plan,
 	cleanCmd.Flags().BoolVar(&cleanIncludeSquash, "include-squash", false, "allow deletion of branches that were integrated by squash or other non-merge-commit flows")
 	cleanCmd.Flags().BoolVar(&cleanUntracked, "untracked", false, "also consider eligible untracked local branches outside persisted stack state")
 	root.AddCommand(cleanCmd)
+	a.addCompletionCmd(root)
 
 	return root
 }
