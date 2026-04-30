@@ -235,11 +235,11 @@ func branchMatchesRemote(branch string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	remoteOID, err := gitOutput("rev-parse", remoteRef)
+	remoteOID, err := resolveBranchRef(remoteRef)
 	if err != nil {
 		return false, err
 	}
-	return localOID == strings.TrimSpace(remoteOID), nil
+	return localOID == remoteOID, nil
 }
 
 func resolveBranchRef(branch string) (string, error) {

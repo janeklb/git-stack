@@ -232,7 +232,7 @@ func stateBranchStatusItems(branch string, meta *BranchRef, localBranches map[st
 }
 
 func stateBranchNeedsRestack(branch string, meta *BranchRef, localBranches map[string]bool) (bool, string) {
-	if meta == nil || strings.TrimSpace(meta.Parent) == "" || !localBranches[meta.Parent] {
+	if meta == nil || meta.Parent == "" || !localBranches[meta.Parent] {
 		return false, ""
 	}
 	drift, reason := detectDrift(branch, meta.Parent)
