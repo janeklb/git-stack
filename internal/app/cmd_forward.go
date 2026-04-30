@@ -581,7 +581,7 @@ func mergedCleanIntegrated(branch, base string, pr *GhPR) (bool, error) {
 }
 
 func mergedDeletedBranchIntegrated(base string, pr *GhPR) (bool, error) {
-	if pr == nil || pr.MergeCommit == nil || strings.TrimSpace(pr.MergeCommit.OID) == "" {
+	if pr == nil || pr.MergeCommit == nil || pr.MergeCommit.OID == "" {
 		return false, fmt.Errorf("deleted local branch is missing PR merge commit; repair with: git-stack clean --all --yes && git-stack restack && git-stack submit")
 	}
 	return baseContainsCommit(base, pr.MergeCommit.OID)
@@ -594,5 +594,5 @@ func forwardCandidateHead(branch string, pr *GhPR, hasLocal bool) (string, error
 	if pr == nil {
 		return "", nil
 	}
-	return strings.TrimSpace(pr.HeadRefOID), nil
+	return pr.HeadRefOID, nil
 }
