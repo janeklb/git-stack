@@ -13,6 +13,7 @@ import (
 type forwardCleanupCandidate struct {
 	Branch   string
 	Base     string
+	Head     string
 	HasLocal bool
 	Children []string
 }
@@ -88,16 +89,16 @@ func (a *App) cmdForward(next string) error {
 	restackRootSet := map[string]bool{}
 	rebaseBases := map[string]string{}
 	for _, candidate := range candidates {
-		mergedBranchHead, err := resolveBranchRef(candidate.Branch)
-		if err != nil {
-			return err
-		}
 		switchTarget := ""
 		if candidate.Branch == current {
 			switchTarget = target
 		}
 		if err := cleanMergedBranchForForward(a.stdout, state, candidate, switchTarget, deps.git); err != nil {
 			return err
+		}
+		mergedBranchHead := candidate.Head
+		if mergedBranchHead == "" && len(candidate.Children) > 0 {
+			return fmt.Errorf("forward cannot restack descendants of deleted local branch %s without PR head commit; repair with: git-stack clean --all --yes && git-stack restack && git-stack submit", candidate.Branch)
 		}
 		for _, child := range candidate.Children {
 			if merged[child] || restackRootSet[child] {
@@ -228,18 +229,33 @@ func detectForwardCandidateWithDeps(state *State, current string, deps forwardDe
 		base = meta.Parent
 	}
 
-	integrated, err := deps.mergedCleanIntegrated(current, base, pr)
-	if err != nil {
-		return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w", current, base, err)
+	hasLocal := deps.git.LocalBranchExists(current)
+	integrated := false
+	if hasLocal {
+		integrated, err = deps.mergedCleanIntegrated(current, base, pr)
+		if err != nil {
+			return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w", current, base, err)
+		}
+	} else {
+		integrated, err = mergedDeletedBranchIntegrated(base, pr)
+		if err != nil {
+			return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w", current, base, err)
+		}
 	}
 	if !integrated {
 		return forwardCleanupCandidate{}, false, fmt.Errorf("forward aborted: %s has local commits not fully integrated into %s", current, base)
 	}
 
+	head, err := forwardCandidateHead(current, pr, hasLocal)
+	if err != nil {
+		return forwardCleanupCandidate{}, false, fmt.Errorf("forward failed to resolve merged branch head for %s: %w", current, err)
+	}
+
 	return forwardCleanupCandidate{
 		Branch:   current,
 		Base:     base,
-		HasLocal: deps.git.LocalBranchExists(current),
+		Head:     head,
+		HasLocal: hasLocal,
 		Children: deps.mergedBranchChildren(state, current),
 	}, true, nil
 }
@@ -562,4 +578,21 @@ func mergedCleanIntegrated(branch, base string, pr *GhPR) (bool, error) {
 		return false, err
 	}
 	return contains, nil
+}
+
+func mergedDeletedBranchIntegrated(base string, pr *GhPR) (bool, error) {
+	if pr == nil || pr.MergeCommit == nil || strings.TrimSpace(pr.MergeCommit.OID) == "" {
+		return false, fmt.Errorf("deleted local branch is missing PR merge commit; repair with: git-stack clean --all --yes && git-stack restack && git-stack submit")
+	}
+	return baseContainsCommit(base, pr.MergeCommit.OID)
+}
+
+func forwardCandidateHead(branch string, pr *GhPR, hasLocal bool) (string, error) {
+	if hasLocal {
+		return resolveBranchRef(branch)
+	}
+	if pr == nil {
+		return "", nil
+	}
+	return strings.TrimSpace(pr.HeadRefOID), nil
 }
