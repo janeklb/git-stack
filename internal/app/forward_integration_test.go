@@ -81,6 +81,81 @@ func TestForwardSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 	}
 }
 
+func TestForwardHandlesMergedBranchAlreadyDeletedLocally(t *testing.T) {
+	repo := newTestRepo(t)
+	origin := newBareOrigin(t)
+
+	mustPointRepoOriginAndTrack(t, repo, origin, "main")
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
+	mustWriteFile(t, filepath.Join(repo, "one.txt"), "one\n")
+	mustGit(t, repo, "add", "one.txt")
+	mustGit(t, repo, "commit", "-m", "feat one")
+	mustGit(t, repo, "push", "-u", "origin", "feat-one")
+	featOneHead := strings.TrimSpace(mustGitOutput(t, repo, "rev-parse", "feat-one"))
+
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-two", "--parent", "feat-one"})
+	mustWriteFile(t, filepath.Join(repo, "two.txt"), "two\n")
+	mustGit(t, repo, "add", "two.txt")
+	mustGit(t, repo, "commit", "-m", "feat two")
+	mustGit(t, repo, "push", "-u", "origin", "feat-two")
+
+	mustGit(t, repo, "switch", "main")
+	mustGit(t, repo, "merge", "--no-ff", "feat-one", "-m", "merge feat one")
+	mergedMain := mustGitOutput(t, repo, "rev-parse", "HEAD")
+	mustGit(t, repo, "push", "origin", "main")
+	mustGit(t, repo, "push", "origin", ":feat-one")
+	mustGit(t, repo, "branch", "-D", "feat-one")
+
+	state, err := loadState(repo)
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
+	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
+	if err := saveState(repo, state); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	fakeBin := t.TempDir()
+	ghPath := filepath.Join(fakeBin, "gh")
+	mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  if [ \"$3\" = \"1\" ]; then\n    cat <<'EOF'\n{\"number\":1,\"url\":\"https://example.invalid/pr/1\",\"body\":\"\",\"baseRefName\":\"main\",\"title\":\"merged\",\"state\":\"MERGED\",\"headRefOid\":\""+featOneHead+"\",\"mergeCommit\":{\"oid\":\""+strings.TrimSpace(mergedMain)+"\"}}\nEOF\n    exit 0\n  fi\n  if [ \"$3\" = \"2\" ]; then\n    cat <<'EOF'\n{\"number\":2,\"url\":\"https://example.invalid/pr/2\",\"body\":\"\",\"baseRefName\":\"feat-one\",\"title\":\"open\",\"state\":\"OPEN\",\"headRefOid\":\"\",\"mergeCommit\":null}\nEOF\n    exit 0\n  fi\nfi\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"edit\" ]; then\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
+	if err := os.Chmod(ghPath, 0o755); err != nil {
+		t.Fatalf("chmod fake gh: %v", err)
+	}
+
+	out, code := runCLIInRepoAndCaptureWithEnv(t, repo, envWithPathPrepended(fakeBin), []string{"forward"})
+	if code != 0 {
+		t.Fatalf("forward failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "forward completed") {
+		t.Fatalf("expected forward completion output, got:\n%s", out)
+	}
+
+	if branchExistsInRepo(repo, "feat-one") {
+		t.Fatalf("expected feat-one local branch to remain deleted")
+	}
+	cur := currentBranchInRepo(t, repo)
+	if cur != "main" {
+		t.Fatalf("expected forward from trunk to stay on main, got %s", cur)
+	}
+
+	stateAfter, err := loadState(repo)
+	if err != nil {
+		t.Fatalf("load state after forward: %v", err)
+	}
+	if _, ok := stateAfter.Branches["feat-one"]; ok {
+		t.Fatalf("expected feat-one removed from active branches")
+	}
+	if got := stateAfter.Branches["feat-two"].Parent; got != "main" {
+		t.Fatalf("expected feat-two parent reparented to main, got %q", got)
+	}
+	if got := stateAfter.Branches["feat-two"].PR.Base; got != "main" {
+		t.Fatalf("expected feat-two PR base updated to main after submit, got %q", got)
+	}
+}
+
 func TestForwardMarksAllPromotedRootPRsReadyForReview(t *testing.T) {
 	repo := newTestRepo(t)
 	origin := newBareOrigin(t)

@@ -101,3 +101,39 @@ func TestForwardRebaseBasesAssignsOldBaseToRoots(t *testing.T) {
 		t.Fatalf("expected shared old base for roots, got %#v", bases)
 	}
 }
+
+func TestBuildForwardCandidateDeletedLocalBranchWithoutMergeCommitShowsRepair(t *testing.T) {
+	t.Parallel()
+
+	deps := forwardDeps{
+		git: fakeForwardGit{
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			localBranchExistsFn:  func(string) bool { return false },
+		},
+		gh: fakeForwardGH{viewFn: func(number int) (*GhPR, error) {
+			return &GhPR{Number: number, State: "MERGED", BaseRefName: "main"}, nil
+		}},
+		mergedCleanIntegrated: func(string, string, *GhPR) (bool, error) {
+			t.Fatal("mergedCleanIntegrated should not run when local branch is already deleted")
+			return false, nil
+		},
+		mergedBranchChildren: func(state *State, branch string) []string {
+			return nil
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-a": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+		},
+	}
+
+	_, err := buildForwardCandidateWithDeps(state, "feat-a", deps)
+	if err == nil {
+		t.Fatal("expected deleted local branch without merge commit to fail")
+	}
+	if !strings.Contains(err.Error(), "repair with: git-stack clean --all --yes && git-stack restack && git-stack submit") {
+		t.Fatalf("expected repair guidance, got: %v", err)
+	}
+}
