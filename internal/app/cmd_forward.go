@@ -448,7 +448,7 @@ func syncLocalTrunkToFetchedRemote(trunk string) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(localCommit) == strings.TrimSpace(remoteCommit) {
+	if localCommit == remoteCommit {
 		return nil
 	}
 	canFastForward, err := commitIsAncestor(localCommit, remoteCommit)

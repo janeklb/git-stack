@@ -199,10 +199,7 @@ func branchStateLabel(pr *PRMeta) string {
 	if pr == nil || pr.Number <= 0 {
 		return "local-only"
 	}
-	if pr.Updated {
-		return "updated"
-	}
-	return "submitted"
+	return ""
 }
 
 func stateBranchStatusItems(branch string, meta *BranchRef, localBranches map[string]bool, showDrift bool) []stateStatusItem {
@@ -210,24 +207,50 @@ func stateBranchStatusItems(branch string, meta *BranchRef, localBranches map[st
 	if meta != nil {
 		pr = meta.PR
 	}
-	items := []stateStatusItem{{text: branchStateLabel(pr), kind: stateStatusNormal}}
+	items := []stateStatusItem{}
+	if label := branchStateLabel(pr); label != "" {
+		items = append(items, stateStatusItem{text: label, kind: stateStatusNormal})
+	}
 	if stateBranchMissingLocally(branch, meta, localBranches) {
 		items = append(items, stateStatusItem{text: "invalid", kind: stateStatusAlert})
 	}
 	if meta != nil && meta.Parent != "" && !localBranches[meta.Parent] {
 		items = append(items, stateStatusItem{text: "missing-parent=" + meta.Parent, kind: stateStatusAlert})
 	}
-	if showDrift && meta != nil && localBranches[branch] {
-		if drift, reason := detectDrift(branch, meta.Parent); drift {
-			switch reason {
-			case "parent-not-ancestor":
+	if meta != nil && localBranches[branch] {
+		if needsRestack, driftReason := stateBranchNeedsRestack(branch, meta, localBranches); needsRestack {
+			items = append(items, stateStatusItem{text: "needs-restack", kind: stateStatusNormal})
+			if showDrift && driftReason == "parent-not-ancestor" {
 				items = append(items, stateStatusItem{text: "drifted-from-ancestor", kind: stateStatusAlert})
-			case "parent-missing":
-				// Already represented as missing-parent=<name> above.
 			}
+		}
+		if stateBranchNeedsSubmit(branch, meta) {
+			items = append(items, stateStatusItem{text: "needs-submit", kind: stateStatusNormal})
 		}
 	}
 	return items
+}
+
+func stateBranchNeedsRestack(branch string, meta *BranchRef, localBranches map[string]bool) (bool, string) {
+	if meta == nil || meta.Parent == "" || !localBranches[meta.Parent] {
+		return false, ""
+	}
+	drift, reason := detectDrift(branch, meta.Parent)
+	if !drift || reason != "parent-not-ancestor" {
+		return false, ""
+	}
+	return true, reason
+}
+
+func stateBranchNeedsSubmit(branch string, meta *BranchRef) bool {
+	if meta == nil || meta.PR == nil || meta.PR.Number <= 0 {
+		return false
+	}
+	matchesRemote, err := branchMatchesRemote(branch)
+	if err != nil {
+		return false
+	}
+	return !matchesRemote
 }
 
 func sortedStateBranchNames(branches map[string]*BranchRef) []string {
@@ -376,10 +399,10 @@ func (t stateTheme) state(name string) string {
 	switch base {
 	case "local-only":
 		color = "90"
-	case "submitted":
+	case "needs-submit":
 		color = "33"
-	case "updated":
-		color = "32"
+	case "needs-restack":
+		color = "31"
 	case "invalid":
 		color = "90"
 	}

@@ -137,7 +137,7 @@ With --adopt, stack does not create a branch. It tracks the current existing bra
 
 By default, state shows the connected tracked component rooted at the topmost tracked ancestor of the current branch. When run from trunk, it shows every tracked stack. If persisted state is missing, state shows an inferred local graph without requiring initialization.
 
-	Each branch line includes its PR state: local-only when no PR metadata exists, submitted when a PR exists, and updated when an existing PR was updated on the last submit. Use --drift to surface parent mismatches such as parent-not-ancestor or missing-parent conditions.`,
+	Each branch line includes current stack-sync state: local-only when no PR metadata exists, needs-restack when the recorded parent is no longer an ancestor, and needs-submit when a tracked PR branch no longer matches origin/<branch>. Existing PRs are shown inline as (PR #...). Use --drift to add precise parent mismatch details such as drifted-from-ancestor or missing-parent conditions.`,
 		Example: "  git-stack state\n  git-stack state --all\n  git-stack state --drift --no-color",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
