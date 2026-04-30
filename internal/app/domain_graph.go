@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"sort"
-	"strings"
 )
 
 func submitQueue(state *State, all bool, args []string) ([]string, error) {
@@ -103,22 +102,21 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 		name string
 		ts   int64
 	}
-	branchHead, err := gitOutput("rev-parse", branch)
+	branchHead, err := resolveBranchRef(branch)
 	if err != nil {
 		return "", err
 	}
-	branchHead = strings.TrimSpace(branchHead)
 
 	candidates := []candidate{}
 	for _, b := range allBranches {
 		if b == branch {
 			continue
 		}
-		candidateHead, err := gitOutput("rev-parse", b)
+		candidateHead, err := resolveBranchRef(b)
 		if err != nil {
 			return "", err
 		}
-		if strings.TrimSpace(candidateHead) == branchHead {
+		if candidateHead == branchHead {
 			continue
 		}
 		// Skip branches already merged into trunk - they shouldn't be inferred as stack parents
@@ -134,11 +132,11 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 		}
 	}
 	if branchExists(trunk) {
-		trunkHead, err := gitOutput("rev-parse", trunk)
+		trunkHead, err := resolveBranchRef(trunk)
 		if err != nil {
 			return "", err
 		}
-		if strings.TrimSpace(trunkHead) != branchHead {
+		if trunkHead != branchHead {
 			if err := gitRunQuiet("merge-base", "--is-ancestor", trunk, branch); err == nil {
 				ts, err := branchTimestamp(trunk)
 				if err != nil {
