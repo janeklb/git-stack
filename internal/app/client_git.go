@@ -222,6 +222,26 @@ func branchHasCommitsSince(base, branch string) (bool, error) {
 	return strings.TrimSpace(out) != "0", nil
 }
 
+func branchMatchesRemote(branch string) (bool, error) {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return false, errors.New("empty branch")
+	}
+	remoteRef := "refs/remotes/origin/" + branch
+	if gitRunQuiet("show-ref", "--verify", "--quiet", remoteRef) != nil {
+		return false, nil
+	}
+	localOID, err := resolveBranchRef(branch)
+	if err != nil {
+		return false, err
+	}
+	remoteOID, err := gitOutput("rev-parse", remoteRef)
+	if err != nil {
+		return false, err
+	}
+	return localOID == strings.TrimSpace(remoteOID), nil
+}
+
 func resolveBranchRef(branch string) (string, error) {
 	if strings.TrimSpace(branch) == "" {
 		return "", errors.New("empty branch")

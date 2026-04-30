@@ -31,8 +31,88 @@ func TestStateShowsDriftWhenParentIsNotAncestor(t *testing.T) {
 	if !strings.Contains(out, "feat-two") {
 		t.Fatalf("expected state to include feat-two, got:\n%s", out)
 	}
-	if !strings.Contains(out, "[local-only, drifted-from-ancestor]") {
+	if !strings.Contains(out, "[local-only, needs-restack, drifted-from-ancestor]") {
 		t.Fatalf("expected drift marker in state output, got:\n%s", out)
+	}
+}
+
+func TestStateOmitsHistoricalPRStatusForSyncedPRBranch(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
+	mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+	mustGit(t, repo, "add", "feature1.txt")
+	mustGit(t, repo, "commit", "-m", "feat one")
+	mustGit(t, repo, "push", "-u", "origin", "feat-one")
+
+	state, err := loadState(repo)
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main", Updated: true}
+	if err := saveState(repo, state); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
+	if code != 0 {
+		t.Fatalf("state failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "feat-one (PR #1 https://example.invalid/pr/1)") {
+		t.Fatalf("expected PR branch to render without synthetic status label, got:\n%s", out)
+	}
+	if strings.Contains(out, "[submitted]") || strings.Contains(out, "[updated]") {
+		t.Fatalf("expected synced PR branch to omit historical submit labels, got:\n%s", out)
+	}
+}
+
+func TestStateShowsNeedsRestackAndNeedsSubmitForOutOfSyncPRBranch(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
+	mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+	mustGit(t, repo, "add", "feature1.txt")
+	mustGit(t, repo, "commit", "-m", "feat one")
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-two"})
+	mustWriteFile(t, filepath.Join(repo, "feature2.txt"), "two\n")
+	mustGit(t, repo, "add", "feature2.txt")
+	mustGit(t, repo, "commit", "-m", "feat two")
+	mustGit(t, repo, "push", "-u", "origin", "feat-one")
+	mustGit(t, repo, "push", "-u", "origin", "feat-two")
+
+	state, err := loadState(repo)
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
+	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
+	if err := saveState(repo, state); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	mustGit(t, repo, "switch", "feat-one")
+	mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\nparent moved\n")
+	mustGit(t, repo, "add", "feature1.txt")
+	mustGit(t, repo, "commit", "-m", "feat one moved")
+
+	mustGit(t, repo, "switch", "feat-two")
+	mustWriteFile(t, filepath.Join(repo, "feature2.txt"), "two\nchild moved\n")
+	mustGit(t, repo, "add", "feature2.txt")
+	mustGit(t, repo, "commit", "-m", "feat two moved")
+
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"state"})
+	if code != 0 {
+		t.Fatalf("state failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "feat-two [needs-restack, needs-submit] (PR #2 https://example.invalid/pr/2)") {
+		t.Fatalf("expected state to show actionable sync labels for out-of-sync PR branch, got:\n%s", out)
+	}
+	if strings.Contains(out, "updated") {
+		t.Fatalf("expected state to stop using updated label, got:\n%s", out)
 	}
 }
 
