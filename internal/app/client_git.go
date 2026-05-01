@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 func ensureSupportedCloneLayout() error {
-	originURL, err := gitOutput("config", "--get", "remote.origin.url")
-	if err != nil || strings.TrimSpace(originURL) == "" {
+	originURL, err := gitOutputTrimmed("config", "--get", "remote.origin.url")
+	if err != nil || originURL == "" {
 		return errors.New("missing required remote 'origin'; this tool expects a full clone with origin configured")
 	}
 
@@ -65,11 +64,10 @@ func localBranchExists(name string) bool {
 }
 
 func detectTrunk() (string, error) {
-	out, err := gitOutput("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	out, err := gitOutputTrimmed("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 	if err != nil {
 		return "", errors.New("failed to detect trunk from refs/remotes/origin/HEAD")
 	}
-	out = strings.TrimSpace(out)
 	out = strings.TrimPrefix(out, "origin/")
 	if out == "" {
 		return "", errors.New("failed to detect trunk from refs/remotes/origin/HEAD")
@@ -78,11 +76,10 @@ func detectTrunk() (string, error) {
 }
 
 func currentBranch() (string, error) {
-	out, err := gitOutput("rev-parse", "--abbrev-ref", "HEAD")
+	branch, err := gitOutputTrimmed("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", err
 	}
-	branch := strings.TrimSpace(out)
 	if branch == "HEAD" {
 		return "", errors.New("detached HEAD is not supported")
 	}
@@ -131,11 +128,11 @@ func listOriginBranches() ([]string, error) {
 }
 
 func branchTimestamp(branch string) (int64, error) {
-	out, err := gitOutput("show", "-s", "--format=%ct", branch)
+	out, err := gitOutputTrimmed("show", "-s", "--format=%ct", branch)
 	if err != nil {
 		return 0, err
 	}
-	v, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+	v, err := strconv.ParseInt(out, 10, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -155,11 +152,11 @@ func remoteBranchExists(branch string) (bool, error) {
 	if strings.TrimSpace(branch) == "" {
 		return false, nil
 	}
-	out, err := gitOutput("ls-remote", "--heads", "origin", branch)
+	out, err := gitOutputTrimmed("ls-remote", "--heads", "origin", branch)
 	if err != nil {
 		return false, err
 	}
-	return strings.TrimSpace(out) != "", nil
+	return out != "", nil
 }
 
 func deleteLocalBranch(branch string) error {
@@ -215,11 +212,11 @@ func branchHasCommitsSince(base, branch string) (bool, error) {
 	if baseRef == branchRef {
 		return false, nil
 	}
-	out, err := gitOutput("rev-list", "--count", baseRef+".."+branchRef)
+	out, err := gitOutputTrimmed("rev-list", "--count", baseRef+".."+branchRef)
 	if err != nil {
 		return false, err
 	}
-	return strings.TrimSpace(out) != "0", nil
+	return out != "0", nil
 }
 
 func branchMatchesRemote(branch string) (bool, error) {
@@ -246,11 +243,11 @@ func resolveBranchRef(branch string) (string, error) {
 	if strings.TrimSpace(branch) == "" {
 		return "", errors.New("empty branch")
 	}
-	out, err := gitOutput("rev-parse", strings.TrimSpace(branch))
+	out, err := gitOutputTrimmed("rev-parse", strings.TrimSpace(branch))
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(out), nil
+	return out, nil
 }
 
 func commitIsAncestor(ancestor, descendant string) (bool, error) {
@@ -282,37 +279,38 @@ func resolveComparisonBase(base string) (string, error) {
 }
 
 func rebaseInProgress() (bool, error) {
-	apply, err := gitOutput("rev-parse", "--git-path", "rebase-apply")
+	apply, err := gitPath("rebase-apply")
 	if err != nil {
 		return false, err
 	}
-	merge, err := gitOutput("rev-parse", "--git-path", "rebase-merge")
+	merge, err := gitPath("rebase-merge")
 	if err != nil {
 		return false, err
 	}
-	if pathExists(strings.TrimSpace(apply)) || pathExists(strings.TrimSpace(merge)) {
+	if pathExists(apply) || pathExists(merge) {
 		return true, nil
 	}
 	return false, nil
 }
 
 func mergeInProgress() (bool, error) {
-	mergeHead, err := gitOutput("rev-parse", "--git-path", "MERGE_HEAD")
+	mergeHead, err := gitPath("MERGE_HEAD")
 	if err != nil {
 		return false, err
 	}
-	return pathExists(strings.TrimSpace(mergeHead)), nil
+	return pathExists(mergeHead), nil
 }
 
 func pathExists(path string) bool {
-	if strings.TrimSpace(path) == "" {
-		return false
-	}
-	if !filepath.IsAbs(path) {
+	if path == "" {
 		return false
 	}
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func gitPath(name string) (string, error) {
+	return gitOutputTrimmed("rev-parse", "--git-path", name)
 }
 
 func gitRun(args ...string) error {
@@ -339,6 +337,14 @@ func gitOutput(args ...string) (string, error) {
 		return "", err
 	}
 	return result.stdout, nil
+}
+
+func gitOutputTrimmed(args ...string) (string, error) {
+	out, err := gitOutput(args...)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
 }
 
 func combineCommandOutput(result commandRunResult) string {

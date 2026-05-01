@@ -70,11 +70,11 @@ func loadStateFromRepoOrInfer() (string, *State, bool, error) {
 }
 
 func repoRoot() (string, error) {
-	repoRoot, err := gitOutput("rev-parse", "--show-toplevel")
+	repoRoot, err := gitOutputTrimmed("rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", errors.New("not a git repository")
 	}
-	return strings.TrimSpace(repoRoot), nil
+	return repoRoot, nil
 }
 
 func inferStateDefaults(repoRoot string) (*State, error) {

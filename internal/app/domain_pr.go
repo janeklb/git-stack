@@ -20,11 +20,10 @@ type StackPRLine struct {
 }
 
 func branchSummary(parent, branch string) (string, []string, error) {
-	latestTitle, err := gitOutput("log", "-1", "--format=%s", branch)
+	latestTitle, err := gitOutputTrimmed("log", "-1", "--format=%s", branch)
 	if err != nil {
 		return "", nil, err
 	}
-	latestTitle = strings.TrimSpace(latestTitle)
 	if latestTitle == "" {
 		latestTitle = branch
 	}
