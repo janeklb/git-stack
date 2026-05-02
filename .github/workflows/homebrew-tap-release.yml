@@ -15,23 +15,16 @@ permissions:
   contents: read
 
 jobs:
-  dispatch-homebrew-tap-pr-via-release:
-    if: github.event_name == 'release' && !github.event.release.draft
+  dispatch-homebrew-tap:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch Homebrew tap PR workflow via Release
+      - name: Dispatch workflow in homebrew-tap to create homebrew release PR
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        uses: ./.github/actions/homebrew-tap-release
-        with:
-          tag: ${{ github.event.release.tag_name }}
-  dispatch-homebrew-tap-pr-via-workflow-dispatch:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Dispatch Homebrew tap PR workflow via Workflow Dispatch
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        uses: ./.github/actions/homebrew-tap-release
-        with:
-          tag: ${{ inputs.tag }}
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+        run: |
+          gh api \
+            --method POST \
+            repos/janeklb/homebrew-tap/actions/workflows/git-stack-release-pr.yml/dispatches \
+            -f ref=main \
+            -f inputs[tag]="$TAG"
