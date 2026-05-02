@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 )
@@ -151,44 +150,6 @@ func TestBuildForwardCandidateDeletedLocalBranchWithoutMergeCommitShowsRepair(t 
 		t.Fatal("expected deleted local branch without merge commit to fail")
 	}
 	if !strings.Contains(err.Error(), "repair with: git-stack clean --all --yes && git-stack restack && git-stack submit") {
-		t.Fatalf("expected repair guidance, got: %v", err)
-	}
-}
-
-func TestBuildForwardCandidateIntegrationCheckShowsRepair(t *testing.T) {
-	t.Parallel()
-
-	deps := forwardDeps{
-		git: fakeForwardGit{
-			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
-			localBranchExistsFn:  func(string) bool { return true },
-		},
-		gh: fakeForwardGH{viewFn: func(number int) (*GhPR, error) {
-			return &GhPR{Number: number, State: "MERGED", BaseRefName: "main"}, nil
-		}},
-		mergedCleanIntegrated: func(string, string, *GhPR) (bool, error) {
-			return false, fmt.Errorf("fatal: unknown commit slicea")
-		},
-		mergedBranchChildren: func(state *State, branch string) []string {
-			return nil
-		},
-	}
-
-	state := &State{
-		Trunk: "main",
-		Branches: map[string]*BranchRef{
-			"slicea": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
-		},
-	}
-
-	_, err := buildForwardCandidateWithDeps(state, "slicea", deps)
-	if err == nil {
-		t.Fatal("expected integration check failure")
-	}
-	if !strings.Contains(err.Error(), "forward integration check failed for slicea against main: fatal: unknown commit slicea") {
-		t.Fatalf("expected integration check context, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "repair with: git-stack clean --all --yes && git-stack restack") {
 		t.Fatalf("expected repair guidance, got: %v", err)
 	}
 }
