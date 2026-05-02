@@ -16,6 +16,9 @@ func (a *App) defaultSubmitDeps() submitDeps {
 		ensureCleanWorktree:  ensureCleanWorktree,
 		loadState:            loadStateFromRepoOrInfer,
 		submitQueue:          submitQueue,
+		validateQueue: func(state *State, queue []string) error {
+			return validateSubmitQueue(state, queue, git)
+		},
 		ensurePR:             ensurePR,
 		syncCurrentStackBody: syncCurrentStackBodies,
 		saveState:            saveState,
@@ -57,6 +60,11 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submi
 			a.println("submit: note: --next-on-clean was not used because submit did not clean the current branch")
 		}
 		return nil
+	}
+	if deps.validateQueue != nil {
+		if err := deps.validateQueue(state, queue); err != nil {
+			return err
+		}
 	}
 
 	usedNextOnClean := false
@@ -114,6 +122,35 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submi
 	if persisted {
 		if err := deps.saveState(repoRoot, state); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func validateSubmitQueue(state *State, queue []string, git submitGitClient) error {
+	localBranches, err := listLocalBranches()
+	if err != nil {
+		return err
+	}
+	localBranchSet := map[string]bool{}
+	for _, branch := range localBranches {
+		localBranchSet[branch] = true
+	}
+	for _, branch := range queue {
+		meta := state.Branches[branch]
+		if meta == nil || meta.Parent == "" {
+			continue
+		}
+		if !localBranchSet[branch] || !localBranchSet[meta.Parent] {
+			continue
+		}
+		drift, reason := detectDrift(branch, meta.Parent)
+		if drift && reason == "parent-not-ancestor" {
+			integrated, err := git.BranchFullyIntegrated(branch, meta.Parent)
+			if err == nil && integrated {
+				continue
+			}
+			return fmt.Errorf("submit requires restack before push: %s is no longer based on %s; run git-stack restack", branch, meta.Parent)
 		}
 	}
 	return nil
