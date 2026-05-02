@@ -53,11 +53,20 @@ func (a *App) cmdForward(next string) error {
 	forwardScope := branchesInCurrentStack(state, current)
 
 	deps := defaultForwardDeps()
+	repairedPRMeta, err := repairForwardStackPRMetadata(state, forwardScope, deps.gh)
+	if err != nil {
+		return err
+	}
 	candidates, err := buildForwardCandidatesWithDeps(state, current, deps)
 	if err != nil {
 		return err
 	}
 	if len(candidates) == 0 {
+		if repairedPRMeta {
+			if err := saveState(repoRoot, state); err != nil {
+				return err
+			}
+		}
 		a.println("forward: nothing to do")
 		return nil
 	}
@@ -174,6 +183,9 @@ func buildForwardCandidatesWithDeps(state *State, current string, deps forwardDe
 }
 
 func buildForwardCandidateWithDeps(state *State, current string, deps forwardDeps) (forwardCleanupCandidate, error) {
+	if _, _, err := repairTrackedPRMetadata(state, current, deps.gh); err != nil {
+		return forwardCleanupCandidate{}, fmt.Errorf("forward failed to repair PR metadata for %s: %w", current, err)
+	}
 	candidate, eligible, err := detectForwardCandidateWithDeps(state, current, deps)
 	if err != nil {
 		return forwardCleanupCandidate{}, err
@@ -193,6 +205,18 @@ func buildForwardCandidateWithDeps(state *State, current string, deps forwardDep
 		return forwardCleanupCandidate{}, fmt.Errorf("forward requires current PR to be merged; %s is %s", current, strings.ToLower(pr.State))
 	}
 	return candidate, nil
+}
+
+func repairForwardStackPRMetadata(state *State, scope map[string]bool, gh forwardGHClient) (bool, error) {
+	repaired := false
+	for branch := range scope {
+		_, updated, err := repairTrackedPRMetadata(state, branch, gh)
+		if err != nil {
+			return false, fmt.Errorf("forward failed to repair PR metadata for %s: %w", branch, err)
+		}
+		repaired = repaired || updated
+	}
+	return repaired, nil
 }
 
 func detectForwardCandidateWithDeps(state *State, current string, deps forwardDeps) (forwardCleanupCandidate, bool, error) {

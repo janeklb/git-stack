@@ -65,29 +65,22 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submi
 		if !ok {
 			continue
 		}
-		var existingPR *GhPR
-		if meta.PR != nil && meta.PR.Number > 0 {
-			existing, err := deps.gh.View(meta.PR.Number)
-			if err == nil && strings.EqualFold(existing.State, "MERGED") {
-				meta.PR.URL = existing.URL
-				if existing.BaseRefName != "" {
-					meta.PR.Base = existing.BaseRefName
-				}
-				a.printlnf("%s -> PR #%d already merged, skipping", branch, existing.Number)
-				used, err := deps.cleanMergedBranch(state, branch, nextOnClean)
-				if err != nil {
-					return err
-				}
-				usedNextOnClean = usedNextOnClean || used
-				continue
-			}
-			if err == nil {
-				existingPR = existing
-			}
-		}
 		parent := meta.Parent
 		if parent == "" {
 			parent = state.Trunk
+		}
+		existingPR, mergedPR, err := resolveSubmitBranchPR(state, branch, parent, deps)
+		if err != nil {
+			return fmt.Errorf("submit %s: %w", branch, err)
+		}
+		if mergedPR != nil {
+			a.printlnf("%s -> PR #%d already merged, skipping", branch, mergedPR.Number)
+			used, err := deps.cleanMergedBranch(state, branch, nextOnClean)
+			if err != nil {
+				return err
+			}
+			usedNextOnClean = usedNextOnClean || used
+			continue
 		}
 		if !deps.git.LocalBranchExists(branch) {
 			a.printlnf("%s -> skipped: local branch no longer exists", branch)
@@ -122,6 +115,64 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submi
 		if err := deps.saveState(repoRoot, state); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func resolveSubmitBranchPR(state *State, branch, parent string, deps submitDeps) (*GhPR, *GhPR, error) {
+	meta := state.Branches[branch]
+	if meta == nil {
+		return nil, nil, nil
+	}
+	if meta.PR != nil && meta.PR.Number > 0 {
+		existing, err := deps.gh.View(meta.PR.Number)
+		if err == nil {
+			meta.PR = trackedPRMetaFromPR(state, branch, existing, true)
+			if strings.EqualFold(existing.State, "MERGED") {
+				return nil, existing, nil
+			}
+			return existing, nil, nil
+		}
+	}
+
+	pr, repaired, err := repairTrackedPRMetadata(state, branch, deps.gh)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !repaired || pr == nil {
+		return nil, nil, nil
+	}
+	if strings.EqualFold(pr.State, "MERGED") {
+		if err := ensureSubmitMergedRepairSafe(branch, state, parent, pr, deps.git); err != nil {
+			return nil, nil, err
+		}
+		return nil, pr, nil
+	}
+	return pr, nil, nil
+}
+
+func ensureSubmitMergedRepairSafe(branch string, state *State, parent string, pr *GhPR, git submitGitClient) error {
+	remoteExists, err := git.RemoteBranchExists(branch)
+	if err != nil || remoteExists {
+		return err
+	}
+
+	base := parent
+	if pr != nil && pr.BaseRefName != "" {
+		base = pr.BaseRefName
+	}
+	if base == "" {
+		base = state.Trunk
+	}
+	if !git.LocalBranchExists(branch) {
+		return nil
+	}
+	integrated, err := git.BranchFullyIntegrated(branch, base)
+	if err != nil {
+		return fmt.Errorf("merged PR metadata was found, but integration check against %s failed: %w", base, err)
+	}
+	if !integrated {
+		return fmt.Errorf("merged PR metadata was found, but local commits are not fully integrated into %s", base)
 	}
 	return nil
 }

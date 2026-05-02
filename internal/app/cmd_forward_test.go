@@ -43,7 +43,23 @@ func (f fakeForwardGit) DeleteLocalBranch(branch string) error {
 }
 
 type fakeForwardGH struct {
-	viewFn func(int) (*GhPR, error)
+	findByHeadFn       func(string) (*GhPR, error)
+	findMergedByHeadFn func(string) (*GhPR, error)
+	viewFn             func(int) (*GhPR, error)
+}
+
+func (f fakeForwardGH) FindByHead(branch string) (*GhPR, error) {
+	if f.findByHeadFn == nil {
+		return nil, nil
+	}
+	return f.findByHeadFn(branch)
+}
+
+func (f fakeForwardGH) FindMergedByHead(branch string) (*GhPR, error) {
+	if f.findMergedByHeadFn == nil {
+		return nil, nil
+	}
+	return f.findMergedByHeadFn(branch)
 }
 
 func (f fakeForwardGH) View(number int) (*GhPR, error) {
@@ -135,5 +151,36 @@ func TestBuildForwardCandidateDeletedLocalBranchWithoutMergeCommitShowsRepair(t 
 	}
 	if !strings.Contains(err.Error(), "repair with: git-stack clean --all --yes && git-stack restack && git-stack submit") {
 		t.Fatalf("expected repair guidance, got: %v", err)
+	}
+}
+
+func TestRepairForwardStackPRMetadataRepairsMissingPRMetadataFromMergedHead(t *testing.T) {
+	t.Parallel()
+
+	gh := fakeForwardGH{
+		findMergedByHeadFn: func(branch string) (*GhPR, error) {
+			if branch != "feat-a" {
+				t.Fatalf("unexpected merged lookup for %s", branch)
+			}
+			return &GhPR{Number: 7, URL: "https://example.invalid/pr/7", State: "MERGED", BaseRefName: "main", HeadRefOID: "abc123"}, nil
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-a": {Parent: "main"},
+		},
+	}
+
+	repaired, err := repairForwardStackPRMetadata(state, map[string]bool{"feat-a": true}, gh)
+	if err != nil {
+		t.Fatalf("expected repaired forward metadata, got error: %v", err)
+	}
+	if !repaired {
+		t.Fatal("expected metadata repair to report a state update")
+	}
+	if state.Branches["feat-a"].PR == nil || state.Branches["feat-a"].PR.Number != 7 {
+		t.Fatalf("expected repaired PR metadata, got %+v", state.Branches["feat-a"].PR)
 	}
 }

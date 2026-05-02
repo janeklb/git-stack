@@ -9,6 +9,8 @@ type forwardGitClient interface {
 }
 
 type forwardGHClient interface {
+	FindByHead(branch string) (*GhPR, error)
+	FindMergedByHead(branch string) (*GhPR, error)
 	View(number int) (*GhPR, error)
 }
 
@@ -37,6 +39,8 @@ type submitGitClient interface {
 }
 
 type submitGHClient interface {
+	FindByHead(branch string) (*GhPR, error)
+	FindMergedByHead(branch string) (*GhPR, error)
 	View(number int) (*GhPR, error)
 }
 
@@ -87,6 +91,10 @@ func (defaultGitClient) BranchHasCommitsSince(base, branch string) (bool, error)
 }
 
 type defaultGHClient struct{}
+
+func (defaultGHClient) FindByHead(branch string) (*GhPR, error) {
+	return ghFindByHead(branch)
+}
 
 func (defaultGHClient) View(number int) (*GhPR, error) {
 	return ghView(number)

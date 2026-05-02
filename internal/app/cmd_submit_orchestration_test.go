@@ -8,9 +8,10 @@ import (
 )
 
 type fakeSubmitGitClient struct {
-	pushCalls []string
-	local     map[string]bool
-	ahead     map[string]bool
+	pushCalls  []string
+	local      map[string]bool
+	ahead      map[string]bool
+	integrated map[string]bool
 }
 
 func (f *fakeSubmitGitClient) PushBranch(branch string) error {
@@ -50,12 +51,32 @@ func (f *fakeSubmitGitClient) DeleteLocalBranch(string) error {
 	return nil
 }
 
-func (f *fakeSubmitGitClient) BranchFullyIntegrated(string, string) (bool, error) {
-	return true, nil
+func (f *fakeSubmitGitClient) BranchFullyIntegrated(branch, base string) (bool, error) {
+	_ = base
+	if f.integrated == nil {
+		return true, nil
+	}
+	return f.integrated[branch], nil
 }
 
 type fakeSubmitGHClient struct {
-	view map[int]*GhPR
+	findByHead       map[string]*GhPR
+	findMergedByHead map[string]*GhPR
+	view             map[int]*GhPR
+}
+
+func (f fakeSubmitGHClient) FindByHead(branch string) (*GhPR, error) {
+	if pr, ok := f.findByHead[branch]; ok {
+		return pr, nil
+	}
+	return nil, nil
+}
+
+func (f fakeSubmitGHClient) FindMergedByHead(branch string) (*GhPR, error) {
+	if pr, ok := f.findMergedByHead[branch]; ok {
+		return pr, nil
+	}
+	return nil, nil
 }
 
 func (f fakeSubmitGHClient) View(number int) (*GhPR, error) {
@@ -393,5 +414,139 @@ func TestCmdSubmitTrimsNextOnCleanBeforeCleanCallback(t *testing.T) {
 	}
 	if seen != "feat-two" {
 		t.Fatalf("expected trimmed next-on-clean, got %q", seen)
+	}
+}
+
+func TestCmdSubmitRepairsMissingOpenPRMetadataBeforeEnsuringPR(t *testing.T) {
+	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"feat-one": {Parent: "main"},
+	}}
+	git := &fakeSubmitGitClient{}
+	ensureCalled := false
+
+	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
+		git: git,
+		gh: fakeSubmitGHClient{findByHead: map[string]*GhPR{
+			"feat-one": {Number: 11, URL: "https://example.invalid/pr/11", State: "OPEN", BaseRefName: "main"},
+		}},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, true, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+			ensureCalled = true
+			if state.Branches["feat-one"].PR == nil || state.Branches["feat-one"].PR.Number != 11 {
+				t.Fatalf("expected repaired PR metadata before ensurePR, got %+v", state.Branches["feat-one"].PR)
+			}
+			if state.Branches["feat-one"].PR.URL != "https://example.invalid/pr/11" {
+				t.Fatalf("expected repaired PR URL, got %+v", state.Branches["feat-one"].PR)
+			}
+			return state.Branches["feat-one"].PR, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error { return nil },
+		saveState:            func(string, *State) error { return nil },
+		cleanMergedBranch: func(*State, string, string) (bool, error) {
+			t.Fatal("clean should not be called for repaired open PR")
+			return false, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if !ensureCalled {
+		t.Fatal("expected ensurePR to run for repaired open PR")
+	}
+	if len(git.pushCalls) != 1 || git.pushCalls[0] != "feat-one" {
+		t.Fatalf("expected push for feat-one, got %v", git.pushCalls)
+	}
+}
+
+func TestCmdSubmitRepairsMissingMergedPRMetadataBeforePush(t *testing.T) {
+	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"feat-one": {Parent: "main"},
+	}}
+	git := &fakeSubmitGitClient{integrated: map[string]bool{"feat-one": true}}
+	cleaned := ""
+
+	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
+		git: git,
+		gh: fakeSubmitGHClient{findMergedByHead: map[string]*GhPR{
+			"feat-one": {Number: 12, URL: "https://example.invalid/pr/12", State: "MERGED", BaseRefName: "main"},
+		}},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, true, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+			t.Fatal("ensurePR should not run for repaired merged PR")
+			return nil, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error { return nil },
+		saveState:            func(string, *State) error { return nil },
+		cleanMergedBranch: func(*State, string, string) (bool, error) {
+			cleaned = "feat-one"
+			return false, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("cmdSubmitWithDeps returned error: %v", err)
+	}
+	if len(git.pushCalls) != 0 {
+		t.Fatalf("expected no push for repaired merged PR, got %v", git.pushCalls)
+	}
+	if cleaned != "feat-one" {
+		t.Fatalf("expected clean for feat-one, got %q", cleaned)
+	}
+	if state.Branches["feat-one"].PR == nil || state.Branches["feat-one"].PR.Number != 12 {
+		t.Fatalf("expected repaired merged PR metadata, got %+v", state.Branches["feat-one"].PR)
+	}
+}
+
+func TestCmdSubmitFailsWhenRepairedMergedPRIsNotIntegrated(t *testing.T) {
+	app := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"feat-one": {Parent: "main"},
+	}}
+	git := &fakeSubmitGitClient{integrated: map[string]bool{"feat-one": false}}
+
+	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
+		git: git,
+		gh: fakeSubmitGHClient{findMergedByHead: map[string]*GhPR{
+			"feat-one": {Number: 12, URL: "https://example.invalid/pr/12", State: "MERGED", BaseRefName: "main"},
+		}},
+		ensureCleanWorktree: func() error { return nil },
+		loadState: func() (string, *State, bool, error) {
+			return "/tmp/repo", state, true, nil
+		},
+		submitQueue: func(*State, bool, []string) ([]string, error) {
+			return []string{"feat-one"}, nil
+		},
+		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+			t.Fatal("ensurePR should not run for repaired merged PR")
+			return nil, nil
+		},
+		syncCurrentStackBody: func(*State, bool, string) error { return nil },
+		saveState:            func(string, *State) error { return nil },
+		cleanMergedBranch: func(*State, string, string) (bool, error) {
+			t.Fatal("clean should not run when repaired merged PR is not integrated")
+			return false, nil
+		},
+	})
+	if err == nil {
+		t.Fatal("expected submit to fail when repaired merged PR is not integrated")
+	}
+	if !strings.Contains(err.Error(), "local commits are not fully integrated") {
+		t.Fatalf("expected integration failure, got %v", err)
+	}
+	if len(git.pushCalls) != 0 {
+		t.Fatalf("expected no pushes, got %v", git.pushCalls)
 	}
 }
