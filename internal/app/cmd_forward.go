@@ -25,6 +25,8 @@ type forwardDeps struct {
 	mergedBranchChildren  func(*State, string) []string
 }
 
+const forwardRepairFlow = "git-stack clean --all --yes && git-stack restack"
+
 func defaultForwardDeps() forwardDeps {
 	return forwardDeps{
 		git:                   defaultGitClient{},
@@ -258,16 +260,16 @@ func detectForwardCandidateWithDeps(state *State, current string, deps forwardDe
 	if hasLocal {
 		integrated, err = deps.mergedCleanIntegrated(current, base, pr)
 		if err != nil {
-			return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w", current, base, err)
+			return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w; repair with: %s", current, base, err, forwardRepairFlow)
 		}
 	} else {
 		integrated, err = mergedDeletedBranchIntegrated(base, pr)
 		if err != nil {
-			return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w", current, base, err)
+			return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w; repair with: %s", current, base, err, forwardRepairFlow)
 		}
 	}
 	if !integrated {
-		return forwardCleanupCandidate{}, false, fmt.Errorf("forward aborted: %s has local commits not fully integrated into %s", current, base)
+		return forwardCleanupCandidate{}, false, fmt.Errorf("forward aborted: %s has local commits not fully integrated into %s; repair with: %s", current, base, forwardRepairFlow)
 	}
 
 	head, err := forwardCandidateHead(current, pr, hasLocal)
@@ -606,7 +608,7 @@ func mergedCleanIntegrated(branch, base string, pr *GhPR) (bool, error) {
 
 func mergedDeletedBranchIntegrated(base string, pr *GhPR) (bool, error) {
 	if pr == nil || pr.MergeCommit == nil || pr.MergeCommit.OID == "" {
-		return false, fmt.Errorf("deleted local branch is missing PR merge commit; repair with: git-stack clean --all --yes && git-stack restack && git-stack submit")
+		return false, fmt.Errorf("deleted local branch is missing PR merge commit; repair with: %s && git-stack submit", forwardRepairFlow)
 	}
 	return baseContainsCommit(base, pr.MergeCommit.OID)
 }
