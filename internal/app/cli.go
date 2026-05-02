@@ -106,7 +106,7 @@ init requires a clean worktree. When --trunk is omitted, stack detects trunk fro
 		Short: "Create or adopt a branch in stack",
 		Long: `Create a new tracked branch, or adopt the current branch into stack state.
 
-Without --adopt, stack creates a new branch from the chosen parent and starts tracking only that new branch. The default parent is the current branch. If [name] is omitted, stack generates a temporary slug. The final branch name is built from the configured template, where {slug} expands to the normalized name and {n} expands to the next zero-padded index.
+Without --adopt, stack creates a new branch from the chosen parent and starts tracking only that new branch. The default parent is the current branch. If [name] is omitted, stack generates a temporary slug. The final branch name is built from the configured template, where {slug} expands to the sanitized name and {n} expands to the next zero-padded index.
 
 With --adopt, stack does not create a branch. It tracks the current existing branch instead. If --parent is omitted during adopt, stack infers the parent from local branch ancestry. This command requires a clean worktree and auto-bootstraps config defaults if needed.`,
 		Example: "  git-stack new add-search\n  git-stack new api/auth --parent main\n  git-stack new polish-login --template \"feature/{slug}\"\n  git-stack new --adopt\n  git-stack new --adopt --parent feature/base",
