@@ -17,7 +17,6 @@ func TestLoadStateNormalizesWhitespace(t *testing.T) {
 			Template:  "  {slug}  ",
 			NextIndex: 2,
 		},
-		Clean: CleanConfig{MergeDetection: "  strict  "},
 		Branches: map[string]*BranchRef{
 			"feat-one": {Parent: "  main  ", LineageParent: "   ", PR: &PRMeta{Number: 1, URL: "  https://example.invalid/pr/1  ", Base: "  main  "}},
 		},
@@ -52,9 +51,6 @@ func TestLoadStateNormalizesWhitespace(t *testing.T) {
 	if loaded.Naming.Template != "{slug}" {
 		t.Fatalf("expected trimmed naming template, got %q", loaded.Naming.Template)
 	}
-	if loaded.Clean.MergeDetection != cleanMergeDetectionStrict {
-		t.Fatalf("expected trimmed clean policy, got %q", loaded.Clean.MergeDetection)
-	}
 	if loaded.Branches["feat-one"].Parent != "main" {
 		t.Fatalf("expected trimmed parent, got %q", loaded.Branches["feat-one"].Parent)
 	}
@@ -78,7 +74,6 @@ func TestSaveStateCanonicalizesWhitespace(t *testing.T) {
 			Template:  "  {slug}  ",
 			NextIndex: 1,
 		},
-		Clean: CleanConfig{MergeDetection: "  strict  "},
 		Branches: map[string]*BranchRef{
 			"feat-one": {Parent: "  main  ", LineageParent: "  feat-root  ", PR: &PRMeta{Number: 1, URL: "  https://example.invalid/pr/1  ", Base: "  main  "}},
 		},

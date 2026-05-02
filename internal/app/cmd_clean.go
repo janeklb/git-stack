@@ -34,7 +34,6 @@ type pruneLocalScope struct {
 	trackedBranches    map[string]bool
 	trackedFromCurrent bool
 	allTracked         bool
-	mergeDetection     string
 	includeUntracked   bool
 }
 
@@ -93,21 +92,7 @@ func cleanTrackedScope(state *State, current string, all bool) map[string]bool {
 	return branchesInCurrentStack(state, current)
 }
 
-func cleanMergeDetectionPolicy(state *State, includeSquash bool) string {
-	if includeSquash {
-		return "include-squash"
-	}
-	policy := state.Clean.MergeDetection
-	if policy == "" {
-		return cleanMergeDetectionStrict
-	}
-	return policy
-}
-
-func cleanMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, policy string) (bool, string) {
-	if strings.TrimSpace(policy) == "" {
-		policy = cleanMergeDetectionStrict
-	}
+func cleanMergeEligible(git pruneGitClient, branch, base string, pr *GhPR) (bool, string) {
 	head := pr.HeadRefOID
 	if head == "" {
 		return false, "missing PR head commit"
@@ -132,15 +117,6 @@ func cleanMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, polic
 		if contains {
 			return true, ""
 		}
-		if policy == cleanMergeDetectionStrict {
-			return false, "merge commit not in trunk"
-		}
-	} else if policy == cleanMergeDetectionStrict {
-		return false, "missing merge commit"
-	}
-
-	if policy != "include-squash" {
-		return false, "unsupported merge detection policy"
 	}
 	integrated, integratedErr := git.BranchFullyIntegrated(branch, base)
 	if integratedErr != nil {
@@ -152,7 +128,7 @@ func cleanMergeEligible(git pruneGitClient, branch, base string, pr *GhPR, polic
 	return true, ""
 }
 
-func (a *App) cmdClean(yes bool, all bool, includeSquash bool, untracked bool) error {
+func (a *App) cmdClean(yes bool, all bool, untracked bool) error {
 	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
@@ -166,7 +142,7 @@ func (a *App) cmdClean(yes bool, all bool, includeSquash bool, untracked bool) e
 			return err
 		}
 	}
-	return a.runCleanCommand(repoRoot, state, yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, mergeDetection: cleanMergeDetectionPolicy(state, includeSquash), includeUntracked: untracked})
+	return a.runCleanCommand(repoRoot, state, yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, includeUntracked: untracked})
 }
 
 func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pruneLocalScope) error {
@@ -259,9 +235,6 @@ func buildPruneLocalPlan(state *State, scope pruneLocalScope) (*pruneLocalPlan, 
 }
 
 func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pruneLocalScope) (*pruneLocalPlan, error) {
-	if strings.TrimSpace(scope.mergeDetection) == "" {
-		scope.mergeDetection = cleanMergeDetectionStrict
-	}
 	branches, err := deps.git.ListLocalBranches()
 	if err != nil {
 		return nil, err
@@ -323,7 +296,7 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 			continue
 		}
 
-		eligible, reason := cleanMergeEligible(deps.git, branch, base, pr, scope.mergeDetection)
+		eligible, reason := cleanMergeEligible(deps.git, branch, base, pr)
 		if !eligible {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: reason})
 			continue
