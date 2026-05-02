@@ -54,3 +54,16 @@ func TestNewAdoptAllowsExplicitParentOverride(t *testing.T) {
 		t.Fatalf("expected adopted branch parent/lineage to be base, got %+v", meta)
 	}
 }
+
+func TestNewPreservesCaseInExplicitBranchName(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"new", "sliceA"})
+	if code != 0 {
+		t.Fatalf("new sliceA failed: exit=%d\n%s", code, out)
+	}
+	if !branchExistsInRepo(repo, "sliceA") {
+		t.Fatal("expected branch sliceA to be created without case normalization")
+	}
+}

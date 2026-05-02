@@ -7,8 +7,8 @@ import (
 )
 
 func slugify(input string) string {
-	s := strings.ToLower(strings.TrimSpace(input))
-	re := regexp.MustCompile(`[^a-z0-9._/-]+`)
+	s := strings.TrimSpace(input)
+	re := regexp.MustCompile(`[^A-Za-z0-9._/-]+`)
 	s = re.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-./")
 	for strings.Contains(s, "--") {
