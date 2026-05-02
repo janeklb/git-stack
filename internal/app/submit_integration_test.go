@@ -364,3 +364,46 @@ func TestSubmitForcePushesWithLeaseAfterHistoryRewrite(t *testing.T) {
 		}
 	})
 }
+
+func TestSubmitFailsBeforePushWhenDescendantNeedsRestack(t *testing.T) {
+	repo := newTestRepo(t)
+	origin := newBareOrigin(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
+
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+		mustRunCLI(t, cli, []string{"new", "feat-one"})
+		mustWriteFile(t, filepath.Join(repo, "feat-one.txt"), "one\n")
+		mustGit(t, repo, "add", "feat-one.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+
+		mustRunCLI(t, cli, []string{"new", "feat-two", "--parent", "feat-one"})
+		mustWriteFile(t, filepath.Join(repo, "feat-two.txt"), "two\n")
+		mustGit(t, repo, "add", "feat-two.txt")
+		mustGit(t, repo, "commit", "-m", "feat two")
+
+		mustGit(t, repo, "switch", "feat-one")
+		mustWriteFile(t, filepath.Join(repo, "feat-one.txt"), "one\nmore\n")
+		mustGit(t, repo, "add", "feat-one.txt")
+		mustGit(t, repo, "commit", "-m", "feat one update")
+
+		out, code := runCLIAndCapture(t, cli, []string{"submit"})
+		if code == 0 {
+			t.Fatalf("expected submit to fail when descendant needs restack, output:\n%s", out)
+		}
+		if !strings.Contains(out, "submit requires restack before push: feat-two is no longer based on feat-one; run git-stack restack") {
+			t.Fatalf("expected restack guidance, got:\n%s", out)
+		}
+
+		remoteHead, err := gitOutput("ls-remote", "--heads", "origin", "feat-one")
+		if err != nil {
+			t.Fatalf("ls-remote feat-one: %v", err)
+		}
+		if strings.TrimSpace(remoteHead) != "" {
+			t.Fatalf("expected submit to fail before pushing feat-one, got remote ref:\n%s", remoteHead)
+		}
+	})
+}

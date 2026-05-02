@@ -12,6 +12,7 @@ type submitDeps struct {
 	ensureCleanWorktree  func() error
 	loadState            func() (string, *State, bool, error)
 	submitQueue          func(*State, bool, []string) ([]string, error)
+	validateQueue        func(*State, []string) error
 	ensurePR             func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error)
 	syncCurrentStackBody func(*State, bool, string) error
 	saveState            func(string, *State) error
