@@ -3,29 +3,30 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 )
 
 func ghFindByHead(branch string) (*GhPR, error) {
-	var prs []GhPR
-	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "open", "--json", "number,url,body,baseRefName,headRefOid,title,isDraft,state,mergeCommit", "--limit", "1"); err != nil {
-		return nil, err
-	}
-	if len(prs) == 0 {
-		return nil, nil
-	}
-	return &prs[0], nil
+	return ghFindSingleByHead(branch, "open")
 }
 
 func ghFindMergedByHead(branch string) (*GhPR, error) {
+	return ghFindSingleByHead(branch, "merged")
+}
+
+func ghFindSingleByHead(branch string, state string) (*GhPR, error) {
 	var prs []GhPR
-	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", "merged", "--json", "number,url,baseRefName,headRefOid,isDraft,state,mergeCommit", "--limit", "1"); err != nil {
+	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", state, "--json", "number,url,body,baseRefName,headRefOid,title,isDraft,state,mergeCommit", "--limit", "2"); err != nil {
 		return nil, err
 	}
 	if len(prs) == 0 {
 		return nil, nil
+	}
+	if len(prs) > 1 {
+		return nil, fmt.Errorf("ambiguous %s PR lookup for head %s", state, branch)
 	}
 	return &prs[0], nil
 }
