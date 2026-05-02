@@ -91,9 +91,6 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	if clean.Flags().Lookup("all") == nil {
 		t.Fatalf("expected clean all flag to exist")
 	}
-	if clean.Flags().Lookup("include-squash") == nil {
-		t.Fatalf("expected clean include-squash flag to exist")
-	}
 	if clean.Flags().Lookup("untracked") == nil {
 		t.Fatalf("expected clean untracked flag to exist")
 	}

@@ -6,11 +6,10 @@ import (
 )
 
 const (
-	stateVersion              = 1
-	managedBlockStart         = "<!-- stack:managed:start -->"
-	managedBlockEnd           = "<!-- stack:managed:end -->"
-	defaultRestackMode        = "rebase"
-	cleanMergeDetectionStrict = "strict"
+	stateVersion       = 1
+	managedBlockStart  = "<!-- stack:managed:start -->"
+	managedBlockEnd    = "<!-- stack:managed:end -->"
+	defaultRestackMode = "rebase"
 )
 
 type App struct {
@@ -24,13 +23,8 @@ type State struct {
 	Trunk       string                  `json:"trunk"`
 	RestackMode string                  `json:"restackMode"`
 	Naming      NamingConfig            `json:"naming"`
-	Clean       CleanConfig             `json:"clean,omitempty"`
 	Branches    map[string]*BranchRef   `json:"branches"`
 	Archived    map[string]*ArchivedRef `json:"archived,omitempty"`
-}
-
-type CleanConfig struct {
-	MergeDetection string `json:"mergeDetection,omitempty"`
 }
 
 type NamingConfig struct {

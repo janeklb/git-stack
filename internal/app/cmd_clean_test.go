@@ -227,7 +227,7 @@ func TestCleanTrackedScopeAllSelectsAllTrackedBranches(t *testing.T) {
 	}
 }
 
-func TestBuildPruneLocalPlanStrictPolicySkipsBranchWithoutMergeCommit(t *testing.T) {
+func TestBuildPruneLocalPlanAllowsIntegratedBranchWithoutMergeCommit(t *testing.T) {
 	t.Parallel()
 
 	deps := pruneLocalPlanDeps{
@@ -243,42 +243,45 @@ func TestBuildPruneLocalPlanStrictPolicySkipsBranchWithoutMergeCommit(t *testing
 		}},
 	}
 
-	state := &State{Trunk: "main", Clean: CleanConfig{MergeDetection: cleanMergeDetectionStrict}, Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
-	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state), mergeDetection: cleanMergeDetectionStrict})
-	if err != nil {
-		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
-	}
-	if len(plan.Delete) != 0 {
-		t.Fatalf("expected no deletions under strict policy, got %#v", plan.Delete)
-	}
-	if len(plan.Skip) != 1 || plan.Skip[0].Reason != "missing merge commit" {
-		t.Fatalf("expected strict policy to skip missing merge commit, got %#v", plan.Skip)
-	}
-}
-
-func TestBuildPruneLocalPlanIncludeSquashAllowsIntegratedBranchWithoutMergeCommit(t *testing.T) {
-	t.Parallel()
-
-	deps := pruneLocalPlanDeps{
-		git: fakePruneGit{
-			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "tracked"}, nil },
-			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
-			branchAtOrBehindFn:   func(string, string) (bool, error) { return true, nil },
-			baseContainsCommitFn: func(string, string) (bool, error) { return false, nil },
-			branchIntegratedFn:   func(string, string) (bool, error) { return true, nil },
-		},
-		gh: fakePruneGH{findMergedByHeadFn: func(string) (*GhPR, error) {
-			return &GhPR{Number: 10, URL: "https://example.invalid/pr/10", BaseRefName: "main", HeadRefOID: "h0"}, nil
-		}},
-	}
-
-	state := &State{Trunk: "main", Clean: CleanConfig{MergeDetection: cleanMergeDetectionStrict}, Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
-	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state), mergeDetection: "include-squash"})
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
 	if err != nil {
 		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
 	}
 	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "tracked" {
-		t.Fatalf("expected include-squash to allow clean, got %#v", plan.Delete)
+		t.Fatalf("expected integrated branch without merge commit to be cleaned, got %#v", plan.Delete)
+	}
+	if len(plan.Skip) != 0 {
+		t.Fatalf("expected no skips for integrated branch without merge commit, got %#v", plan.Skip)
+	}
+}
+
+func TestBuildPruneLocalPlanSkipsBranchNotFullyIntegratedWithoutMergeCommit(t *testing.T) {
+	t.Parallel()
+
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "tracked"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			branchAtOrBehindFn:   func(string, string) (bool, error) { return true, nil },
+			baseContainsCommitFn: func(string, string) (bool, error) { return false, nil },
+			branchIntegratedFn:   func(string, string) (bool, error) { return false, nil },
+		},
+		gh: fakePruneGH{findMergedByHeadFn: func(string) (*GhPR, error) {
+			return &GhPR{Number: 10, URL: "https://example.invalid/pr/10", BaseRefName: "main", HeadRefOID: "h0"}, nil
+		}},
+	}
+
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 0 {
+		t.Fatalf("expected non-integrated branch without merge commit to be skipped, got %#v", plan.Delete)
+	}
+	if len(plan.Skip) != 1 || plan.Skip[0].Reason != "branch not fully integrated into trunk" {
+		t.Fatalf("expected integration-based skip, got %#v", plan.Skip)
 	}
 }
 

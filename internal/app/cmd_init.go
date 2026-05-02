@@ -49,9 +49,6 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 			PrefixIndex: prefixIndex,
 			NextIndex:   nextIndex,
 		},
-		Clean: CleanConfig{
-			MergeDetection: cleanMergeDetectionStrict,
-		},
 		Branches: branches,
 		Archived: archived,
 	}
