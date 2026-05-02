@@ -1,0 +1,30 @@
+name: Homebrew Tap Release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+jobs:
+  open-homebrew-tap-issue:
+    if: ${{ !github.event.release.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Homebrew release metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download "${{ github.event.release.tag_name }}" --pattern homebrew-release.json
+
+      - name: Open Homebrew tap update issue
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          source_url="$(jq -r '.source_url' homebrew-release.json)"
+          sha256="$(jq -r '.sha256' homebrew-release.json)"
+          scripts/open-homebrew-tap-issue.sh janeklb/homebrew-tap "${{ github.event.release.tag_name }}" "$source_url" "$sha256"

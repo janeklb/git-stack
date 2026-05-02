@@ -36,11 +36,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Open Homebrew tap update issue
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          source_url="$(jq -r '.source_url' homebrew-release.json)"
-          sha256="$(jq -r '.sha256' homebrew-release.json)"
-          scripts/open-homebrew-tap-issue.sh janeklb/homebrew-tap "${{ github.ref_name }}" "$source_url" "$sha256"
