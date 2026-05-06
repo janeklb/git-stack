@@ -259,3 +259,48 @@ func TestCleanPrunesTrackedStateWhenBranchRefIsMissing(t *testing.T) {
 		}
 	})
 }
+
+func TestCleanPrunesMissingTrackedStateWithClosedPR(t *testing.T) {
+	repo := newTestRepo(t)
+	origin := newBareOrigin(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+
+		mustPointRepoOriginAndTrack(t, repo, origin, "main")
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+
+		state, err := loadState(repo)
+		if err != nil {
+			t.Fatalf("load state: %v", err)
+		}
+		state.Branches["ghost"] = &BranchRef{Parent: "main", PR: &PRMeta{Number: 42, Base: "main"}}
+		if err := saveState(repo, state); err != nil {
+			t.Fatalf("save state: %v", err)
+		}
+
+		fakeBin := t.TempDir()
+		ghPath := filepath.Join(fakeBin, "gh")
+		mustWriteFile(t, ghPath, "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ] && [ \"$3\" = \"42\" ]; then\n  cat <<'EOF'\n{\"number\":42,\"url\":\"https://example.invalid/pr/42\",\"baseRefName\":\"main\",\"state\":\"CLOSED\"}\nEOF\n  exit 0\nfi\necho \"unexpected gh args: $*\" >&2\nexit 1\n")
+		if err := os.Chmod(ghPath, 0o755); err != nil {
+			t.Fatalf("chmod fake gh: %v", err)
+		}
+		t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		out, code := runCLIAndCapture(t, cli, []string{"clean", "--yes"})
+		if code != 0 {
+			t.Fatalf("clean failed: exit=%d\n%s", code, out)
+		}
+		if !strings.Contains(out, "ghost -> pruned stale tracked branch from stack state (closed PR #42)") {
+			t.Fatalf("expected closed-PR stale prune output, got:\n%s", out)
+		}
+
+		stateAfter, err := loadState(repo)
+		if err != nil {
+			t.Fatalf("load state after clean: %v", err)
+		}
+		if _, ok := stateAfter.Branches["ghost"]; ok {
+			t.Fatalf("expected ghost branch removed from stack state")
+		}
+	})
+}
