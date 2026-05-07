@@ -339,7 +339,7 @@ func buildMissingTrackedBranchCandidate(state *State, gh pruneGHClient, branch s
 		return pruneLocalCandidate{Branch: branch, PR: pr, Base: base, Stale: !strings.EqualFold(pr.State, "MERGED")}, true, nil
 	}
 	if meta.PR == nil || meta.PR.Number <= 0 {
-		return pruneLocalCandidate{Branch: branch, Base: base, Stale: true}, true, nil
+		return pruneLocalCandidate{Branch: branch, Base: base}, true, nil
 	}
 	return pruneLocalCandidate{}, false, nil
 }
@@ -365,12 +365,8 @@ func cleanTrackedMergedPR(state *State, gh pruneGHClient, branch string) (*GhPR,
 func printCleanPlan(out io.Writer, plan *pruneLocalPlan) {
 	fmt.Fprintln(out, "clean plan:")
 	for _, candidate := range plan.Delete {
-		if candidate.Stale {
-			if candidate.PR != nil {
-				fmt.Fprintf(out, "- delete: %s (stale tracked state; closed PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
-				continue
-			}
-			fmt.Fprintf(out, "- delete: %s (stale tracked state)\n", candidate.Branch)
+		if candidate.Stale && candidate.PR != nil {
+			fmt.Fprintf(out, "- delete: %s (stale tracked state; closed PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
 			continue
 		}
 		if candidate.PR == nil {
