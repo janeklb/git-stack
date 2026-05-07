@@ -61,6 +61,10 @@ func (a *App) cmdCheck() error {
 			report.add(checkSeverityError, "branch-metadata-missing", fmt.Sprintf("branch=%s", branch))
 			continue
 		}
+		if !branchExists(branch) {
+			report.add(checkSeverityWarn, "stale-tracked-branch", fmt.Sprintf("branch=%s", branch))
+			continue
+		}
 		parent := meta.Parent
 		if parent == "" {
 			report.add(checkSeverityError, "missing-parent", fmt.Sprintf("branch=%s", branch))

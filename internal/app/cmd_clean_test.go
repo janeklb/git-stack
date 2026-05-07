@@ -356,3 +356,47 @@ func TestBuildPruneLocalPlanPrunesMissingTrackedStateWithoutPR(t *testing.T) {
 		t.Fatalf("expected ghost branch to have no local ref, got %#v", plan.Delete[0])
 	}
 }
+
+func TestBuildPruneLocalPlanPrunesMissingTrackedStateWithClosedPR(t *testing.T) {
+	t.Parallel()
+
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+		},
+		gh: fakePruneGH{
+			findMergedByHeadFn: func(string) (*GhPR, error) { return nil, nil },
+			viewFn: func(number int) (*GhPR, error) {
+				if number != 42 {
+					return nil, nil
+				}
+				return &GhPR{Number: 42, URL: "https://example.invalid/pr/42", BaseRefName: "main", State: "CLOSED"}, nil
+			},
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"ghost": {Parent: "main", PR: &PRMeta{Number: 42, Base: "main"}},
+		},
+	}
+
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "ghost" {
+		t.Fatalf("expected closed-PR ghost branch pruned, got %#v", plan.Delete)
+	}
+	if !plan.Delete[0].Stale {
+		t.Fatalf("expected ghost branch marked stale, got %#v", plan.Delete[0])
+	}
+	if plan.Delete[0].HasLocal {
+		t.Fatalf("expected ghost branch to have no local ref, got %#v", plan.Delete[0])
+	}
+	if len(plan.Skip) != 0 {
+		t.Fatalf("expected no skips for closed-PR ghost branch, got %#v", plan.Skip)
+	}
+}

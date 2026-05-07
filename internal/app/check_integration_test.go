@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -67,5 +68,29 @@ func TestCheckErrorsWhenStateIsNotInitialized(t *testing.T) {
 	}
 	if !strings.Contains(out, "ERROR state-not-initialized") {
 		t.Fatalf("expected state-not-initialized error in check output, got:\n%s", out)
+	}
+}
+
+func TestCheckWarnsForMissingTrackedBranchState(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustRunCLIInRepo(t, repo, []string{"new", "ghost"})
+	mustGit(t, repo, "switch", "main")
+	mustGit(t, repo, "branch", "-D", "ghost")
+	if err := os.Remove(filepath.Join(repo, ".git", "refs", "remotes", "origin", "ghost")); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove remote-tracking ghost ref: %v", err)
+	}
+
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"check"})
+	if code != 0 {
+		t.Fatalf("expected zero exit for stale tracked branch warning, got exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "WARN stale-tracked-branch branch=ghost") {
+		t.Fatalf("expected stale tracked branch warning, got:\n%s", out)
+	}
+	if strings.Contains(out, "parent-not-ancestor") {
+		t.Fatalf("did not expect parent ancestry error for stale tracked branch, got:\n%s", out)
 	}
 }

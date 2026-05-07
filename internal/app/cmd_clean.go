@@ -13,6 +13,7 @@ type pruneLocalCandidate struct {
 	PR       *GhPR
 	Base     string
 	HasLocal bool
+	Stale    bool
 }
 
 type pruneLocalSkip struct {
@@ -206,7 +207,9 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 		}
 
 		if candidate.PR != nil {
-			if candidate.HasLocal {
+			if candidate.Stale {
+				a.printlnf("%s -> pruned stale tracked branch from stack state (closed PR #%d)", candidate.Branch, candidate.PR.Number)
+			} else if candidate.HasLocal {
 				a.printlnf("%s -> deleted local branch (merged PR #%d)", candidate.Branch, candidate.PR.Number)
 			} else {
 				a.printlnf("%s -> pruned tracked branch from stack state (merged PR #%d)", candidate.Branch, candidate.PR.Number)
@@ -333,7 +336,7 @@ func buildMissingTrackedBranchCandidate(state *State, gh pruneGHClient, branch s
 		} else if meta.PR != nil && meta.PR.Base != "" {
 			base = meta.PR.Base
 		}
-		return pruneLocalCandidate{Branch: branch, PR: pr, Base: base}, true, nil
+		return pruneLocalCandidate{Branch: branch, PR: pr, Base: base, Stale: !strings.EqualFold(pr.State, "MERGED")}, true, nil
 	}
 	if meta.PR == nil || meta.PR.Number <= 0 {
 		return pruneLocalCandidate{Branch: branch, Base: base}, true, nil
@@ -351,6 +354,9 @@ func cleanTrackedMergedPR(state *State, gh pruneGHClient, branch string) (*GhPR,
 		return nil, err
 	}
 	if pr == nil || !strings.EqualFold(pr.State, "MERGED") {
+		if strings.EqualFold(pr.State, "CLOSED") {
+			return pr, nil
+		}
 		return nil, nil
 	}
 	return pr, nil
@@ -359,6 +365,10 @@ func cleanTrackedMergedPR(state *State, gh pruneGHClient, branch string) (*GhPR,
 func printCleanPlan(out io.Writer, plan *pruneLocalPlan) {
 	fmt.Fprintln(out, "clean plan:")
 	for _, candidate := range plan.Delete {
+		if candidate.Stale && candidate.PR != nil {
+			fmt.Fprintf(out, "- delete: %s (stale tracked state; closed PR #%d %s)\n", candidate.Branch, candidate.PR.Number, candidate.PR.URL)
+			continue
+		}
 		if candidate.PR == nil {
 			fmt.Fprintf(out, "- delete: %s (stale tracked state)\n", candidate.Branch)
 			continue
