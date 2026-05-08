@@ -2,6 +2,7 @@ package app
 
 import (
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -177,7 +178,7 @@ func TestRestackContinueCompletesActiveRebaseInPlace(t *testing.T) {
 	mustWriteFile(t, filepath.Join(repo, "conflict.txt"), "two\n")
 	mustGit(t, repo, "add", "conflict.txt")
 
-	out, code = runCLIInRepoAndCapture(t, repo, []string{"restack", "--continue"})
+	out, code = runCLIInRepoAndCaptureWithEnv(t, repo, testEnvWithoutGitEditor("VISUAL=false", "EDITOR=false"), []string{"restack", "--continue"})
 	if code != 0 {
 		t.Fatalf("expected git-stack restack --continue to finish active rebase, exit=%d\n%s", code, out)
 	}
@@ -192,6 +193,17 @@ func TestRestackContinueCompletesActiveRebaseInPlace(t *testing.T) {
 	if op != nil {
 		t.Fatalf("expected operation to be cleared after continue")
 	}
+}
+
+func testEnvWithoutGitEditor(overrides ...string) []string {
+	env := make([]string, 0, len(os.Environ())+len(overrides))
+	for _, entry := range os.Environ() {
+		if strings.HasPrefix(entry, "GIT_EDITOR=") {
+			continue
+		}
+		env = append(env, entry)
+	}
+	return append(env, overrides...)
 }
 
 func TestRestackUsesExplicitOldBaseToDropMergedParentCommits(t *testing.T) {

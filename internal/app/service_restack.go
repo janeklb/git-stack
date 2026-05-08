@@ -55,6 +55,8 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 		contArgs := []string{op.Mode, "--continue"}
 		if op.Mode == "merge" {
 			contArgs = []string{"merge", "--continue"}
+		} else {
+			contArgs = []string{"-c", "core.editor=true", op.Mode, "--continue"}
 		}
 		if err := gitRun(contArgs...); err != nil {
 			return fmt.Errorf("failed to continue %s: %w", op.Mode, err)
