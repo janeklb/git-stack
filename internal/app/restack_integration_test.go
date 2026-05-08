@@ -2,6 +2,7 @@ package app
 
 import (
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -121,9 +122,14 @@ func TestRestackRecoversFromManualRebaseContinue(t *testing.T) {
 
 	mustWriteFile(t, filepath.Join(repo, "conflict.txt"), "two\n")
 	mustGit(t, repo, "add", "conflict.txt")
-	mustGit(t, repo, "rebase", "--continue")
+	// This test exercises the manual recovery path, so keep the direct git
+	// invocation non-interactive instead of relying on process-wide GIT_EDITOR.
+	mustGit(t, repo, "-c", "core.editor=true", "rebase", "--continue")
 
-	out, code = runCLIInRepoAndCapture(t, repo, []string{"restack", "--continue"})
+	// The direct git recovery step above is separate from git-stack, so keep it
+	// non-interactive here and let the git-stack continuation path prove that it
+	// overrides hostile editor settings itself.
+	out, code = runCLIInRepoAndCaptureWithEnv(t, repo, testEnvWithOverrides("GIT_EDITOR=false"), []string{"restack", "--continue"})
 	if code != 0 {
 		t.Fatalf("expected continue to recover after manual rebase continue, exit=%d\n%s", code, out)
 	}
@@ -177,7 +183,7 @@ func TestRestackContinueCompletesActiveRebaseInPlace(t *testing.T) {
 	mustWriteFile(t, filepath.Join(repo, "conflict.txt"), "two\n")
 	mustGit(t, repo, "add", "conflict.txt")
 
-	out, code = runCLIInRepoAndCapture(t, repo, []string{"restack", "--continue"})
+	out, code = runCLIInRepoAndCaptureWithEnv(t, repo, testEnvWithOverrides("GIT_EDITOR=false"), []string{"restack", "--continue"})
 	if code != 0 {
 		t.Fatalf("expected git-stack restack --continue to finish active rebase, exit=%d\n%s", code, out)
 	}
@@ -192,6 +198,80 @@ func TestRestackContinueCompletesActiveRebaseInPlace(t *testing.T) {
 	if op != nil {
 		t.Fatalf("expected operation to be cleared after continue")
 	}
+}
+
+func TestRestackContinueCompletesActiveMergeInPlace(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	mustRunCLIInRepo(t, repo, []string{"init", "--trunk", "main"})
+	mustWriteFile(t, filepath.Join(repo, "conflict.txt"), "base\n")
+	mustGit(t, repo, "add", "conflict.txt")
+	mustGit(t, repo, "commit", "-m", "add conflict file")
+
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-one"})
+	mustWriteFile(t, filepath.Join(repo, "conflict.txt"), "one\n")
+	mustGit(t, repo, "add", "conflict.txt")
+	mustGit(t, repo, "commit", "-m", "feat one")
+
+	mustRunCLIInRepo(t, repo, []string{"new", "feat-two"})
+	mustWriteFile(t, filepath.Join(repo, "conflict.txt"), "two\n")
+	mustGit(t, repo, "add", "conflict.txt")
+	mustGit(t, repo, "commit", "-m", "feat two")
+
+	mustGit(t, repo, "switch", "feat-one")
+	mustGit(t, repo, "reset", "--hard", "main")
+	mustWriteFile(t, filepath.Join(repo, "conflict.txt"), "uno\n")
+	mustGit(t, repo, "add", "conflict.txt")
+	mustGit(t, repo, "commit", "-m", "feat one rewritten")
+
+	mustGit(t, repo, "switch", "feat-two")
+	out, code := runCLIInRepoAndCapture(t, repo, []string{"restack", "--mode", "merge"})
+	if code == 0 {
+		t.Fatalf("expected restack conflict, output:\n%s", out)
+	}
+	if !strings.Contains(out, "stopped for conflicts") {
+		t.Fatalf("expected conflict guidance, got:\n%s", out)
+	}
+
+	mustWriteFile(t, filepath.Join(repo, "conflict.txt"), "two\n")
+	mustGit(t, repo, "add", "conflict.txt")
+
+	out, code = runCLIInRepoAndCaptureWithEnv(t, repo, testEnvWithOverrides("GIT_EDITOR=false", "GIT_MERGE_AUTOEDIT=yes"), []string{"restack", "--continue"})
+	if code != 0 {
+		t.Fatalf("expected git-stack restack --continue to finish active merge, exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "restack completed") {
+		t.Fatalf("expected restack completion message, got:\n%s", out)
+	}
+
+	op, err := loadOperation(repo)
+	if err != nil {
+		t.Fatalf("load operation after continue: %v", err)
+	}
+	if op != nil {
+		t.Fatalf("expected operation to be cleared after continue")
+	}
+}
+
+func testEnvWithOverrides(overrides ...string) []string {
+	keys := map[string]struct{}{}
+	for _, entry := range overrides {
+		if key, _, ok := strings.Cut(entry, "="); ok {
+			keys[key] = struct{}{}
+		}
+	}
+	env := make([]string, 0, len(os.Environ())+len(overrides))
+	for _, entry := range os.Environ() {
+		key, _, ok := strings.Cut(entry, "=")
+		if ok {
+			if _, skip := keys[key]; skip {
+				continue
+			}
+		}
+		env = append(env, entry)
+	}
+	return append(env, overrides...)
 }
 
 func TestRestackUsesExplicitOldBaseToDropMergedParentCommits(t *testing.T) {

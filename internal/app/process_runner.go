@@ -29,14 +29,18 @@ const (
 type commandRunOptions struct {
 	streamOutput bool
 	boxMode      commandBoxMode
+	env          []string
 }
 
 func runCommand(name string, args []string, opts commandRunOptions) (commandRunResult, error) {
 	if !shouldDecorateSubprocessOutput() && opts.streamOutput {
-		return runCommandPassthrough(name, args)
+		return runCommandPassthroughWithEnv(name, args, opts.env)
 	}
 
 	cmd := exec.Command(name, args...)
+	if opts.env != nil {
+		cmd.Env = opts.env
+	}
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return commandRunResult{}, err
@@ -121,7 +125,14 @@ func printCapturedOutput(captured string, dest io.Writer, theme subprocessTheme,
 }
 
 func runCommandPassthrough(name string, args []string) (commandRunResult, error) {
+	return runCommandPassthroughWithEnv(name, args, nil)
+}
+
+func runCommandPassthroughWithEnv(name string, args []string, env []string) (commandRunResult, error) {
 	cmd := exec.Command(name, args...)
+	if env != nil {
+		cmd.Env = env
+	}
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)

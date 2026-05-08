@@ -320,6 +320,13 @@ func gitRun(args ...string) error {
 	return nil
 }
 
+func gitRunWithEnv(env []string, args ...string) error {
+	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: gitRunBoxMode(args), env: env}); err != nil {
+		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return nil
+}
+
 func gitRunQuiet(args ...string) error {
 	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: commandBoxOnFailure}); err != nil {
 		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
