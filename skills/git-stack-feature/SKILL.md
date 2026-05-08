@@ -5,6 +5,11 @@ description: Builds a feature as a sequence of small stacked pull requests using
 
 # Git-Stack Feature
 
+## Command forms
+
+- Use these command forms for normal feature work: `git-stack new <branch>`, `git-stack new --adopt`, `git-stack submit`, `git-stack state`, `git-stack restack`, `git-stack restack --continue`, `git-stack restack --abort`, `git-stack reparent <branch> --onto <new-parent>`, and `git-stack forward`.
+- Do not run `git-stack <command> --help` before routine commands. Only use `--help` when you need a flag not listed here, need to confirm behavior for a non-routine operation, or hit an error that suggests command misuse.
+
 ## Quick start
 
 1. Split the feature into the smallest reviewable branch-sized slices.

@@ -5,6 +5,11 @@ description: Verifies whether a repository is ready for git-stack workflows by c
 
 # Git-Stack Setup
 
+## Command forms
+
+- Use `git-stack check` as the default git-stack readiness check.
+- Do not run `git-stack <command> --help` as a routine probe. Only use `--help` when you need to confirm a non-routine flag or the observed behavior does not match this skill.
+
 ## Quick start
 
 1. Check the working tree and index state.
