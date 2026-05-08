@@ -64,9 +64,18 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 		if err != nil {
 			return err
 		}
+		completedBranch := ""
+		if !active && op.Index < len(op.Queue) {
+			completedBranch = op.Queue[op.Index]
+		}
 		completed, err := recordRestackContinueProgress(repoRoot, op, !active)
 		if err != nil {
 			return err
+		}
+		if completed && clearPendingRebaseBase(state, completedBranch) {
+			if err := saveState(repoRoot, state); err != nil {
+				return err
+			}
 		}
 		if !completed {
 			fmt.Fprintf(out, "%s still in progress on %s; resolve remaining steps then run git-stack restack --continue again\n", op.Mode, op.Queue[op.Index])
