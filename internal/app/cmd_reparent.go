@@ -85,7 +85,7 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 }
 
 func recordChildRestackBases(state *State, parent, oldHead string) {
-	if state == nil || strings.TrimSpace(oldHead) == "" {
+	if state == nil || oldHead == "" {
 		return
 	}
 	for branch, meta := range state.Branches {

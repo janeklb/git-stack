@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 )
 
 func runRestackQueue(repoRoot string, state *State, mode string, queue []string, rebaseBases map[string]string, out io.Writer) error {
@@ -210,14 +209,12 @@ func mergedRebaseBases(state *State, queue []string, explicit map[string]string)
 	merged := map[string]string{}
 	for _, branch := range queue {
 		meta := state.Branches[branch]
-		if meta == nil || strings.TrimSpace(meta.PendingRebaseBase) == "" {
+		if meta == nil || meta.PendingRebaseBase == "" {
 			continue
 		}
 		merged[branch] = meta.PendingRebaseBase
 	}
 	for branch, base := range explicit {
-		branch = strings.TrimSpace(branch)
-		base = strings.TrimSpace(base)
 		if branch == "" || base == "" {
 			continue
 		}
