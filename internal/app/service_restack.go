@@ -52,13 +52,13 @@ func restackGitOperationInProgress(mode string) (bool, error) {
 
 func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinue bool, out io.Writer) error {
 	if fromContinue {
+		continueEnv := []string{"GIT_EDITOR=true"}
 		contArgs := []string{op.Mode, "--continue"}
 		if op.Mode == "merge" {
+			continueEnv = append(continueEnv, "GIT_MERGE_AUTOEDIT=no")
 			contArgs = []string{"merge", "--continue"}
-		} else {
-			contArgs = []string{"-c", "core.editor=true", op.Mode, "--continue"}
 		}
-		if err := gitRun(contArgs...); err != nil {
+		if err := gitRunWithEnv(continueEnv, contArgs...); err != nil {
 			return fmt.Errorf("failed to continue %s: %w", op.Mode, err)
 		}
 		active, err := restackGitOperationInProgress(op.Mode)
