@@ -34,6 +34,7 @@ func TestMain(m *testing.M) {
 
 	_ = os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	_ = os.Setenv("GIT_CONFIG_GLOBAL", global)
+	_ = os.Setenv("GIT_EDITOR", "true")
 	_ = os.Setenv("GIT_TERMINAL_PROMPT", "0")
 
 	code := m.Run()
