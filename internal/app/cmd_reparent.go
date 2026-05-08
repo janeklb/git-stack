@@ -49,6 +49,10 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 	if err := validateReparentParent(state, target, newParent); err != nil {
 		return err
 	}
+	oldHead, err := resolveBranchRef(target)
+	if err != nil {
+		return err
+	}
 
 	if err := gitRunQuiet("switch", target); err != nil {
 		return err
@@ -61,6 +65,7 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 	if !preserveLineage {
 		meta.LineageParent = newParent
 	}
+	recordChildRestackBases(state, target, oldHead)
 	if err := saveState(repoRoot, state); err != nil {
 		return err
 	}
@@ -77,4 +82,22 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 
 	a.printlnf("reparented %s: %s -> %s", target, oldParent, newParent)
 	return nil
+}
+
+func recordChildRestackBases(state *State, parent, oldHead string) {
+	if state == nil || strings.TrimSpace(oldHead) == "" {
+		return
+	}
+	for branch, meta := range state.Branches {
+		if branch == parent || meta == nil {
+			continue
+		}
+		childParent := meta.Parent
+		if childParent == "" {
+			childParent = state.Trunk
+		}
+		if childParent == parent {
+			meta.PendingRebaseBase = oldHead
+		}
+	}
 }

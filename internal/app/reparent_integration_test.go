@@ -110,3 +110,60 @@ func TestReparentDefaultsTargetToCurrentBranch(t *testing.T) {
 		t.Fatalf("expected to remain on feat-two after reparent, got %q", got)
 	}
 }
+
+func TestReparentPreservesDirectChildSliceAfterRestack(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+
+	withRepoCwd(t, repo, func() {
+		cli := New()
+		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
+
+		mustRunCLI(t, cli, []string{"new", "feat-one"})
+		mustWriteFile(t, filepath.Join(repo, "feature1.txt"), "one\n")
+		mustGit(t, repo, "add", "feature1.txt")
+		mustGit(t, repo, "commit", "-m", "feat one")
+
+		mustRunCLI(t, cli, []string{"new", "feat-two"})
+		mustWriteFile(t, filepath.Join(repo, "feature2.txt"), "two\n")
+		mustGit(t, repo, "add", "feature2.txt")
+		mustGit(t, repo, "commit", "-m", "feat two")
+		oldParentHead, err := gitOutput("rev-parse", "feat-two")
+		if err != nil {
+			t.Fatalf("resolve feat-two head before reparent: %v", err)
+		}
+
+		mustRunCLI(t, cli, []string{"new", "feat-three"})
+		mustWriteFile(t, filepath.Join(repo, "feature3.txt"), "three\n")
+		mustGit(t, repo, "add", "feature3.txt")
+		mustGit(t, repo, "commit", "-m", "feat three")
+
+		mustRunCLI(t, cli, []string{"reparent", "feat-two", "--onto", "main"})
+
+		state, err := loadState(repo)
+		if err != nil {
+			t.Fatalf("load state after reparent: %v", err)
+		}
+		if got := state.Branches["feat-three"].PendingRebaseBase; got != strings.TrimSpace(oldParentHead) {
+			t.Fatalf("expected feat-three pending rebase base %q after reparent, got %q", strings.TrimSpace(oldParentHead), got)
+		}
+
+		mustRunCLI(t, cli, []string{"restack"})
+
+		remaining, err := gitOutput("log", "--format=%s", "feat-two..feat-three")
+		if err != nil {
+			t.Fatalf("inspect feat-three commits after restack: %v", err)
+		}
+		if trimmed := strings.TrimSpace(remaining); trimmed != "feat three" {
+			t.Fatalf("expected only feat-three commit above feat-two after restack, got:\n%s", trimmed)
+		}
+
+		state, err = loadState(repo)
+		if err != nil {
+			t.Fatalf("load state after restack: %v", err)
+		}
+		if got := state.Branches["feat-three"].PendingRebaseBase; got != "" {
+			t.Fatalf("expected feat-three pending rebase base cleared after restack, got %q", got)
+		}
+	})
+}

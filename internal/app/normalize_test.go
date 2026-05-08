@@ -18,7 +18,7 @@ func TestLoadStateNormalizesWhitespace(t *testing.T) {
 			NextIndex: 2,
 		},
 		Branches: map[string]*BranchRef{
-			"feat-one": {Parent: "  main  ", LineageParent: "   ", PR: &PRMeta{Number: 1, URL: "  https://example.invalid/pr/1  ", Base: "  main  "}},
+			"feat-one": {Parent: "  main  ", LineageParent: "   ", PendingRebaseBase: "  abc123  ", PR: &PRMeta{Number: 1, URL: "  https://example.invalid/pr/1  ", Base: "  main  "}},
 		},
 		Archived: map[string]*ArchivedRef{
 			"old-one": {Parent: "  main  ", PR: &PRMeta{Number: 2, URL: "  https://example.invalid/pr/2  ", Base: "  main  "}},
@@ -57,6 +57,9 @@ func TestLoadStateNormalizesWhitespace(t *testing.T) {
 	if loaded.Branches["feat-one"].LineageParent != "main" {
 		t.Fatalf("expected default lineage parent, got %q", loaded.Branches["feat-one"].LineageParent)
 	}
+	if loaded.Branches["feat-one"].PendingRebaseBase != "abc123" {
+		t.Fatalf("expected trimmed pending rebase base, got %q", loaded.Branches["feat-one"].PendingRebaseBase)
+	}
 	if loaded.Branches["feat-one"].PR.URL != "https://example.invalid/pr/1" {
 		t.Fatalf("expected trimmed PR URL, got %q", loaded.Branches["feat-one"].PR.URL)
 	}
@@ -75,7 +78,7 @@ func TestSaveStateCanonicalizesWhitespace(t *testing.T) {
 			NextIndex: 1,
 		},
 		Branches: map[string]*BranchRef{
-			"feat-one": {Parent: "  main  ", LineageParent: "  feat-root  ", PR: &PRMeta{Number: 1, URL: "  https://example.invalid/pr/1  ", Base: "  main  "}},
+			"feat-one": {Parent: "  main  ", LineageParent: "  feat-root  ", PendingRebaseBase: "  abc123  ", PR: &PRMeta{Number: 1, URL: "  https://example.invalid/pr/1  ", Base: "  main  "}},
 		},
 	}
 
@@ -92,6 +95,9 @@ func TestSaveStateCanonicalizesWhitespace(t *testing.T) {
 	}
 	if written.Branches["feat-one"].LineageParent != "feat-root" {
 		t.Fatalf("expected canonical lineage parent in file, got %q", written.Branches["feat-one"].LineageParent)
+	}
+	if state.Branches["feat-one"].PendingRebaseBase != "abc123" {
+		t.Fatalf("expected in-memory pending rebase base to be canonical, got %q", state.Branches["feat-one"].PendingRebaseBase)
 	}
 	if state.Branches["feat-one"].PR.Base != "main" {
 		t.Fatalf("expected in-memory PR base to be canonical, got %q", state.Branches["feat-one"].PR.Base)

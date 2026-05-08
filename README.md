@@ -139,6 +139,7 @@ When `.git/stack/PR_TEMPLATE.md` is absent, `submit` uses this default template:
 
 - Stack unit is branch → PR
 - Parent branch is inferred initially and persisted in local state
+- `reparent` records direct-child old bases so a later `restack` preserves descendant slice boundaries after the rewrite
 - Trunk defaults from `origin/HEAD` when available
 - Stack operations infer graph from git when state is missing (stateless-first)
 - `restack` defaults to rebase mode; merge mode is available via `--mode merge`
