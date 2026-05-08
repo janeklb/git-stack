@@ -35,7 +35,7 @@ func runRestackQueue(repoRoot string, state *State, mode string, queue []string,
 		Queue:          queue,
 		Index:          0,
 		OriginalHeads:  originalHeads,
-		RebaseBases:    rebaseBases,
+		RebaseBases:    mergedRebaseBases(state, queue, rebaseBases),
 	}
 	if err := saveOperation(repoRoot, op); err != nil {
 		return err
@@ -63,9 +63,18 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 		if err != nil {
 			return err
 		}
+		completedBranch := ""
+		if !active && op.Index < len(op.Queue) {
+			completedBranch = op.Queue[op.Index]
+		}
 		completed, err := recordRestackContinueProgress(repoRoot, op, !active)
 		if err != nil {
 			return err
+		}
+		if completed && clearPendingRebaseBase(state, completedBranch) {
+			if err := saveState(repoRoot, state); err != nil {
+				return err
+			}
 		}
 		if !completed {
 			fmt.Fprintf(out, "%s still in progress on %s; resolve remaining steps then run git-stack restack --continue again\n", op.Mode, op.Queue[op.Index])
@@ -103,6 +112,11 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 				return saveErr
 			}
 			return fmt.Errorf("%s %s onto %s stopped for conflicts; resolve then run git-stack restack --continue or --abort", op.Mode, branch, parent)
+		}
+		if clearPendingRebaseBase(state, branch) {
+			if err := saveState(repoRoot, state); err != nil {
+				return err
+			}
 		}
 
 		op.Index++
@@ -189,4 +203,37 @@ func restackBranch(mode, parent, oldBase string) error {
 		return gitRun("rebase", "--onto", parent, oldBase)
 	}
 	return gitRun("rebase", parent)
+}
+
+func mergedRebaseBases(state *State, queue []string, explicit map[string]string) map[string]string {
+	merged := map[string]string{}
+	for _, branch := range queue {
+		meta := state.Branches[branch]
+		if meta == nil || meta.PendingRebaseBase == "" {
+			continue
+		}
+		merged[branch] = meta.PendingRebaseBase
+	}
+	for branch, base := range explicit {
+		if branch == "" || base == "" {
+			continue
+		}
+		merged[branch] = base
+	}
+	if len(merged) == 0 {
+		return nil
+	}
+	return merged
+}
+
+func clearPendingRebaseBase(state *State, branch string) bool {
+	if state == nil {
+		return false
+	}
+	meta := state.Branches[branch]
+	if meta == nil || meta.PendingRebaseBase == "" {
+		return false
+	}
+	meta.PendingRebaseBase = ""
+	return true
 }

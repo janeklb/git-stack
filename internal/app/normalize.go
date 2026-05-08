@@ -35,6 +35,7 @@ func normalizeBranchRef(branch *BranchRef) {
 	if branch.LineageParent == "" {
 		branch.LineageParent = branch.Parent
 	}
+	branch.PendingRebaseBase = strings.TrimSpace(branch.PendingRebaseBase)
 	normalizePRMeta(branch.PR)
 }
 

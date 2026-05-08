@@ -34,9 +34,10 @@ type NamingConfig struct {
 }
 
 type BranchRef struct {
-	Parent        string  `json:"parent"`
-	LineageParent string  `json:"lineageParent,omitempty"`
-	PR            *PRMeta `json:"pr,omitempty"`
+	Parent            string  `json:"parent"`
+	LineageParent     string  `json:"lineageParent,omitempty"`
+	PendingRebaseBase string  `json:"pendingRebaseBase,omitempty"`
+	PR                *PRMeta `json:"pr,omitempty"`
 }
 
 type ArchivedRef struct {
