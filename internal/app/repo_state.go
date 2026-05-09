@@ -188,7 +188,7 @@ func normalizeTemplateScope(scope string) (templateScope, error) {
 func prTemplatePath(repoRoot string, scope templateScope) (string, error) {
 	switch scope {
 	case templateScopeRepo:
-		if strings.TrimSpace(repoRoot) == "" {
+		if repoRoot == "" {
 			return "", errors.New("repo root is required for repo template scope")
 		}
 		return repoPRTemplatePath(repoRoot), nil
@@ -200,19 +200,24 @@ func prTemplatePath(repoRoot string, scope templateScope) (string, error) {
 }
 
 func loadPRTemplate(repoRoot string) (string, bool, error) {
-	paths := []string{repoPRTemplatePath(repoRoot)}
-	if userPath, err := prTemplatePath("", templateScopeUser); err == nil {
-		paths = append(paths, userPath)
+	repoTemplatePath := repoPRTemplatePath(repoRoot)
+	repoTemplate, err := os.ReadFile(repoTemplatePath)
+	if err == nil {
+		return string(repoTemplate), true, nil
 	}
-	for _, path := range paths {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return "", false, err
-		}
-		return string(data), true, nil
+	if !os.IsNotExist(err) {
+		return "", false, err
+	}
+	userTemplatePath, err := userPRTemplatePath()
+	if err != nil {
+		return "", false, err
+	}
+	userTemplate, err := os.ReadFile(userTemplatePath)
+	if err == nil {
+		return string(userTemplate), true, nil
+	}
+	if !os.IsNotExist(err) {
+		return "", false, err
 	}
 	return "", false, nil
 }

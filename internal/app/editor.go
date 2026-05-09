@@ -13,7 +13,6 @@ func editFileInGitEditor(path string, stdin io.Reader, stdout, stderr io.Writer)
 	if err != nil {
 		return fmt.Errorf("determine git editor: %w", err)
 	}
-	editor = strings.TrimSpace(editor)
 	if editor == "" {
 		return fmt.Errorf("determine git editor: resolved editor is empty")
 	}
