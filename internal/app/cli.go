@@ -121,7 +121,10 @@ By default this edits the per-repo template under .git/stack/PR_TEMPLATE.md. If 
 		},
 	}
 	templatePRCmd.Flags().StringVar(&templatePRScope, "scope", string(templateScopeRepo), "template scope to edit: repo or user")
-	_ = templatePRCmd.RegisterFlagCompletionFunc("scope", completeFixedChoices(string(templateScopeRepo), string(templateScopeUser)))
+	_ = templatePRCmd.RegisterFlagCompletionFunc("scope", cobra.FixedCompletions(
+		[]string{string(templateScopeRepo), string(templateScopeUser)},
+		cobra.ShellCompDirectiveNoFileComp,
+	))
 	templateCmd.AddCommand(templatePRCmd)
 	root.AddCommand(templateCmd)
 
