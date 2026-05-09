@@ -34,6 +34,18 @@ func completeSingleBranchArg(includeRemote bool) func(*cobra.Command, []string, 
 	}
 }
 
+func completeFixedChoices(choices ...string) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		matches := make([]string, 0, len(choices))
+		for _, choice := range choices {
+			if strings.HasPrefix(choice, toComplete) {
+				matches = append(matches, choice)
+			}
+		}
+		return matches, cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
 func listBranchCompletionCandidates(includeRemote bool) ([]string, error) {
 	branches, err := listLocalBranches()
 	if err != nil {

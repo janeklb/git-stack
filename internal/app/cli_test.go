@@ -114,6 +114,13 @@ func TestKeyCommandFlagsExist(t *testing.T) {
 	if newCmd.Flags().Lookup("adopt") == nil {
 		t.Fatalf("expected new adopt flag to exist")
 	}
+	templateCmd, _, err := root.Find([]string{"template", "pr"})
+	if err != nil {
+		t.Fatalf("find template pr command: %v", err)
+	}
+	if templateCmd.Flags().Lookup("scope") == nil {
+		t.Fatalf("expected template pr scope flag to exist")
+	}
 }
 
 func TestStateHasStAlias(t *testing.T) {
@@ -297,4 +304,21 @@ func TestForwardAliasesAndNextFlagCompletion(t *testing.T) {
 			t.Fatalf("expected forward --next completion to exclude remote-only branches, got:\n%s", out)
 		}
 	})
+}
+
+func TestTemplateHelpDescribesRepoAndUserScopes(t *testing.T) {
+	cli := New()
+	out, code := runCLIAndCapture(t, cli, []string{"help", "template", "pr"})
+	if code != 0 {
+		t.Fatalf("help template pr failed: exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "By default this edits the per-repo template") {
+		t.Fatalf("expected template help to describe repo default, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Use --scope user to edit the user-level template") {
+		t.Fatalf("expected template help to describe user scope, got:\n%s", out)
+	}
+	if !strings.Contains(out, "git-stack template pr --scope user") {
+		t.Fatalf("expected template help to include user-scope example, got:\n%s", out)
+	}
 }
