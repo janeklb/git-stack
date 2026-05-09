@@ -16,19 +16,23 @@ The tool is intentionally opinionated and low-configuration: it targets one work
 
 ## Installation
 
-```bash
-go install github.com/janeklb/git-stack/cmd/git-stack@latest
-```
-
-Release binaries are also published on the GitHub Releases page for tagged versions.
-
-Homebrew installation is available via the custom tap:
+### Homebrew
 
 ```bash
 brew install janeklb/tap/git-stack
 ```
 
+### Go
+
+```bash
+go install github.com/janeklb/git-stack/cmd/git-stack@latest
+```
+
 This installs `git-stack` to your Go bin directory (`GOBIN` if set, otherwise `$(go env GOPATH)/bin`). Make sure that directory is on your `PATH`.
+
+### Binaries
+
+Release binaries are also published on the GitHub Releases page for tagged versions.
 
 Once installed, `git-stack` also works as a Git extension — `git stack <command>` is equivalent when `git-stack` is on your `PATH`.
 
@@ -124,31 +128,15 @@ If a custom template does not reference `.stackedPRsSection`, the PR body will n
 
 If `.git/stack/PR_TEMPLATE.md` exists but is empty, `submit` uses that empty template as-is rather than falling back to the default.
 
-When `.git/stack/PR_TEMPLATE.md` is absent, `submit` uses this default template:
+When `.git/stack/PR_TEMPLATE.md` is absent, `submit` uses [the default template](./internal/app/default_pr_body.md.tmpl).
 
-```md
-## Summary
-{{- range .commits }}
-- {{ . }}
-{{- end }}
+## Key constraints
 
-{{ .stackedPRsSection }}
-```
-
-## Behavior notes
-
-- Stack unit is branch → PR
-- Parent branch is inferred initially and persisted in local state
-- `reparent` records direct-child old bases so a later `restack` preserves descendant slice boundaries after the rewrite
-- Trunk defaults from `origin/HEAD` when available
-- Stack operations infer graph from git when state is missing (stateless-first)
-- `restack` defaults to rebase mode; merge mode is available via `--mode merge`
-- On restack conflicts, the operation pauses; resume with `git-stack restack --continue`
-- `submit` sets each PR's base to the parent branch and updates a managed block in the PR description
-- Existing PRs are updated safely — only the managed block is touched
-- Mutating commands require a clean worktree
-- Single-branch clones are not supported (reclone without `--single-branch` or fetch all branches)
-- `origin` remote is required and must expose `refs/remotes/origin/HEAD`
+- Mutating commands require a clean worktree.
+- Full clones are required; single-branch clones are not supported.
+- The repository must have an `origin` remote, and `refs/remotes/origin/HEAD` must be available for trunk detection.
+- `submit` is the command that creates or updates PRs; a plain `git push` does not.
+- `init` is mainly a repair or reconfiguration command; normal mutating workflows auto-bootstrap state when they can do so unambiguously.
 
 ## Building from source
 
@@ -164,7 +152,7 @@ make install  # go install into GOBIN / GOPATH/bin
 make test     # run the full test suite
 ```
 
-### Running tests locally on macOS
+### Running tests on macOS
 
 The test suite shells out to `git` heavily. It runs much faster inside a Linux container:
 
@@ -174,9 +162,3 @@ make test-linux-timings  # same, with per-test timing output
 ```
 
 These targets use Docker with persistent Go build and module caches, so repeat runs stay close to CI caching behavior.
-
-To skip the slower integration tests during development:
-
-```bash
-go test ./... -count=1 -skip IntegrationSmoke
-```
