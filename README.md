@@ -10,7 +10,6 @@ The tool is intentionally opinionated and low-configuration: it targets one work
 
 ## Requirements
 
-- Go 1.21+
 - `git`
 - `gh` (GitHub CLI), authenticated — required for `submit` and PR updates
 
@@ -23,6 +22,8 @@ brew install janeklb/tap/git-stack
 ```
 
 ### Go
+
+Requires Go 1.21+.
 
 ```bash
 go install github.com/janeklb/git-stack/cmd/git-stack@latest
@@ -139,6 +140,8 @@ When `.git/stack/PR_TEMPLATE.md` is absent, `submit` uses [the default template]
 - `init` is mainly a repair or reconfiguration command; normal mutating workflows auto-bootstrap state when they can do so unambiguously.
 
 ## Building from source
+
+Requires Go 1.21+.
 
 ```bash
 go build -o bin/git-stack ./cmd/git-stack
