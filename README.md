@@ -80,6 +80,7 @@ git-stack restack [--mode rebase|merge] [--continue] [--abort]
 git-stack forward [--next <branch>]
 git-stack clean [--all] [--yes] [--untracked]
 git-stack reparent [branch] --onto <new-parent>
+git-stack template pr [--scope repo|user]
 git-stack check
 git-stack init [--trunk <branch>] [--mode rebase|merge]
 git-stack version
@@ -117,8 +118,9 @@ Stack state is local-only:
 - `.git/stack/state.json` — persisted branch graph and metadata
 - `.git/stack/operation.json` — present only while a `restack` is in progress
 - `.git/stack/PR_TEMPLATE.md` — optional per-repo PR body template for `submit`
+- `<user config dir>/git-stack/PR_TEMPLATE.md` — optional user-level PR body template for `submit`
 
-If `.git/stack/PR_TEMPLATE.md` exists, `submit` renders it as a Go `text/template` and uses the result as the PR body verbatim. `submit` does not prepend or append anything around a custom template.
+If `.git/stack/PR_TEMPLATE.md` exists, `submit` uses it first. Otherwise, if `<user config dir>/git-stack/PR_TEMPLATE.md` exists, `submit` uses that. Custom templates are rendered as Go `text/template` templates and used as the PR body verbatim. `submit` does not prepend or append anything around a custom template.
 
 Template data:
 
@@ -127,9 +129,13 @@ Template data:
 
 If a custom template does not reference `.stackedPRsSection`, the PR body will not include the stacked-PR section.
 
-If `.git/stack/PR_TEMPLATE.md` exists but is empty, `submit` uses that empty template as-is rather than falling back to the default.
+If either custom template file exists but is empty, `submit` uses that empty template as-is rather than falling back to the default.
 
-When `.git/stack/PR_TEMPLATE.md` is absent, `submit` uses [the default template](./internal/app/default_pr_body.md.tmpl).
+When neither custom template file exists, `submit` uses [the default template](./internal/app/default_pr_body.md.tmpl).
+
+`<user config dir>` follows the platform default returned by Go's `os.UserConfigDir`, such as `~/.config` on Linux or `~/Library/Application Support` on macOS.
+
+Use `git-stack template pr` to edit the repo template, or `git-stack template pr --scope user` to edit the user-level template. When the selected template file does not exist yet, `git-stack` seeds it with the built-in default template before opening your configured Git editor.
 
 ## Key constraints
 

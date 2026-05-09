@@ -54,6 +54,9 @@ Mutating commands require a clean worktree. Commands such as new, state, restack
 				if current.Name() == "completion" {
 					return nil
 				}
+				if current.Name() == "template" {
+					return nil
+				}
 			}
 			return ensureSupportedCloneLayout()
 		},
@@ -96,6 +99,34 @@ init requires a clean worktree. When --trunk is omitted, stack detects trunk fro
 	initCmd.Flags().StringVar(&initTemplate, "template", "{slug}", "default branch naming template for stack new; supports {slug} and {n}")
 	initCmd.Flags().BoolVar(&initPrefixIndex, "prefix-index", false, "prefix generated branch names with the next zero-padded index when the template does not include {n}")
 	root.AddCommand(initCmd)
+
+	var templatePRScope string
+	templateCmd := &cobra.Command{
+		Use:   "template",
+		Short: "Edit stack templates",
+		Long: `Edit stack-managed templates.
+
+Template editing does not require initialized stack state. Use the pr subcommand to edit the PR body template used by submit. By default stack edits the per-repo template under .git/stack. Use --scope user to edit the user-level template under the platform config directory.`,
+	}
+	templatePRCmd := &cobra.Command{
+		Use:   "pr",
+		Short: "Edit the PR body template",
+		Long: `Edit the PR body template used by submit.
+
+By default this edits the per-repo template under .git/stack/PR_TEMPLATE.md. If the chosen template file does not exist yet, stack seeds it with the built-in default template before opening your configured Git editor. Use --scope user to edit the user-level template instead.`,
+		Example: "  git-stack template pr\n  git-stack template pr --scope user",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.cmdTemplatePR(templatePRScope)
+		},
+	}
+	templatePRCmd.Flags().StringVar(&templatePRScope, "scope", string(templateScopeRepo), "template scope to edit: repo or user")
+	_ = templatePRCmd.RegisterFlagCompletionFunc("scope", cobra.FixedCompletions(
+		[]string{string(templateScopeRepo), string(templateScopeUser)},
+		cobra.ShellCompDirectiveNoFileComp,
+	))
+	templateCmd.AddCommand(templatePRCmd)
+	root.AddCommand(templateCmd)
 
 	var newParent string
 	var newTemplate string

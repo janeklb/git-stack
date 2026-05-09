@@ -13,6 +13,13 @@ import (
 
 var errStateNotInitialized = errors.New("stack state not initialized; run git-stack init")
 
+type templateScope string
+
+const (
+	templateScopeRepo templateScope = "repo"
+	templateScopeUser templateScope = "user"
+)
+
 func ensurePersistedState(repoRoot string, state *State, persisted bool, out io.Writer) (bool, error) {
 	if persisted {
 		return false, nil
@@ -136,26 +143,83 @@ func inferStateGraph(repoRoot string) (*State, error) {
 }
 
 func statePath(repoRoot string) string {
-	return filepath.Join(repoRoot, ".git", "stack", "state.json")
+	return filepath.Join(repoStackDir(repoRoot), "state.json")
 }
 
 func opPath(repoRoot string) string {
-	return filepath.Join(repoRoot, ".git", "stack", "operation.json")
+	return filepath.Join(repoStackDir(repoRoot), "operation.json")
 }
 
-func prTemplatePath(repoRoot string) string {
-	return filepath.Join(repoRoot, ".git", "stack", "PR_TEMPLATE.md")
+func repoStackDir(repoRoot string) string {
+	return filepath.Join(repoRoot, ".git", "stack")
+}
+
+func userStackDir() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, "git-stack"), nil
+}
+
+func repoPRTemplatePath(repoRoot string) string {
+	return filepath.Join(repoStackDir(repoRoot), "PR_TEMPLATE.md")
+}
+
+func userPRTemplatePath() (string, error) {
+	configDir, err := userStackDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, "PR_TEMPLATE.md"), nil
+}
+
+func normalizeTemplateScope(scope string) (templateScope, error) {
+	switch strings.TrimSpace(scope) {
+	case "", string(templateScopeRepo):
+		return templateScopeRepo, nil
+	case string(templateScopeUser):
+		return templateScopeUser, nil
+	default:
+		return "", errors.New("--scope must be repo or user")
+	}
+}
+
+func prTemplatePath(repoRoot string, scope templateScope) (string, error) {
+	switch scope {
+	case templateScopeRepo:
+		if repoRoot == "" {
+			return "", errors.New("repo root is required for repo template scope")
+		}
+		return repoPRTemplatePath(repoRoot), nil
+	case templateScopeUser:
+		return userPRTemplatePath()
+	default:
+		return "", fmt.Errorf("unknown template scope: %s", scope)
+	}
 }
 
 func loadPRTemplate(repoRoot string) (string, bool, error) {
-	data, err := os.ReadFile(prTemplatePath(repoRoot))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", false, nil
-		}
+	repoTemplatePath := repoPRTemplatePath(repoRoot)
+	repoTemplate, err := os.ReadFile(repoTemplatePath)
+	if err == nil {
+		return string(repoTemplate), true, nil
+	}
+	if !os.IsNotExist(err) {
 		return "", false, err
 	}
-	return string(data), true, nil
+	userTemplatePath, err := userPRTemplatePath()
+	if err != nil {
+		return "", false, err
+	}
+	userTemplate, err := os.ReadFile(userTemplatePath)
+	if err == nil {
+		return string(userTemplate), true, nil
+	}
+	if !os.IsNotExist(err) {
+		return "", false, err
+	}
+	return "", false, nil
 }
 
 func loadState(repoRoot string) (*State, error) {
