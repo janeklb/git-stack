@@ -50,7 +50,7 @@ func TestTemplatePRDefaultsToRepoScopeAndSeedsTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repo template: %v", err)
 	}
-	if !strings.Contains(string(templateData), "## Summary") {
+	if !strings.Contains(string(templateData), defaultPRBodyTemplate) {
 		t.Fatalf("expected seeded default template content, got:\n%s", string(templateData))
 	}
 	if !strings.Contains(string(templateData), "Edited by fake editor") {
@@ -101,7 +101,7 @@ func TestTemplatePRUserScopeWorksOutsideRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read user template: %v", err)
 	}
-	if !strings.Contains(string(templateData), "## Summary") {
+	if !strings.Contains(string(templateData), defaultPRBodyTemplate) {
 		t.Fatalf("expected seeded default template content, got:\n%s", string(templateData))
 	}
 	if !strings.Contains(string(templateData), "Edited by fake editor") {

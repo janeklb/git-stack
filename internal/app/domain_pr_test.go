@@ -109,7 +109,7 @@ func TestManagedStackPlaceholderSeedsMarkersAndHeading(t *testing.T) {
 	}
 }
 
-func TestComposeBodyUsesDefaultSummaryAndManagedSection(t *testing.T) {
+func TestComposeBodyUsesDefaultTemplateSectionsAndManagedSection(t *testing.T) {
 	t.Parallel()
 
 	managed := managedStackBlock("feat-a", []StackPRLine{{
@@ -123,11 +123,14 @@ func TestComposeBodyUsesDefaultSummaryAndManagedSection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("composeBody returned error: %v", err)
 	}
-	if !strings.Contains(body, "## Summary") {
-		t.Fatalf("expected body to include summary heading, got:\n%s", body)
+	if !strings.Contains(body, "## Motivation") {
+		t.Fatalf("expected body to include motivation heading, got:\n%s", body)
+	}
+	if !strings.Contains(body, "## Modification(s)") {
+		t.Fatalf("expected body to include modifications heading, got:\n%s", body)
 	}
 	if !strings.Contains(body, "- Added validation") || !strings.Contains(body, "- Refined output format") {
-		t.Fatalf("expected body to include summary bullets, got:\n%s", body)
+		t.Fatalf("expected body to include commit bullets, got:\n%s", body)
 	}
 	if !strings.Contains(body, "## Stacked PRs") {
 		t.Fatalf("expected body to include managed stacked PR section, got:\n%s", body)
@@ -135,8 +138,8 @@ func TestComposeBodyUsesDefaultSummaryAndManagedSection(t *testing.T) {
 	if !strings.HasSuffix(body, "\n") {
 		t.Fatalf("expected body to end with newline, got %q", body)
 	}
-	if strings.Index(body, "## Summary") > strings.Index(body, "## Stacked PRs") {
-		t.Fatalf("expected summary before stacked PRs, got:\n%s", body)
+	if strings.Index(body, "## Modification(s)") > strings.Index(body, "## Stacked PRs") {
+		t.Fatalf("expected modifications before stacked PRs, got:\n%s", body)
 	}
 }
 
