@@ -157,7 +157,7 @@ make test     # run the full test suite
 The test suite shells out to `git` heavily. It runs much faster inside a Linux container:
 
 ```bash
-make test-linux          # mirrors the CI environment
+make test-linux          # runs tests in a local Linux container
 ```
 
-This target uses the official Go Docker image with persistent Go build and module caches, so repeat runs stay close to CI caching behavior.
+This target uses the official Go Docker image with persistent Go build and module caches, so repeat runs stay fast.
