@@ -10,7 +10,7 @@ The tool is intentionally opinionated and low-configuration: it targets one work
 
 ## Requirements
 
-- Go 1.22+
+- Go 1.21+
 - `git`
 - `gh` (GitHub CLI), authenticated — required for `submit` and PR updates
 

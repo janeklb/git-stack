@@ -3,7 +3,7 @@ SHELL := /bin/bash
 BIN_DIR ?= bin
 BINARY := $(BIN_DIR)/git-stack
 GO_SRCS := $(shell find cmd internal -name '*.go' -type f ! -name '*_test.go')
-TEST_LINUX_GO_IMAGE ?= golang:1.22.12-bookworm
+TEST_LINUX_GO_IMAGE ?= golang:1.21.13-bookworm
 TEST_LINUX_GOCACHE ?= stack-test-linux-go-build-cache
 TEST_LINUX_GOMODCACHE ?= stack-test-linux-go-mod-cache
 
