@@ -158,7 +158,6 @@ The test suite shells out to `git` heavily. It runs much faster inside a Linux c
 
 ```bash
 make test-linux          # mirrors the CI environment
-make test-linux-timings  # same, with per-test timing output
 ```
 
-These targets use Docker with persistent Go build and module caches, so repeat runs stay close to CI caching behavior.
+This target uses the official Go Docker image with persistent Go build and module caches, so repeat runs stay close to CI caching behavior.
