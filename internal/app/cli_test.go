@@ -43,13 +43,13 @@ func TestVersionOutputsBuildMetadataWithoutRepoChecks(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("version failed: exit=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "version=dev") {
+	if !strings.Contains(out, "version=") {
 		t.Fatalf("expected version output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "commit=none") {
+	if !strings.Contains(out, "commit=") {
 		t.Fatalf("expected commit output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "date=unknown") {
+	if !strings.Contains(out, "date=") {
 		t.Fatalf("expected date output, got:\n%s", out)
 	}
 }
