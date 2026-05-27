@@ -6,7 +6,10 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"sync"
 )
+
+const cleanLookupConcurrency = 4
 
 type pruneLocalCandidate struct {
 	Branch   string
@@ -39,6 +42,14 @@ type cleanPlanBranch struct {
 type cleanLookupJob struct {
 	Branch   string
 	HasLocal bool
+}
+
+type cleanLookupResult struct {
+	Branch     string
+	HasLocal   bool
+	Candidate  *pruneLocalCandidate
+	PR         *GhPR
+	SkipReason string
 }
 
 type pruneLocalScope struct {
@@ -255,7 +266,8 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 	discovered := cleanPlanBranches(state, branches, scope)
 	plan := &pruneLocalPlan{}
 	jobs := cleanPrepassLookupJobs(discovered, deps.git, plan)
-	cleanResolveLookupJobs(state, deps, jobs, plan)
+	results := cleanResolveLookupJobs(state, deps.gh, jobs)
+	cleanAssembleLookupResults(state, deps.git, results, plan)
 
 	sort.Slice(plan.Delete, func(i, j int) bool {
 		return plan.Delete[i].Branch < plan.Delete[j].Branch
@@ -296,48 +308,95 @@ func cleanPrepassLookupJobs(branches []cleanPlanBranch, git pruneGitClient, plan
 	return jobs
 }
 
-func cleanResolveLookupJobs(state *State, deps pruneLocalPlanDeps, jobs []cleanLookupJob, plan *pruneLocalPlan) {
+func cleanResolveLookupJobs(state *State, gh pruneGHClient, jobs []cleanLookupJob) []cleanLookupResult {
+	if len(jobs) == 0 {
+		return nil
+	}
+
+	jobCh := make(chan cleanLookupJob)
+	resultCh := make(chan cleanLookupResult, len(jobs))
+	workerCount := cleanLookupConcurrency
+	if len(jobs) < workerCount {
+		workerCount = len(jobs)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(workerCount)
+	for i := 0; i < workerCount; i++ {
+		go func() {
+			defer wg.Done()
+			for job := range jobCh {
+				resultCh <- cleanResolveLookupJob(state, gh, job)
+			}
+		}()
+	}
+
 	for _, job := range jobs {
-		if !job.HasLocal {
-			candidate, ok, err := buildMissingTrackedBranchCandidate(state, deps.gh, job.Branch)
-			if err != nil {
-				plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged PR lookup failed"})
-				continue
-			}
-			if ok {
-				plan.Delete = append(plan.Delete, candidate)
-				continue
-			}
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "no merged PR found"})
+		jobCh <- job
+	}
+	close(jobCh)
+	wg.Wait()
+	close(resultCh)
+
+	results := make([]cleanLookupResult, 0, len(jobs))
+	for result := range resultCh {
+		results = append(results, result)
+	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Branch < results[j].Branch
+	})
+	return results
+}
+
+func cleanResolveLookupJob(state *State, gh pruneGHClient, job cleanLookupJob) cleanLookupResult {
+	if !job.HasLocal {
+		candidate, ok, err := buildMissingTrackedBranchCandidate(state, gh, job.Branch)
+		if err != nil {
+			return cleanLookupResult{Branch: job.Branch, SkipReason: "merged PR lookup failed"}
+		}
+		if !ok {
+			return cleanLookupResult{Branch: job.Branch, SkipReason: "no merged PR found"}
+		}
+		return cleanLookupResult{Branch: job.Branch, Candidate: &candidate}
+	}
+
+	pr, err := cleanResolveLocalBranchPR(state, gh, job.Branch)
+	if err != nil {
+		return cleanLookupResult{Branch: job.Branch, HasLocal: true, SkipReason: "merged PR lookup failed"}
+	}
+	if pr == nil {
+		return cleanLookupResult{Branch: job.Branch, HasLocal: true, SkipReason: "no merged PR found"}
+	}
+	return cleanLookupResult{Branch: job.Branch, HasLocal: true, PR: pr}
+}
+
+func cleanAssembleLookupResults(state *State, git pruneGitClient, results []cleanLookupResult, plan *pruneLocalPlan) {
+	for _, result := range results {
+		if result.SkipReason != "" {
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: result.Branch, Reason: result.SkipReason})
+			continue
+		}
+		if !result.HasLocal {
+			plan.Delete = append(plan.Delete, *result.Candidate)
 			continue
 		}
 
-		pr, prErr := cleanResolveLocalBranchPR(state, deps.gh, job.Branch)
-		if prErr != nil {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged PR lookup failed"})
-			continue
-		}
-		if pr == nil {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "no merged PR found"})
-			continue
-		}
-
-		base := pr.BaseRefName
+		base := result.PR.BaseRefName
 		if base == "" {
 			base = state.Trunk
 		}
 		if base != state.Trunk {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged into non-trunk base"})
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: result.Branch, Reason: "merged into non-trunk base"})
 			continue
 		}
 
-		eligible, reason := cleanMergeEligible(deps.git, job.Branch, base, pr)
+		eligible, reason := cleanMergeEligible(git, result.Branch, base, result.PR)
 		if !eligible {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: reason})
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: result.Branch, Reason: reason})
 			continue
 		}
 
-		plan.Delete = append(plan.Delete, pruneLocalCandidate{Branch: job.Branch, PR: pr, Base: base, HasLocal: true})
+		plan.Delete = append(plan.Delete, pruneLocalCandidate{Branch: result.Branch, PR: result.PR, Base: base, HasLocal: true})
 	}
 }
 
