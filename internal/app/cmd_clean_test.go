@@ -8,6 +8,7 @@ import (
 
 type fakePruneGit struct {
 	listLocalBranchesFn  func() ([]string, error)
+	listOriginBranchesFn func() ([]string, error)
 	remoteBranchExistsFn func(string) (bool, error)
 	branchAtOrBehindFn   func(string, string) (bool, error)
 	baseContainsCommitFn func(string, string) (bool, error)
@@ -16,6 +17,13 @@ type fakePruneGit struct {
 
 func (f fakePruneGit) ListLocalBranches() ([]string, error) {
 	return f.listLocalBranchesFn()
+}
+
+func (f fakePruneGit) ListOriginBranches() ([]string, error) {
+	if f.listOriginBranchesFn == nil {
+		return nil, nil
+	}
+	return f.listOriginBranchesFn()
 }
 
 func (f fakePruneGit) RemoteBranchExists(branch string) (bool, error) {
@@ -60,6 +68,9 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 		git: fakePruneGit{
 			listLocalBranchesFn: func() ([]string, error) {
 				return []string{"main", "tracked", "old-clean", "remote", "ahead", "nopr", "wrong-base"}, nil
+			},
+			listOriginBranchesFn: func() ([]string, error) {
+				return []string{"remote"}, nil
 			},
 			remoteBranchExistsFn: func(branch string) (bool, error) {
 				return branch == "remote", nil
@@ -126,28 +137,16 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 	}
 }
 
-func TestCleanPrepassLookupJobsFiltersRemoteBranchesBeforeGHLookups(t *testing.T) {
+func TestCleanPrepassLookupJobsFiltersFetchedOriginBranchesBeforeGHLookups(t *testing.T) {
 	t.Parallel()
 
 	planned := []cleanPlanBranch{
 		{Branch: "local-tracked", HasLocal: true},
 		{Branch: "missing-tracked", HasLocal: false},
 		{Branch: "still-remote", HasLocal: true},
-		{Branch: "remote-error", HasLocal: true},
 	}
 	plan := &pruneLocalPlan{}
-	jobs := cleanPrepassLookupJobs(planned, fakePruneGit{
-		remoteBranchExistsFn: func(branch string) (bool, error) {
-			switch branch {
-			case "still-remote":
-				return true, nil
-			case "remote-error":
-				return false, errors.New("boom")
-			default:
-				return false, nil
-			}
-		},
-	}, plan)
+	jobs := cleanPrepassLookupJobs(planned, cleanBranchSet([]string{"still-remote"}), plan)
 
 	if len(jobs) != 2 {
 		t.Fatalf("expected only non-remote branches to remain for GH lookup, got %#v", jobs)
@@ -166,8 +165,45 @@ func TestCleanPrepassLookupJobsFiltersRemoteBranchesBeforeGHLookups(t *testing.T
 	if reasons["still-remote"] != "remote branch still exists" {
 		t.Fatalf("expected still-remote skip reason, got %#v", reasons)
 	}
-	if reasons["remote-error"] != "remote check failed" {
-		t.Fatalf("expected remote-error skip reason, got %#v", reasons)
+}
+
+func TestBuildPruneLocalPlanUsesFetchedOriginBranchSnapshot(t *testing.T) {
+	t.Parallel()
+
+	remoteChecks := 0
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "tracked", "remote"}, nil },
+			listOriginBranchesFn: func() ([]string, error) { return []string{"remote"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) {
+				remoteChecks++
+				return false, errors.New("unexpected remote check")
+			},
+			branchAtOrBehindFn:   func(string, string) (bool, error) { return true, nil },
+			baseContainsCommitFn: func(string, string) (bool, error) { return true, nil },
+		},
+		gh: fakePruneGH{findMergedByHeadFn: func(branch string) (*GhPR, error) {
+			if branch != "tracked" {
+				return nil, nil
+			}
+			return &GhPR{Number: 10, URL: "https://example.invalid/pr/10", BaseRefName: "main", HeadRefOID: "h0", MergeCommit: &GhCommit{OID: "m0"}}, nil
+		}},
+	}
+
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{"tracked": {Parent: "main"}}}
+
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{includeUntracked: true})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if remoteChecks != 0 {
+		t.Fatalf("expected fetched origin snapshot to avoid per-branch remote checks, got %d", remoteChecks)
+	}
+	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "tracked" {
+		t.Fatalf("expected tracked branch selected and remote branch skipped, got %#v", plan.Delete)
+	}
+	if len(plan.Skip) != 1 || plan.Skip[0].Branch != "remote" || plan.Skip[0].Reason != "remote branch still exists" {
+		t.Fatalf("expected remote branch skipped from fetched snapshot, got %#v", plan.Skip)
 	}
 }
 
