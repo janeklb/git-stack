@@ -333,9 +333,10 @@ func TestBuildPruneLocalPlanSkipsBranchNotFullyIntegratedWithoutMergeCommit(t *t
 	}
 }
 
-func TestBuildPruneLocalPlanFallsBackToTrackedPRMetadataWhenHeadLookupMisses(t *testing.T) {
+func TestBuildPruneLocalPlanPrefersTrackedPRMetadataBeforeHeadLookup(t *testing.T) {
 	t.Parallel()
 
+	findCalls := 0
 	deps := pruneLocalPlanDeps{
 		git: fakePruneGit{
 			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "tracked"}, nil },
@@ -344,7 +345,10 @@ func TestBuildPruneLocalPlanFallsBackToTrackedPRMetadataWhenHeadLookupMisses(t *
 			baseContainsCommitFn: func(string, string) (bool, error) { return true, nil },
 		},
 		gh: fakePruneGH{
-			findMergedByHeadFn: func(string) (*GhPR, error) { return nil, nil },
+			findMergedByHeadFn: func(string) (*GhPR, error) {
+				findCalls++
+				return nil, nil
+			},
 			viewFn: func(number int) (*GhPR, error) {
 				if number != 42 {
 					return nil, nil
@@ -370,6 +374,92 @@ func TestBuildPruneLocalPlanFallsBackToTrackedPRMetadataWhenHeadLookupMisses(t *
 	}
 	if !plan.Delete[0].HasLocal {
 		t.Fatalf("expected tracked branch with local ref to stay marked local, got %#v", plan.Delete[0])
+	}
+	if findCalls != 0 {
+		t.Fatalf("expected stored PR lookup to avoid head lookup, got %d head lookups", findCalls)
+	}
+}
+
+func TestBuildPruneLocalPlanFallsBackToHeadLookupWhenTrackedPRMetadataIsStale(t *testing.T) {
+	t.Parallel()
+
+	findCalls := 0
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "tracked"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			branchAtOrBehindFn:   func(string, string) (bool, error) { return true, nil },
+			baseContainsCommitFn: func(string, string) (bool, error) { return true, nil },
+		},
+		gh: fakePruneGH{
+			findMergedByHeadFn: func(string) (*GhPR, error) {
+				findCalls++
+				return &GhPR{Number: 99, URL: "https://example.invalid/pr/99", BaseRefName: "main", HeadRefOID: "h1", State: "MERGED", MergeCommit: &GhCommit{OID: "m1"}}, nil
+			},
+			viewFn: func(number int) (*GhPR, error) {
+				if number != 42 {
+					return nil, nil
+				}
+				return &GhPR{Number: 42, URL: "https://example.invalid/pr/42", BaseRefName: "main", HeadRefOID: "old", State: "CLOSED"}, nil
+			},
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"tracked": {Parent: "main", PR: &PRMeta{Number: 42, Base: "main"}},
+		},
+	}
+
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "tracked" {
+		t.Fatalf("expected tracked branch selected via head fallback, got %#v", plan.Delete)
+	}
+	if plan.Delete[0].PR == nil || plan.Delete[0].PR.Number != 99 {
+		t.Fatalf("expected fallback head lookup PR used, got %#v", plan.Delete[0])
+	}
+	if findCalls != 1 {
+		t.Fatalf("expected exactly one head fallback lookup, got %d", findCalls)
+	}
+}
+
+func TestBuildPruneLocalPlanUsesHeadLookupOnlyForUntrackedLocalBranches(t *testing.T) {
+	t.Parallel()
+
+	viewCalls := 0
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main", "untracked"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			branchAtOrBehindFn:   func(string, string) (bool, error) { return true, nil },
+			baseContainsCommitFn: func(string, string) (bool, error) { return true, nil },
+		},
+		gh: fakePruneGH{
+			findMergedByHeadFn: func(string) (*GhPR, error) {
+				return &GhPR{Number: 77, URL: "https://example.invalid/pr/77", BaseRefName: "main", HeadRefOID: "h77", State: "MERGED", MergeCommit: &GhCommit{OID: "m77"}}, nil
+			},
+			viewFn: func(int) (*GhPR, error) {
+				viewCalls++
+				return nil, nil
+			},
+		},
+	}
+
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{}}
+
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{includeUntracked: true})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 1 || plan.Delete[0].Branch != "untracked" {
+		t.Fatalf("expected untracked branch selected via head lookup, got %#v", plan.Delete)
+	}
+	if viewCalls != 0 {
+		t.Fatalf("expected no PR-number lookup for untracked branch, got %d", viewCalls)
 	}
 }
 
