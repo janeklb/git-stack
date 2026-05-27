@@ -16,6 +16,7 @@ type forwardGHClient interface {
 
 type pruneGitClient interface {
 	ListLocalBranches() ([]string, error)
+	ListOriginBranches() ([]string, error)
 	RemoteBranchExists(branch string) (bool, error)
 	BranchAtOrBehindCommit(branch, commit string) (bool, error)
 	BaseContainsCommit(base, commit string) (bool, error)
@@ -68,6 +69,10 @@ func (defaultGitClient) DeleteLocalBranch(branch string) error {
 
 func (defaultGitClient) ListLocalBranches() ([]string, error) {
 	return listLocalBranches()
+}
+
+func (defaultGitClient) ListOriginBranches() ([]string, error) {
+	return listOriginBranches()
 }
 
 func (defaultGitClient) BranchAtOrBehindCommit(branch, commit string) (bool, error) {

@@ -263,9 +263,13 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 	if err != nil {
 		return nil, err
 	}
+	originBranches, err := deps.git.ListOriginBranches()
+	if err != nil {
+		return nil, err
+	}
 	discovered := cleanPlanBranches(state, branches, scope)
 	plan := &pruneLocalPlan{}
-	jobs := cleanPrepassLookupJobs(discovered, deps.git, plan)
+	jobs := cleanPrepassLookupJobs(discovered, cleanBranchSet(originBranches), plan)
 	results := cleanResolveLookupJobs(state, deps.gh, jobs)
 	cleanAssembleLookupResults(state, deps.git, results, plan)
 
@@ -291,15 +295,18 @@ func cleanPlanBranches(state *State, branches []string, scope pruneLocalScope) [
 	return planned
 }
 
-func cleanPrepassLookupJobs(branches []cleanPlanBranch, git pruneGitClient, plan *pruneLocalPlan) []cleanLookupJob {
+func cleanBranchSet(branches []string) map[string]bool {
+	set := make(map[string]bool, len(branches))
+	for _, branch := range branches {
+		set[branch] = true
+	}
+	return set
+}
+
+func cleanPrepassLookupJobs(branches []cleanPlanBranch, originBranches map[string]bool, plan *pruneLocalPlan) []cleanLookupJob {
 	jobs := make([]cleanLookupJob, 0, len(branches))
 	for _, branch := range branches {
-		remoteExists, remoteErr := git.RemoteBranchExists(branch.Branch)
-		if remoteErr != nil {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch.Branch, Reason: "remote check failed"})
-			continue
-		}
-		if remoteExists {
+		if originBranches[branch.Branch] {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch.Branch, Reason: "remote branch still exists"})
 			continue
 		}
