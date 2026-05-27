@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 type fakePruneGit struct {
@@ -460,6 +461,91 @@ func TestBuildPruneLocalPlanUsesHeadLookupOnlyForUntrackedLocalBranches(t *testi
 	}
 	if viewCalls != 0 {
 		t.Fatalf("expected no PR-number lookup for untracked branch, got %d", viewCalls)
+	}
+}
+
+func TestBuildPruneLocalPlanKeepsDeterministicOrderingWithParallelLookup(t *testing.T) {
+	t.Parallel()
+
+	delays := map[string]time.Duration{
+		"alpha":   60 * time.Millisecond,
+		"bravo":   20 * time.Millisecond,
+		"charlie": 0,
+	}
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+		},
+		gh: fakePruneGH{
+			findMergedByHeadFn: func(string) (*GhPR, error) { return nil, nil },
+			viewFn: func(number int) (*GhPR, error) {
+				branchByNumber := map[int]string{1: "charlie", 2: "alpha", 3: "bravo"}
+				branch := branchByNumber[number]
+				time.Sleep(delays[branch])
+				return &GhPR{Number: number, URL: "https://example.invalid/pr", BaseRefName: "main", State: "CLOSED"}, nil
+			},
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"charlie": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+			"alpha":   {Parent: "main", PR: &PRMeta{Number: 2, Base: "main"}},
+			"bravo":   {Parent: "main", PR: &PRMeta{Number: 3, Base: "main"}},
+		},
+	}
+
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 3 {
+		t.Fatalf("expected all missing tracked branches selected, got %#v", plan.Delete)
+	}
+	if plan.Delete[0].Branch != "alpha" || plan.Delete[1].Branch != "bravo" || plan.Delete[2].Branch != "charlie" {
+		t.Fatalf("expected sorted delete order despite parallel completion, got %#v", plan.Delete)
+	}
+}
+
+func TestBuildPruneLocalPlanParallelLookupImprovesWallClockForMissingTrackedBranches(t *testing.T) {
+	t.Parallel()
+
+	deps := pruneLocalPlanDeps{
+		git: fakePruneGit{
+			listLocalBranchesFn:  func() ([]string, error) { return []string{"main"}, nil },
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+		},
+		gh: fakePruneGH{
+			findMergedByHeadFn: func(string) (*GhPR, error) { return nil, nil },
+			viewFn: func(number int) (*GhPR, error) {
+				time.Sleep(75 * time.Millisecond)
+				return &GhPR{Number: number, URL: "https://example.invalid/pr", BaseRefName: "main", State: "CLOSED"}, nil
+			},
+		},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"ghost-1": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+			"ghost-2": {Parent: "main", PR: &PRMeta{Number: 2, Base: "main"}},
+			"ghost-3": {Parent: "main", PR: &PRMeta{Number: 3, Base: "main"}},
+			"ghost-4": {Parent: "main", PR: &PRMeta{Number: 4, Base: "main"}},
+		},
+	}
+
+	start := time.Now()
+	plan, err := buildPruneLocalPlanWithDeps(state, deps, pruneLocalScope{trackedBranches: allTrackedBranches(state)})
+	if err != nil {
+		t.Fatalf("buildPruneLocalPlan returned error: %v", err)
+	}
+	if len(plan.Delete) != 4 {
+		t.Fatalf("expected all missing tracked branches selected, got %#v", plan.Delete)
+	}
+	if elapsed := time.Since(start); elapsed >= 250*time.Millisecond {
+		t.Fatalf("expected bounded parallel lookup to finish faster than sequential baseline, took %v", elapsed)
 	}
 }
 
