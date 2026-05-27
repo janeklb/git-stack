@@ -312,17 +312,10 @@ func cleanResolveLookupJobs(state *State, deps pruneLocalPlanDeps, jobs []cleanL
 			continue
 		}
 
-		pr, prErr := deps.gh.FindMergedByHead(job.Branch)
+		pr, prErr := cleanResolveLocalBranchPR(state, deps.gh, job.Branch)
 		if prErr != nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged PR lookup failed"})
 			continue
-		}
-		if pr == nil {
-			pr, prErr = cleanTrackedMergedPR(state, deps.gh, job.Branch)
-			if prErr != nil {
-				plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged PR lookup failed"})
-				continue
-			}
 		}
 		if pr == nil {
 			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "no merged PR found"})
@@ -346,6 +339,20 @@ func cleanResolveLookupJobs(state *State, deps pruneLocalPlanDeps, jobs []cleanL
 
 		plan.Delete = append(plan.Delete, pruneLocalCandidate{Branch: job.Branch, PR: pr, Base: base, HasLocal: true})
 	}
+}
+
+func cleanResolveLocalBranchPR(state *State, gh pruneGHClient, branch string) (*GhPR, error) {
+	meta := state.Branches[branch]
+	if meta != nil && meta.PR != nil && meta.PR.Number > 0 {
+		pr, err := gh.View(meta.PR.Number)
+		if err != nil {
+			return nil, err
+		}
+		if pr != nil && strings.EqualFold(pr.State, "MERGED") {
+			return pr, nil
+		}
+	}
+	return gh.FindMergedByHead(branch)
 }
 
 func buildMissingTrackedBranchCandidate(state *State, gh pruneGHClient, branch string) (pruneLocalCandidate, bool, error) {
