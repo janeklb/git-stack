@@ -11,7 +11,7 @@ The tool is intentionally opinionated and low-configuration: it targets one work
 ## Requirements
 
 - `git`
-- `gh` (GitHub CLI), authenticated — required for `submit` and PR updates
+- `gh` (GitHub CLI), authenticated — required for commands that inspect or update GitHub PR state, including `submit`, `forward`, and `clean`
 
 ## Installation
 
