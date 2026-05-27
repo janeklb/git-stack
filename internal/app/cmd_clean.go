@@ -31,6 +31,16 @@ type pruneLocalPlanDeps struct {
 	gh  pruneGHClient
 }
 
+type cleanPlanBranch struct {
+	Branch   string
+	HasLocal bool
+}
+
+type cleanLookupJob struct {
+	Branch   string
+	HasLocal bool
+}
+
 type pruneLocalScope struct {
 	trackedBranches    map[string]bool
 	trackedFromCurrent bool
@@ -242,71 +252,10 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 	if err != nil {
 		return nil, err
 	}
-	localBranches := map[string]bool{}
-	for _, branch := range branches {
-		localBranches[branch] = true
-	}
+	discovered := cleanPlanBranches(state, branches, scope)
 	plan := &pruneLocalPlan{}
-	for _, branch := range cleanDiscoveryBranches(state, branches, scope) {
-		remoteExists, remoteErr := deps.git.RemoteBranchExists(branch)
-		if remoteErr != nil {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "remote check failed"})
-			continue
-		}
-		if remoteExists {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "remote branch still exists"})
-			continue
-		}
-
-		hasLocal := localBranches[branch]
-		if !hasLocal {
-			candidate, ok, err := buildMissingTrackedBranchCandidate(state, deps.gh, branch)
-			if err != nil {
-				plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merged PR lookup failed"})
-				continue
-			}
-			if ok {
-				plan.Delete = append(plan.Delete, candidate)
-				continue
-			}
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "no merged PR found"})
-			continue
-		}
-
-		pr, prErr := deps.gh.FindMergedByHead(branch)
-		if prErr != nil {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merged PR lookup failed"})
-			continue
-		}
-		if pr == nil {
-			pr, prErr = cleanTrackedMergedPR(state, deps.gh, branch)
-			if prErr != nil {
-				plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merged PR lookup failed"})
-				continue
-			}
-		}
-		if pr == nil {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "no merged PR found"})
-			continue
-		}
-
-		base := pr.BaseRefName
-		if base == "" {
-			base = state.Trunk
-		}
-		if base != state.Trunk {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: "merged into non-trunk base"})
-			continue
-		}
-
-		eligible, reason := cleanMergeEligible(deps.git, branch, base, pr)
-		if !eligible {
-			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch, Reason: reason})
-			continue
-		}
-
-		plan.Delete = append(plan.Delete, pruneLocalCandidate{Branch: branch, PR: pr, Base: base, HasLocal: true})
-	}
+	jobs := cleanPrepassLookupJobs(discovered, deps.git, plan)
+	cleanResolveLookupJobs(state, deps, jobs, plan)
 
 	sort.Slice(plan.Delete, func(i, j int) bool {
 		return plan.Delete[i].Branch < plan.Delete[j].Branch
@@ -315,6 +264,88 @@ func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pr
 		return plan.Skip[i].Branch < plan.Skip[j].Branch
 	})
 	return plan, nil
+}
+
+func cleanPlanBranches(state *State, branches []string, scope pruneLocalScope) []cleanPlanBranch {
+	localBranches := map[string]bool{}
+	for _, branch := range branches {
+		localBranches[branch] = true
+	}
+	discovered := cleanDiscoveryBranches(state, branches, scope)
+	planned := make([]cleanPlanBranch, 0, len(discovered))
+	for _, branch := range discovered {
+		planned = append(planned, cleanPlanBranch{Branch: branch, HasLocal: localBranches[branch]})
+	}
+	return planned
+}
+
+func cleanPrepassLookupJobs(branches []cleanPlanBranch, git pruneGitClient, plan *pruneLocalPlan) []cleanLookupJob {
+	jobs := make([]cleanLookupJob, 0, len(branches))
+	for _, branch := range branches {
+		remoteExists, remoteErr := git.RemoteBranchExists(branch.Branch)
+		if remoteErr != nil {
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch.Branch, Reason: "remote check failed"})
+			continue
+		}
+		if remoteExists {
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: branch.Branch, Reason: "remote branch still exists"})
+			continue
+		}
+		jobs = append(jobs, cleanLookupJob{Branch: branch.Branch, HasLocal: branch.HasLocal})
+	}
+	return jobs
+}
+
+func cleanResolveLookupJobs(state *State, deps pruneLocalPlanDeps, jobs []cleanLookupJob, plan *pruneLocalPlan) {
+	for _, job := range jobs {
+		if !job.HasLocal {
+			candidate, ok, err := buildMissingTrackedBranchCandidate(state, deps.gh, job.Branch)
+			if err != nil {
+				plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged PR lookup failed"})
+				continue
+			}
+			if ok {
+				plan.Delete = append(plan.Delete, candidate)
+				continue
+			}
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "no merged PR found"})
+			continue
+		}
+
+		pr, prErr := deps.gh.FindMergedByHead(job.Branch)
+		if prErr != nil {
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged PR lookup failed"})
+			continue
+		}
+		if pr == nil {
+			pr, prErr = cleanTrackedMergedPR(state, deps.gh, job.Branch)
+			if prErr != nil {
+				plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged PR lookup failed"})
+				continue
+			}
+		}
+		if pr == nil {
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "no merged PR found"})
+			continue
+		}
+
+		base := pr.BaseRefName
+		if base == "" {
+			base = state.Trunk
+		}
+		if base != state.Trunk {
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: "merged into non-trunk base"})
+			continue
+		}
+
+		eligible, reason := cleanMergeEligible(deps.git, job.Branch, base, pr)
+		if !eligible {
+			plan.Skip = append(plan.Skip, pruneLocalSkip{Branch: job.Branch, Reason: reason})
+			continue
+		}
+
+		plan.Delete = append(plan.Delete, pruneLocalCandidate{Branch: job.Branch, PR: pr, Base: base, HasLocal: true})
+	}
 }
 
 func buildMissingTrackedBranchCandidate(state *State, gh pruneGHClient, branch string) (pruneLocalCandidate, bool, error) {

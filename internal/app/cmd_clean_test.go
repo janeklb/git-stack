@@ -1,6 +1,9 @@
 package app
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 type fakePruneGit struct {
 	listLocalBranchesFn  func() ([]string, error)
@@ -119,6 +122,51 @@ func TestBuildPruneLocalPlanSelectsEligibleBranchesAndSkipsOthers(t *testing.T) 
 	}
 	if reasons["wrong-base"] != "merged into non-trunk base" {
 		t.Fatalf("expected wrong-base skip reason, got %#v", reasons)
+	}
+}
+
+func TestCleanPrepassLookupJobsFiltersRemoteBranchesBeforeGHLookups(t *testing.T) {
+	t.Parallel()
+
+	planned := []cleanPlanBranch{
+		{Branch: "local-tracked", HasLocal: true},
+		{Branch: "missing-tracked", HasLocal: false},
+		{Branch: "still-remote", HasLocal: true},
+		{Branch: "remote-error", HasLocal: true},
+	}
+	plan := &pruneLocalPlan{}
+	jobs := cleanPrepassLookupJobs(planned, fakePruneGit{
+		remoteBranchExistsFn: func(branch string) (bool, error) {
+			switch branch {
+			case "still-remote":
+				return true, nil
+			case "remote-error":
+				return false, errors.New("boom")
+			default:
+				return false, nil
+			}
+		},
+	}, plan)
+
+	if len(jobs) != 2 {
+		t.Fatalf("expected only non-remote branches to remain for GH lookup, got %#v", jobs)
+	}
+	if jobs[0].Branch != "local-tracked" || !jobs[0].HasLocal {
+		t.Fatalf("unexpected first job: %#v", jobs[0])
+	}
+	if jobs[1].Branch != "missing-tracked" || jobs[1].HasLocal {
+		t.Fatalf("unexpected second job: %#v", jobs[1])
+	}
+
+	reasons := map[string]string{}
+	for _, skip := range plan.Skip {
+		reasons[skip.Branch] = skip.Reason
+	}
+	if reasons["still-remote"] != "remote branch still exists" {
+		t.Fatalf("expected still-remote skip reason, got %#v", reasons)
+	}
+	if reasons["remote-error"] != "remote check failed" {
+		t.Fatalf("expected remote-error skip reason, got %#v", reasons)
 	}
 }
 
