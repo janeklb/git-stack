@@ -3,14 +3,23 @@ package app
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeForwardGit struct {
+	listOriginBranchesFn func() ([]string, error)
 	remoteBranchExistsFn func(string) (bool, error)
 	localBranchExistsFn  func(string) bool
 	currentBranchFn      func() (string, error)
 	runFn                func(...string) error
 	deleteLocalBranchFn  func(string) error
+}
+
+func (f fakeForwardGit) ListOriginBranches() ([]string, error) {
+	if f.listOriginBranchesFn == nil {
+		return nil, nil
+	}
+	return f.listOriginBranchesFn()
 }
 
 func (f fakeForwardGit) RemoteBranchExists(branch string) (bool, error) {
@@ -182,5 +191,177 @@ func TestRepairForwardStackPRMetadataRepairsMissingPRMetadataFromMergedHead(t *t
 	}
 	if state.Branches["feat-a"].PR == nil || state.Branches["feat-a"].PR.Number != 7 {
 		t.Fatalf("expected repaired PR metadata, got %+v", state.Branches["feat-a"].PR)
+	}
+}
+
+func TestDetectForwardCandidateUsesFetchedOriginState(t *testing.T) {
+	repo := newTestRepo(t)
+	mustGit(t, repo, "branch", "feat-a")
+
+	deps := forwardDeps{
+		git: fakeForwardGit{
+			remoteBranchExistsFn: func(string) (bool, error) {
+				t.Fatal("expected fetched origin state to avoid live remote branch lookup")
+				return false, nil
+			},
+			localBranchExistsFn: func(string) bool { return true },
+		},
+		gh: fakeForwardGH{viewFn: func(number int) (*GhPR, error) {
+			return &GhPR{Number: number, State: "MERGED", BaseRefName: "main", HeadRefOID: "abc123"}, nil
+		}},
+		mergedCleanIntegrated: func(branch, base string, pr *GhPR) (bool, error) {
+			return true, nil
+		},
+		mergedBranchChildren: func(state *State, branch string) []string {
+			return nil
+		},
+		originBranches: map[string]bool{},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"feat-a": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+		},
+	}
+
+	var (
+		eligible bool
+		err      error
+	)
+	withRepoCwd(t, repo, func() {
+		_, eligible, err = detectForwardCandidateWithDeps(state, "feat-a", deps)
+	})
+	if err != nil {
+		t.Fatalf("expected cached origin state to work, got error: %v", err)
+	}
+	if !eligible {
+		t.Fatal("expected merged branch to remain eligible when origin branch is absent from fetched state")
+	}
+}
+
+func TestForwardTargetExistsUsesFetchedOriginState(t *testing.T) {
+	t.Parallel()
+
+	exists, err := forwardTargetExists(fakeForwardGit{
+		remoteBranchExistsFn: func(string) (bool, error) {
+			t.Fatal("expected fetched origin state to avoid live remote branch lookup")
+			return false, nil
+		},
+		localBranchExistsFn: func(string) bool { return false },
+	}, map[string]bool{"feat-next": true}, "feat-next")
+	if err != nil {
+		t.Fatalf("expected cached origin branch to verify target, got error: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected branch present in fetched origin state to exist")
+	}
+}
+
+func TestBuildForwardCandidatesKeepsDeterministicOrderingWithParallelPRLookup(t *testing.T) {
+	repo := newTestRepo(t)
+	for _, branch := range []string{"alpha", "bravo", "charlie"} {
+		mustGit(t, repo, "branch", branch)
+	}
+
+	delays := map[string]time.Duration{
+		"alpha":   60 * time.Millisecond,
+		"bravo":   20 * time.Millisecond,
+		"charlie": 0,
+	}
+	deps := forwardDeps{
+		git: fakeForwardGit{
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			localBranchExistsFn:  func(string) bool { return true },
+		},
+		gh: fakeForwardGH{viewFn: func(number int) (*GhPR, error) {
+			branchByNumber := map[int]string{1: "charlie", 2: "alpha", 3: "bravo"}
+			branch := branchByNumber[number]
+			time.Sleep(delays[branch])
+			return &GhPR{Number: number, State: "MERGED", BaseRefName: "main", HeadRefOID: branch + "-head"}, nil
+		}},
+		mergedCleanIntegrated: func(string, string, *GhPR) (bool, error) { return true, nil },
+		mergedBranchChildren:  func(*State, string) []string { return nil },
+		originBranches:        map[string]bool{},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"charlie": {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+			"alpha":   {Parent: "main", PR: &PRMeta{Number: 2, Base: "main"}},
+			"bravo":   {Parent: "main", PR: &PRMeta{Number: 3, Base: "main"}},
+		},
+	}
+
+	var (
+		candidates []forwardCleanupCandidate
+		err        error
+	)
+	withRepoCwd(t, repo, func() {
+		candidates, err = buildForwardCandidatesWithDeps(state, "main", deps)
+	})
+	if err != nil {
+		t.Fatalf("buildForwardCandidatesWithDeps returned error: %v", err)
+	}
+	if len(candidates) != 3 {
+		t.Fatalf("expected all merged branches selected, got %#v", candidates)
+	}
+	if candidates[0].Branch != "alpha" || candidates[1].Branch != "bravo" || candidates[2].Branch != "charlie" {
+		t.Fatalf("expected sorted topo order despite parallel completion, got %#v", candidates)
+	}
+	for _, candidate := range candidates {
+		if candidate.Head == "" {
+			t.Fatalf("expected local candidate head to be resolved, got %#v", candidates)
+		}
+	}
+}
+
+func TestBuildForwardCandidatesParallelPRLookupImprovesWallClock(t *testing.T) {
+	repo := newTestRepo(t)
+	for _, branch := range []string{"alpha", "bravo", "charlie", "delta"} {
+		mustGit(t, repo, "branch", branch)
+	}
+
+	deps := forwardDeps{
+		git: fakeForwardGit{
+			remoteBranchExistsFn: func(string) (bool, error) { return false, nil },
+			localBranchExistsFn:  func(string) bool { return true },
+		},
+		gh: fakeForwardGH{viewFn: func(number int) (*GhPR, error) {
+			time.Sleep(75 * time.Millisecond)
+			return &GhPR{Number: number, State: "MERGED", BaseRefName: "main", HeadRefOID: "head"}, nil
+		}},
+		mergedCleanIntegrated: func(string, string, *GhPR) (bool, error) { return true, nil },
+		mergedBranchChildren:  func(*State, string) []string { return nil },
+		originBranches:        map[string]bool{},
+	}
+
+	state := &State{
+		Trunk: "main",
+		Branches: map[string]*BranchRef{
+			"alpha":   {Parent: "main", PR: &PRMeta{Number: 1, Base: "main"}},
+			"bravo":   {Parent: "main", PR: &PRMeta{Number: 2, Base: "main"}},
+			"charlie": {Parent: "main", PR: &PRMeta{Number: 3, Base: "main"}},
+			"delta":   {Parent: "main", PR: &PRMeta{Number: 4, Base: "main"}},
+		},
+	}
+
+	start := time.Now()
+	var (
+		candidates []forwardCleanupCandidate
+		err        error
+	)
+	withRepoCwd(t, repo, func() {
+		candidates, err = buildForwardCandidatesWithDeps(state, "main", deps)
+	})
+	if err != nil {
+		t.Fatalf("buildForwardCandidatesWithDeps returned error: %v", err)
+	}
+	if len(candidates) != 4 {
+		t.Fatalf("expected all merged branches selected, got %#v", candidates)
+	}
+	if elapsed := time.Since(start); elapsed >= 250*time.Millisecond {
+		t.Fatalf("expected bounded parallel PR lookup to finish faster than sequential baseline, took %v", elapsed)
 	}
 }

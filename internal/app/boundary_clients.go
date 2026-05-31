@@ -1,6 +1,7 @@
 package app
 
 type forwardGitClient interface {
+	ListOriginBranches() ([]string, error)
 	RemoteBranchExists(branch string) (bool, error)
 	LocalBranchExists(branch string) bool
 	CurrentBranch() (string, error)

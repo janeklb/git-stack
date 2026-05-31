@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type forwardCleanupCandidate struct {
@@ -23,9 +24,12 @@ type forwardDeps struct {
 	gh                    forwardGHClient
 	mergedCleanIntegrated func(string, string, *GhPR) (bool, error)
 	mergedBranchChildren  func(*State, string) []string
+	originBranches        map[string]bool
+	lookupPRs             map[string]*GhPR
 }
 
 const forwardRepairFlow = "git-stack clean --all --yes && git-stack restack"
+const forwardLookupConcurrency = 4
 
 func defaultForwardDeps() forwardDeps {
 	return forwardDeps{
@@ -55,6 +59,11 @@ func (a *App) cmdForward(next string) error {
 	forwardScope := branchesInCurrentStack(state, current)
 
 	deps := defaultForwardDeps()
+	originBranches, err := deps.git.ListOriginBranches()
+	if err != nil {
+		return fmt.Errorf("forward failed to list fetched origin branches: %w", err)
+	}
+	deps.originBranches = forwardBranchSet(originBranches)
 	repairedPRMeta, err := repairForwardStackPRMetadata(state, forwardScope, deps.gh)
 	if err != nil {
 		return err
@@ -76,7 +85,7 @@ func (a *App) cmdForward(next string) error {
 	for _, candidate := range candidates {
 		merged[candidate.Branch] = true
 	}
-	target, err := chooseForwardTarget(a.in, a.stdout, state, current, merged, next, deps.git)
+	target, err := chooseForwardTarget(a.in, a.stdout, state, current, merged, next, deps.git, deps.originBranches)
 	if err != nil {
 		return err
 	}
@@ -171,6 +180,11 @@ func forwardSubmitDeps(repoRoot string, state *State, queue []string, forwardSco
 func buildForwardCandidatesWithDeps(state *State, current string, deps forwardDeps) ([]forwardCleanupCandidate, error) {
 	selected := branchesInCurrentStack(state, current)
 	order := topoOrderSelected(state, selected)
+	lookupPRs, err := forwardResolveCandidatePRs(state, order, deps.gh)
+	if err != nil {
+		return nil, err
+	}
+	deps.lookupPRs = lookupPRs
 	candidates := []forwardCleanupCandidate{}
 	for _, branch := range order {
 		candidate, eligible, err := detectForwardCandidateWithDeps(state, branch, deps)
@@ -230,15 +244,19 @@ func detectForwardCandidateWithDeps(state *State, current string, deps forwardDe
 		return forwardCleanupCandidate{}, false, nil
 	}
 
-	pr, err := deps.gh.View(meta.PR.Number)
-	if err != nil {
-		return forwardCleanupCandidate{}, false, fmt.Errorf("forward failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+	pr, ok := deps.lookupPRs[current]
+	if !ok {
+		var err error
+		pr, err = deps.gh.View(meta.PR.Number)
+		if err != nil {
+			return forwardCleanupCandidate{}, false, fmt.Errorf("forward failed to load PR #%d for %s: %w", meta.PR.Number, current, err)
+		}
 	}
 	if !strings.EqualFold(pr.State, "MERGED") {
 		return forwardCleanupCandidate{}, false, nil
 	}
 
-	remoteExists, err := deps.git.RemoteBranchExists(current)
+	remoteExists, err := forwardRemoteBranchExists(deps.git, deps.originBranches, current)
 	if err != nil {
 		return forwardCleanupCandidate{}, false, fmt.Errorf("forward failed to check remote branch %s: %w", current, err)
 	}
@@ -286,7 +304,7 @@ func detectForwardCandidateWithDeps(state *State, current string, deps forwardDe
 	}, true, nil
 }
 
-func chooseForwardTarget(in io.Reader, out io.Writer, state *State, current string, merged map[string]bool, next string, git forwardGitClient) (string, error) {
+func chooseForwardTarget(in io.Reader, out io.Writer, state *State, current string, merged map[string]bool, next string, git forwardGitClient, originBranches map[string]bool) (string, error) {
 	if !merged[current] {
 		return current, nil
 	}
@@ -297,7 +315,7 @@ func chooseForwardTarget(in io.Reader, out io.Writer, state *State, current stri
 		if merged[next] {
 			return "", fmt.Errorf("forward --next cannot be another merged branch being cleaned: %s", next)
 		}
-		exists, err := forwardTargetExists(git, next)
+		exists, err := forwardTargetExists(git, originBranches, next)
 		if err != nil {
 			return "", err
 		}
@@ -321,7 +339,7 @@ func chooseForwardTarget(in io.Reader, out io.Writer, state *State, current stri
 
 	if len(options) == 1 {
 		target := options[0]
-		exists, err := forwardTargetExists(git, target)
+		exists, err := forwardTargetExists(git, originBranches, target)
 		if err != nil {
 			return "", err
 		}
@@ -346,7 +364,7 @@ func chooseForwardTarget(in io.Reader, out io.Writer, state *State, current stri
 		return "", errors.New("forward invalid selection")
 	}
 	target := options[choice-1]
-	exists, err := forwardTargetExists(git, target)
+	exists, err := forwardTargetExists(git, originBranches, target)
 	if err != nil {
 		return "", err
 	}
@@ -394,15 +412,96 @@ func forwardCleanupTargets(state *State, branch string, merged map[string]bool) 
 	return ordered
 }
 
-func forwardTargetExists(git forwardGitClient, branch string) (bool, error) {
+func forwardTargetExists(git forwardGitClient, originBranches map[string]bool, branch string) (bool, error) {
 	if git.LocalBranchExists(branch) {
 		return true, nil
 	}
-	remoteExists, err := git.RemoteBranchExists(branch)
+	remoteExists, err := forwardRemoteBranchExists(git, originBranches, branch)
 	if err != nil {
 		return false, fmt.Errorf("forward failed to verify branch %s: %w", branch, err)
 	}
 	return remoteExists, nil
+}
+
+type forwardPRLookupJob struct {
+	Branch string
+	Number int
+}
+
+type forwardPRLookupResult struct {
+	Branch string
+	PR     *GhPR
+	Err    error
+}
+
+func forwardResolveCandidatePRs(state *State, branches []string, gh forwardGHClient) (map[string]*GhPR, error) {
+	jobs := make([]forwardPRLookupJob, 0, len(branches))
+	for _, branch := range branches {
+		meta := state.Branches[branch]
+		if meta == nil || meta.PR == nil || meta.PR.Number <= 0 {
+			continue
+		}
+		jobs = append(jobs, forwardPRLookupJob{Branch: branch, Number: meta.PR.Number})
+	}
+	if len(jobs) == 0 {
+		return nil, nil
+	}
+
+	jobCh := make(chan forwardPRLookupJob)
+	resultCh := make(chan forwardPRLookupResult, len(jobs))
+	workerCount := forwardLookupConcurrency
+	if len(jobs) < workerCount {
+		workerCount = len(jobs)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(workerCount)
+	for i := 0; i < workerCount; i++ {
+		go func() {
+			defer wg.Done()
+			for job := range jobCh {
+				pr, err := gh.View(job.Number)
+				resultCh <- forwardPRLookupResult{Branch: job.Branch, PR: pr, Err: err}
+			}
+		}()
+	}
+
+	for _, job := range jobs {
+		jobCh <- job
+	}
+	close(jobCh)
+	wg.Wait()
+	close(resultCh)
+
+	results := make(map[string]forwardPRLookupResult, len(jobs))
+	for result := range resultCh {
+		results[result.Branch] = result
+	}
+
+	lookupPRs := make(map[string]*GhPR, len(jobs))
+	for _, job := range jobs {
+		result := results[job.Branch]
+		if result.Err != nil {
+			return nil, fmt.Errorf("forward failed to load PR #%d for %s: %w", job.Number, job.Branch, result.Err)
+		}
+		lookupPRs[job.Branch] = result.PR
+	}
+	return lookupPRs, nil
+}
+
+func forwardRemoteBranchExists(git forwardGitClient, originBranches map[string]bool, branch string) (bool, error) {
+	if originBranches != nil {
+		return originBranches[branch], nil
+	}
+	return git.RemoteBranchExists(branch)
+}
+
+func forwardBranchSet(branches []string) map[string]bool {
+	set := make(map[string]bool, len(branches))
+	for _, branch := range branches {
+		set[branch] = true
+	}
+	return set
 }
 
 func forwardSubmitQueue(state *State, roots []string) []string {
