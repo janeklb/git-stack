@@ -19,6 +19,7 @@ type pruneGitClient interface {
 	ListLocalBranches() ([]string, error)
 	ListOriginBranches() ([]string, error)
 	RemoteBranchExists(branch string) (bool, error)
+	EnsurePRHeadCommit(number int, commit string) error
 	BranchAtOrBehindCommit(branch, commit string) (bool, error)
 	BaseContainsCommit(base, commit string) (bool, error)
 	BranchFullyIntegrated(branch, base string) (bool, error)
@@ -78,6 +79,10 @@ func (defaultGitClient) ListOriginBranches() ([]string, error) {
 
 func (defaultGitClient) BranchAtOrBehindCommit(branch, commit string) (bool, error) {
 	return branchAtOrBehindCommit(branch, commit)
+}
+
+func (defaultGitClient) EnsurePRHeadCommit(number int, commit string) error {
+	return ensurePRHeadCommit(number, commit)
 }
 
 func (defaultGitClient) BaseContainsCommit(base, commit string) (bool, error) {

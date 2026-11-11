@@ -1,11 +1,109 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestCleanFetchesMissingPRHeadAfterSquashMerge(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		extraLocal bool
+		missingRef bool
+		wrongHead  bool
+		wantSkip   string
+	}{
+		{name: "ancestor qualifies"},
+		{name: "extra local commits preserved", extraLocal: true, wantSkip: "local commits ahead of PR head"},
+		{name: "unavailable PR ref preserved", missingRef: true, wantSkip: "PR head commit unavailable locally"},
+		{name: "unexpected PR head preserved", wrongHead: true, wantSkip: "PR head commit unavailable locally"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newTestRepo(t)
+			mustGit(t, repo, "switch", "-c", "feature")
+			mustWriteFile(t, filepath.Join(repo, "feature.txt"), "feature\n")
+			mustGit(t, repo, "add", "feature.txt")
+			mustGit(t, repo, "commit", "-m", "feature")
+			mustGit(t, repo, "push", "-u", "origin", "feature")
+
+			// Another checkout advances main, merges it into the PR, then squash-merges
+			// the PR and deletes its branch without the local checkout fetching it.
+			other := filepath.Join(t.TempDir(), "other")
+			origin := strings.TrimSpace(mustGitOutput(t, repo, "remote", "get-url", "origin"))
+			mustGit(t, repo, "clone", origin, other)
+			mustGit(t, other, "config", "user.name", "Stack Test")
+			mustGit(t, other, "config", "user.email", "stack-test@example.com")
+			mustGit(t, other, "config", "commit.gpgsign", "false")
+			mustWriteFile(t, filepath.Join(other, "main.txt"), "main update\n")
+			mustGit(t, other, "add", "main.txt")
+			mustGit(t, other, "commit", "-m", "advance main")
+			mustGit(t, other, "switch", "feature")
+			mustGit(t, other, "merge", "--no-ff", "main", "-m", "merge main into PR")
+			prHead := strings.TrimSpace(mustGitOutput(t, other, "rev-parse", "HEAD"))
+			if !tc.missingRef {
+				refHead := prHead
+				if tc.wrongHead {
+					refHead = "main"
+				}
+				mustGit(t, other, "push", "origin", refHead+":refs/pull/2169/head")
+			}
+			mustGit(t, other, "switch", "main")
+			mustGit(t, other, "merge", "--squash", "feature")
+			mustGit(t, other, "commit", "-m", "squash feature")
+			mergeCommit := strings.TrimSpace(mustGitOutput(t, other, "rev-parse", "HEAD"))
+			mustGit(t, other, "push", "origin", "main", ":feature")
+
+			if tc.extraLocal {
+				mustWriteFile(t, filepath.Join(repo, "local.txt"), "unpublished work\n")
+				mustGit(t, repo, "add", "local.txt")
+				mustGit(t, repo, "commit", "-m", "local work")
+			}
+			localHead := strings.TrimSpace(mustGitOutput(t, repo, "rev-parse", "feature"))
+			fakeBin := t.TempDir()
+			ghPath := filepath.Join(fakeBin, "gh")
+			mustWriteFile(t, ghPath, fmt.Sprintf(`#!/bin/sh
+if [ "$1" = "pr" ] && [ "$2" = "list" ] && [ "$3" = "--head" ] && [ "$4" = "feature" ]; then
+  echo '[{"number":2169,"baseRefName":"main","headRefOid":"%s","state":"MERGED","mergeCommit":{"oid":"%s"}}]'
+  exit 0
+fi
+echo "unexpected gh args: $*" >&2
+exit 1
+`, prHead, mergeCommit))
+			if err := os.Chmod(ghPath, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			withRepoCwd(t, repo, func() {
+				if _, err := gitOutput("cat-file", "-e", prHead+"^{commit}"); err == nil {
+					t.Fatal("fixture must not have the PR head locally")
+				}
+				out, code := runCLIAndCapture(t, New(), []string{"clean", "--all", "--untracked", "--yes"})
+				if code != 0 {
+					t.Fatalf("clean failed: exit=%d\n%s", code, out)
+				}
+				if tc.wantSkip != "" {
+					if !localBranchExists("feature") {
+						t.Fatalf("unsafe branch deletion:\n%s", out)
+					}
+					if got := strings.TrimSpace(mustGitOutput(t, repo, "rev-parse", "feature")); got != localHead {
+						t.Fatalf("local branch changed: %s != %s", got, localHead)
+					}
+					if !strings.Contains(out, "- skip: feature ("+tc.wantSkip+")") {
+						t.Fatalf("expected visible skip reason %q, got:\n%s", tc.wantSkip, out)
+					}
+					return
+				}
+				if localBranchExists("feature") || !strings.Contains(out, "feature -> deleted local branch") {
+					t.Fatalf("expected ancestor branch deleted after fetching PR history:\n%s", out)
+				}
+			})
+		})
+	}
+}
 
 func TestCleanDefaultsToCurrentStackScope(t *testing.T) {
 	repo := newTestRepo(t)

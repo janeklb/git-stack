@@ -119,6 +119,9 @@ func cleanMergeEligible(git pruneGitClient, branch, base string, pr *GhPR) (bool
 	if head == "" {
 		return false, "missing PR head commit"
 	}
+	if err := git.EnsurePRHeadCommit(pr.Number, head); err != nil {
+		return false, "PR head commit unavailable locally"
+	}
 	atOrBehind, headErr := git.BranchAtOrBehindCommit(branch, head)
 	if headErr != nil {
 		return false, "head ancestry check failed"
@@ -191,6 +194,9 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 		return err
 	}
 	if len(plan.Delete) == 0 {
+		if len(plan.Skip) > 0 {
+			printCleanPlan(a.stdout, plan)
+		}
 		a.println("clean: nothing to do")
 		return nil
 	}
