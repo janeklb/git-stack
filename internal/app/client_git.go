@@ -200,6 +200,28 @@ func branchAtOrBehindCommit(branch, commit string) (bool, error) {
 	return commitIsAncestor(branchRef, strings.TrimSpace(commit))
 }
 
+func ensurePRHeadCommit(number int, commit string) error {
+	commit = strings.TrimSpace(commit)
+	if commit == "" {
+		return errors.New("empty PR head commit")
+	}
+	if _, err := gitOutput("rev-parse", "--verify", "--quiet", commit+"^{commit}"); err == nil {
+		return nil
+	}
+	if number <= 0 {
+		return errors.New("missing PR number for head fetch")
+	}
+	// Deleted branch heads are not fetched by the normal origin refspec. GitHub
+	// retains the PR head ref even after a squash merge and branch deletion.
+	ref := fmt.Sprintf("refs/pull/%d/head", number)
+	if err := gitRunQuiet("fetch", "--no-tags", "--no-write-fetch-head", "origin", ref); err != nil {
+		return err
+	}
+	// Check the exact head reported by GitHub, not just whatever the ref fetched.
+	_, err := gitOutput("rev-parse", "--verify", "--quiet", commit+"^{commit}")
+	return err
+}
+
 func branchHasCommitsSince(base, branch string) (bool, error) {
 	baseRef, err := resolveBranchRef(base)
 	if err != nil {

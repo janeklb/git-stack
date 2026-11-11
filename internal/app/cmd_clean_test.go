@@ -34,6 +34,10 @@ func (f fakePruneGit) BranchAtOrBehindCommit(branch, commit string) (bool, error
 	return f.branchAtOrBehindFn(branch, commit)
 }
 
+func (f fakePruneGit) EnsurePRHeadCommit(number int, commit string) error {
+	return nil
+}
+
 func (f fakePruneGit) BaseContainsCommit(base, commit string) (bool, error) {
 	return f.baseContainsCommitFn(base, commit)
 }
