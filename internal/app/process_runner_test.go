@@ -35,13 +35,7 @@ func TestCommandEditorOverridesPreserveInheritedEnvironment(t *testing.T) {
 	overrides := []string{"GIT_EDITOR=true", "GIT_MERGE_AUTOEDIT=no", "STACK_TEST_EMPTY="}
 	want := "inherited\n" + os.Getenv("PATH") + "\n" + os.Getenv("HOME") + "\n0\ntrue\nno\n\n"
 	for _, passthrough := range []bool{false, true} {
-		var result commandRunResult
-		var err error
-		if passthrough {
-			result, err = runCommandPassthroughWithEnv("sh", args, overrides)
-		} else {
-			result, err = runCommand("sh", args, commandRunOptions{env: overrides})
-		}
+		result, err := runCommand("sh", args, commandRunOptions{env: overrides, streamOutput: passthrough})
 		if err != nil {
 			t.Fatal(err)
 		}
