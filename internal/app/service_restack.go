@@ -217,7 +217,7 @@ func mergedRebaseBases(state *State, queue []string, explicit map[string]string)
 		merged[branch] = meta.PendingRebaseBase
 	}
 	for branch, base := range explicit {
-		if branch == "" || base == "" {
+		if branch == "" || base == "" || merged[branch] != "" {
 			continue
 		}
 		merged[branch] = base

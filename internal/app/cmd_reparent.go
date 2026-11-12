@@ -96,7 +96,8 @@ func recordChildRestackBases(state *State, parent, oldHead string) {
 		if childParent == "" {
 			childParent = state.Trunk
 		}
-		if childParent == parent {
+		if childParent == parent && meta.PendingRebaseBase == "" {
+			// The child still contains this original history until it restacks.
 			meta.PendingRebaseBase = oldHead
 		}
 	}
