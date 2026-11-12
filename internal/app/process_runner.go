@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,7 +30,27 @@ const (
 type commandRunOptions struct {
 	streamOutput bool
 	boxMode      commandBoxMode
-	env          []string
+	env          []string // Overrides applied to the inherited environment.
+}
+
+func mergeEnvironment(base, overrides []string) []string {
+	merged := make([]string, 0, len(base)+len(overrides))
+	positions := map[string]int{}
+	for _, entries := range [][]string{base, overrides} {
+		for _, entry := range entries {
+			key, _, _ := strings.Cut(entry, "=")
+			if runtime.GOOS == "windows" {
+				key = strings.ToUpper(key)
+			}
+			if index, ok := positions[key]; ok {
+				merged[index] = entry
+			} else {
+				positions[key] = len(merged)
+				merged = append(merged, entry)
+			}
+		}
+	}
+	return merged
 }
 
 func runCommand(name string, args []string, opts commandRunOptions) (commandRunResult, error) {
@@ -39,7 +60,7 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 
 	cmd := exec.Command(name, args...)
 	if opts.env != nil {
-		cmd.Env = opts.env
+		cmd.Env = mergeEnvironment(cmd.Environ(), opts.env)
 	}
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -131,7 +152,7 @@ func runCommandPassthrough(name string, args []string) (commandRunResult, error)
 func runCommandPassthroughWithEnv(name string, args []string, env []string) (commandRunResult, error) {
 	cmd := exec.Command(name, args...)
 	if env != nil {
-		cmd.Env = env
+		cmd.Env = mergeEnvironment(cmd.Environ(), env)
 	}
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
