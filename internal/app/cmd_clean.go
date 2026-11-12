@@ -189,6 +189,9 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 		}
 	}
 
+	if _, err := topoOrderSelected(state, scope.trackedBranches); err != nil {
+		return err
+	}
 	plan, err := buildPruneLocalPlan(state, scope)
 	if err != nil {
 		return err

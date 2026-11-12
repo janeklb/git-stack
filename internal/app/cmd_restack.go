@@ -43,5 +43,9 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	if strings.TrimSpace(mode) != "" {
 		chosenMode = strings.TrimSpace(mode)
 	}
-	return runRestackQueue(repoRoot, state, chosenMode, topoOrder(state), nil, a.stdout)
+	queue, err := topoOrder(state)
+	if err != nil {
+		return err
+	}
+	return runRestackQueue(repoRoot, state, chosenMode, queue, nil, a.stdout)
 }

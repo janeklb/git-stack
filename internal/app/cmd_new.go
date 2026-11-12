@@ -16,6 +16,9 @@ func adoptExistingBranch(state *State, branch, parent string) error {
 	if parent == "" {
 		return errors.New("parent branch cannot be empty")
 	}
+	if err := validateReparentParent(state, branch, parent); err != nil {
+		return err
+	}
 	state.Branches[branch] = &BranchRef{Parent: parent, LineageParent: parent}
 	return nil
 }
@@ -33,6 +36,9 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool
 	}
 
 	name = strings.TrimSpace(name)
+	if _, err := topoOrder(state); err != nil {
+		return err
+	}
 	if name == "" && !adopt {
 		name = fmt.Sprintf("change-%d", time.Now().Unix())
 	}

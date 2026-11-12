@@ -7,7 +7,7 @@ import (
 
 func submitQueue(state *State, all bool, args []string) ([]string, error) {
 	if all {
-		return topoOrder(state), nil
+		return topoOrder(state)
 	}
 	target := ""
 	if len(args) > 0 {
@@ -24,27 +24,80 @@ func submitQueue(state *State, all bool, args []string) ([]string, error) {
 	}
 
 	selected := branchesInCurrentStack(state, target)
-	return topoOrderSelected(state, selected), nil
+	return topoOrderSelected(state, selected)
 }
 
-func topoOrder(state *State) []string {
+func topoOrder(state *State) ([]string, error) {
 	return topoOrderSelected(state, nil)
 }
 
-func topoOrderSelected(state *State, selected map[string]bool) []string {
-	children := branchChildrenIndex(state, selected)
-	order, visited := traverseChildren(children, state.Trunk)
+type graphError struct {
+	Branch string
+	Reason string
+}
 
+func (e *graphError) Error() string {
+	return fmt.Sprintf("invalid stack graph at %q: %s", e.Branch, e.Reason)
+}
+
+// An untracked parent is an external root, not a malformed tracked graph.
+func topoOrderSelected(state *State, selected map[string]bool) ([]string, error) {
+	included := map[string]bool{}
 	for name := range state.Branches {
-		if selected != nil && !selected[name] {
-			continue
+		if selected == nil || selected[name] {
+			included[name] = true
 		}
-		if visited[name] {
-			continue
-		}
-		order = append(order, name)
 	}
-	return order
+	for name, include := range selected {
+		if include {
+			included[name] = true
+		}
+	}
+	names := make([]string, 0, len(included))
+	for name := range included {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	roots := []string{}
+	for _, name := range names {
+		meta := state.Branches[name]
+		if meta == nil {
+			return nil, &graphError{Branch: name, Reason: "missing metadata"}
+		}
+		parent := meta.Parent
+		if parent == "" {
+			parent = state.Trunk
+		}
+		if parent == name {
+			return nil, &graphError{Branch: name, Reason: "branch cannot parent itself"}
+		}
+		if !included[parent] {
+			roots = append(roots, name)
+		}
+	}
+	children := branchChildrenIndex(state, included)
+	visited := map[string]bool{}
+	order := make([]string, 0, len(names))
+	var walk func(string)
+	walk = func(name string) {
+		if visited[name] {
+			return
+		}
+		visited[name] = true
+		order = append(order, name)
+		for _, child := range children[name] {
+			walk(child)
+		}
+	}
+	for _, root := range roots {
+		walk(root)
+	}
+	for _, name := range names {
+		if !visited[name] {
+			return nil, &graphError{Branch: name, Reason: "parent cycle"}
+		}
+	}
+	return order, nil
 }
 
 func branchChildrenIndex(state *State, selected map[string]bool) map[string][]string {
@@ -71,7 +124,7 @@ func branchChildrenIndex(state *State, selected map[string]bool) map[string][]st
 func traverseChildren(children map[string][]string, root string) ([]string, map[string]bool) {
 	visited := map[string]bool{}
 	order := []string{}
-	var visit func(node string)
+	var visit func(string)
 	visit = func(node string) {
 		for _, child := range children[node] {
 			if visited[child] {
