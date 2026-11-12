@@ -179,7 +179,10 @@ func forwardSubmitDeps(repoRoot string, state *State, queue []string, forwardSco
 // checked-out branch, and clean merged slices from the top down.
 func buildForwardCandidatesWithDeps(state *State, current string, deps forwardDeps) ([]forwardCleanupCandidate, error) {
 	selected := branchesInCurrentStack(state, current)
-	order := topoOrderSelected(state, selected)
+	order, err := topoOrderSelected(state, selected)
+	if err != nil {
+		return nil, err
+	}
 	lookupPRs, err := forwardResolveCandidatePRs(state, order, deps.gh)
 	if err != nil {
 		return nil, err

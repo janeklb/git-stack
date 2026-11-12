@@ -6,6 +6,9 @@ func validateReparentParent(state *State, target, newParent string) error {
 	if newParent == target {
 		return fmt.Errorf("invalid parent %q for %q: branch cannot parent itself", newParent, target)
 	}
+	if _, err := topoOrder(state); err != nil {
+		return err
+	}
 	if newParent == state.Trunk {
 		return nil
 	}

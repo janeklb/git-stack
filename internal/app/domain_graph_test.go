@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -92,7 +93,10 @@ func TestTopoOrderSelectedRestrictsToChosenBranches(t *testing.T) {
 		"feat-side":  true,
 	}
 
-	got := topoOrderSelected(state, selected)
+	got, err := topoOrderSelected(state, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := []string{"feat-one", "feat-side", "feat-two", "feat-three"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected selected topo order: got=%v want=%v", got, want)
@@ -134,5 +138,65 @@ func TestBranchesInCurrentStackTrunkSelectsAllBranches(t *testing.T) {
 	selected := branchesInCurrentStack(state, "main")
 	if !selected["feat-one"] || !selected["feat-two"] {
 		t.Fatalf("expected all branches selected from trunk, got: %#v", selected)
+	}
+}
+
+func TestSubmitQueueOrdersComponentsWithUntrackedParents(t *testing.T) {
+	for iteration := 0; iteration < 50; iteration++ {
+		state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+			"z-parent":     {Parent: "external"},
+			"a-child":      {Parent: "z-parent"},
+			"b-grandchild": {Parent: "a-child"},
+			"other":        {Parent: "main"},
+		}}
+		got, err := submitQueue(state, true, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"other", "z-parent", "a-child", "b-grandchild"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("iteration %d: got %v, want %v", iteration, got, want)
+		}
+	}
+}
+
+func TestSubmitQueueRefusesInvalidGraphs(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		branches map[string]*BranchRef
+	}{
+		{"self-parent", map[string]*BranchRef{"a": {Parent: "a"}}},
+		{"cycle", map[string]*BranchRef{"a": {Parent: "b"}, "b": {Parent: "a"}}},
+		{"missing-metadata", map[string]*BranchRef{"a": nil}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := submitQueue(&State{Trunk: "main", Branches: tc.branches}, true, nil)
+			if err == nil {
+				t.Fatal("expected graph validation error")
+			}
+			var graphErr *graphError
+			if !errors.As(err, &graphErr) || graphErr.Branch == "" {
+				t.Fatalf("expected structured graph error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestTopoOrderSelectedTreatsUnselectedParentsAsExternal(t *testing.T) {
+	state := &State{Trunk: "main", Branches: map[string]*BranchRef{
+		"parent": {Parent: "external"},
+		"child":  {Parent: "parent"},
+		"bad":    nil,
+	}}
+	got, err := topoOrderSelected(state, map[string]bool{"child": true})
+	if err != nil || !reflect.DeepEqual(got, []string{"child"}) {
+		t.Fatalf("selected queue = %v, %v", got, err)
+	}
+	if _, err := topoOrderSelected(state, map[string]bool{"absent": true}); err == nil {
+		t.Fatal("expected missing selected metadata error")
+	}
+	got, err = topoOrder(&State{Trunk: "main"})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("empty graph = %v, %v", got, err)
 	}
 }
