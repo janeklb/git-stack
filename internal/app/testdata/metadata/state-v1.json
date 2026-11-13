@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "trunk": "main",
+  "restackMode": "merge",
+  "naming": {"template": "project/{index}-{slug}", "prefixIndex": true, "nextIndex": 17},
+  "branches": {
+    "feature": {
+      "parent": "main",
+      "lineageParent": "original-parent",
+      "pendingRebaseBase": "0123456789abcdef0123456789abcdef01234567",
+      "pr": {"number": 42, "url": "https://example.invalid/pull/42", "base": "main", "updated": true}
+    }
+  },
+  "archived": {
+    "old-feature": {"parent": "main", "pr": {"number": 41, "url": "https://example.invalid/pull/41", "base": "main"}}
+  }
+}

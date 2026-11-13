@@ -1,7 +1,6 @@
 package app
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +11,15 @@ import (
 )
 
 var errStateNotInitialized = errors.New("stack state not initialized; run git-stack init")
+
+// Storage can now resolve these layouts, but CLI mutation must wait for the
+// recovery and branch-ownership safeguards in #149.
+func (r *repository) requireLegacyCommandLayout() error {
+	if r.worktreeGitDir != filepath.Join(r.worktreeRoot, ".git") {
+		return errors.New("commands in linked worktrees or separate Git directories are not supported yet")
+	}
+	return nil
+}
 
 type templateScope string
 
@@ -142,28 +150,12 @@ func inferStateGraph(repoRoot string) (*State, error) {
 	return state, nil
 }
 
-func statePath(repoRoot string) string {
-	return filepath.Join(repoStackDir(repoRoot), "state.json")
-}
-
-func opPath(repoRoot string) string {
-	return filepath.Join(repoStackDir(repoRoot), "operation.json")
-}
-
-func repoStackDir(repoRoot string) string {
-	return filepath.Join(repoRoot, ".git", "stack")
-}
-
 func userStackDir() (string, error) {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(configDir, "git-stack"), nil
-}
-
-func repoPRTemplatePath(repoRoot string) string {
-	return filepath.Join(repoStackDir(repoRoot), "PR_TEMPLATE.md")
 }
 
 func userPRTemplatePath() (string, error) {
@@ -191,7 +183,11 @@ func prTemplatePath(repoRoot string, scope templateScope) (string, error) {
 		if repoRoot == "" {
 			return "", errors.New("repo root is required for repo template scope")
 		}
-		return repoPRTemplatePath(repoRoot), nil
+		store, err := openMetadataStore(repoRoot)
+		if err != nil {
+			return "", err
+		}
+		return store.templatePath, nil
 	case templateScopeUser:
 		return userPRTemplatePath()
 	default:
@@ -200,13 +196,12 @@ func prTemplatePath(repoRoot string, scope templateScope) (string, error) {
 }
 
 func loadPRTemplate(repoRoot string) (string, bool, error) {
-	repoTemplatePath := repoPRTemplatePath(repoRoot)
-	repoTemplate, err := os.ReadFile(repoTemplatePath)
-	if err == nil {
-		return string(repoTemplate), true, nil
-	}
-	if !os.IsNotExist(err) {
+	store, err := openMetadataStore(repoRoot)
+	if err != nil {
 		return "", false, err
+	}
+	if text, found, err := store.loadTemplate(); err != nil || found {
+		return text, found, err
 	}
 	userTemplatePath, err := userPRTemplatePath()
 	if err != nil {
@@ -223,81 +218,43 @@ func loadPRTemplate(repoRoot string) (string, bool, error) {
 }
 
 func loadState(repoRoot string) (*State, error) {
-	path := statePath(repoRoot)
-	data, err := os.ReadFile(path)
+	store, err := openMetadataStore(repoRoot)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, errStateNotInitialized
-		}
 		return nil, err
 	}
-	state := &State{}
-	if err := json.Unmarshal(data, state); err != nil {
-		return nil, err
-	}
-	normalizeState(state)
-	if state.Naming.Template == "" {
-		state.Naming.Template = "{slug}"
-	}
-	if state.Naming.NextIndex <= 0 {
-		state.Naming.NextIndex = 1
-	}
-	if state.RestackMode == "" {
-		state.RestackMode = defaultRestackMode
-	}
-	return state, nil
+	return store.loadState()
 }
 
 func saveState(repoRoot string, state *State) error {
-	path := statePath(repoRoot)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	normalizeState(state)
-	state.Version = stateVersion
-	data, err := json.MarshalIndent(state, "", "  ")
+	store, err := openMetadataStore(repoRoot)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o600)
+	return store.saveState(state)
 }
 
 func loadOperation(repoRoot string) (*RestackOperation, error) {
-	path := opPath(repoRoot)
-	data, err := os.ReadFile(path)
+	store, err := openMetadataStore(repoRoot)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
 		return nil, err
 	}
-	op := &RestackOperation{}
-	if err := json.Unmarshal(data, op); err != nil {
-		return nil, err
-	}
-	normalizeOperation(op)
-	return op, nil
+	return store.loadOperation()
 }
 
 func saveOperation(repoRoot string, op *RestackOperation) error {
-	path := opPath(repoRoot)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	normalizeOperation(op)
-	data, err := json.MarshalIndent(op, "", "  ")
+	store, err := openMetadataStore(repoRoot)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o600)
+	return store.saveOperation(op)
 }
 
 func removeOperation(repoRoot string) error {
-	path := opPath(repoRoot)
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	store, err := openMetadataStore(repoRoot)
+	if err != nil {
 		return err
 	}
-	return nil
+	return store.removeOperation()
 }
 
 func parseLeadingIndex(branch string) int {

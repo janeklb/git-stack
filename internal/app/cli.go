@@ -1,8 +1,6 @@
 package app
 
 import (
-	"errors"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -67,12 +65,7 @@ Mutating commands require a clean worktree. Commands such as new, state, restack
 			if err := repo.ensureSupportedCloneLayout(); err != nil {
 				return err
 			}
-			// Legacy storage still assumes .git/stack. Discovery must not enable
-			// these layouts before the shared store and ownership safeguards land.
-			if repo.worktreeGitDir != filepath.Join(repo.worktreeRoot, ".git") {
-				return errors.New("commands in linked worktrees or separate Git directories are not supported yet")
-			}
-			return nil
+			return repo.requireLegacyCommandLayout()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a.writeCompactRootHelp(cmd.OutOrStdout(), cmd)

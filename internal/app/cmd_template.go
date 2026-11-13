@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
 func (a *App) cmdTemplatePR(scopeArg string) error {
@@ -14,10 +13,14 @@ func (a *App) cmdTemplatePR(scopeArg string) error {
 
 	repoRootPath := ""
 	if scope == templateScopeRepo {
-		repoRootPath, err = repoRoot()
+		repo, err := discoverRepository(".", repositoryOptions{in: a.in, stdout: a.stdout, stderr: a.stderr})
 		if err != nil {
 			return err
 		}
+		if err := repo.requireLegacyCommandLayout(); err != nil {
+			return err
+		}
+		repoRootPath = repo.worktreeRoot
 	}
 
 	path, err := ensurePRTemplateFile(repoRootPath, scope)
@@ -39,10 +42,7 @@ func ensurePRTemplateFile(repoRoot string, scope templateScope) (string, error) 
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(path, []byte(defaultPRBodyTemplate), 0o600); err != nil {
+	if err := realMetadataFiles().replace(path, []byte(defaultPRBodyTemplate)); err != nil {
 		return "", fmt.Errorf("seed PR template: %w", err)
 	}
 	return path, nil

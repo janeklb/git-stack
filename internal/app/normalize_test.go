@@ -107,11 +107,12 @@ func TestSaveStateCanonicalizesWhitespace(t *testing.T) {
 func TestLoadOperationNormalizesWhitespace(t *testing.T) {
 	repo := newTestRepo(t)
 	op := &RestackOperation{
+		Version:        operationVersion,
 		Type:           "  restack  ",
 		Mode:           "  rebase  ",
 		OriginalBranch: "  feat-one  ",
 		Queue:          []string{"  feat-one  ", "  feat-two  "},
-		OriginalHeads:  map[string]string{"feat-one": "  abc123  "},
+		OriginalHeads:  map[string]string{"feat-one": "  abc123  ", "feat-two": "  def456  "},
 		RebaseBases:    map[string]string{"feat-two": "  def456  "},
 	}
 
