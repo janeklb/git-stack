@@ -1,0 +1,6 @@
+{
+  "trunk": "main",
+  "branches": {
+    "feature": {"parent": "main", "pr": {"number": 42, "url": "https://example.invalid/pull/42", "base": "main"}}
+  }
+}

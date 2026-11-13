@@ -5,8 +5,8 @@ import "testing"
 func TestRecordRestackContinueProgressLeavesIndexWhenOperationStillActive(t *testing.T) {
 	t.Parallel()
 
-	repo := t.TempDir()
-	op := &RestackOperation{Type: "restack", Mode: "rebase", Queue: []string{"feat-one", "feat-two"}, Index: 0}
+	repo := newTestRepo(t)
+	op := &RestackOperation{Type: "restack", Mode: "rebase", OriginalBranch: "feat-one", Queue: []string{"feat-one", "feat-two"}, OriginalHeads: map[string]string{"feat-one": "a", "feat-two": "b"}, Index: 0}
 	completed, err := recordRestackContinueProgress(repo, op, false)
 	if err != nil {
 		t.Fatalf("recordRestackContinueProgress returned error: %v", err)
@@ -22,8 +22,8 @@ func TestRecordRestackContinueProgressLeavesIndexWhenOperationStillActive(t *tes
 func TestRecordRestackContinueProgressAdvancesIndexWhenBranchCompletes(t *testing.T) {
 	t.Parallel()
 
-	repo := t.TempDir()
-	op := &RestackOperation{Type: "restack", Mode: "rebase", Queue: []string{"feat-one", "feat-two"}, Index: 0}
+	repo := newTestRepo(t)
+	op := &RestackOperation{Type: "restack", Mode: "rebase", OriginalBranch: "feat-one", Queue: []string{"feat-one", "feat-two"}, OriginalHeads: map[string]string{"feat-one": "a", "feat-two": "b"}, Index: 0}
 	completed, err := recordRestackContinueProgress(repo, op, true)
 	if err != nil {
 		t.Fatalf("recordRestackContinueProgress returned error: %v", err)

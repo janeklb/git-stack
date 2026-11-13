@@ -1,0 +1,12 @@
+{
+  "type": "restack",
+  "mode": "rebase",
+  "originalBranch": "feature-two",
+  "queue": ["feature-one", "feature-two"],
+  "index": 1,
+  "originalHeads": {
+    "feature-one": "0123456789abcdef0123456789abcdef01234567",
+    "feature-two": "123456789abcdef0123456789abcdef012345678"
+  },
+  "rebaseBases": {"feature-two": "23456789abcdef0123456789abcdef0123456789"}
+}

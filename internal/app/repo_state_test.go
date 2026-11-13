@@ -7,12 +7,16 @@ import (
 )
 
 func TestLoadPRTemplatePrefersRepoTemplateOverUserTemplate(t *testing.T) {
-	repoRoot := t.TempDir()
+	repoRoot := newTestRepo(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
-	repoPath := repoPRTemplatePath(repoRoot)
+	store, err := openMetadataStore(repoRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repoPath := store.templatePath
 	if err := os.MkdirAll(filepath.Dir(repoPath), 0o755); err != nil {
 		t.Fatalf("mkdir repo template dir: %v", err)
 	}
@@ -44,7 +48,7 @@ func TestLoadPRTemplatePrefersRepoTemplateOverUserTemplate(t *testing.T) {
 }
 
 func TestLoadPRTemplateUsesUserTemplateWhenRepoTemplateMissing(t *testing.T) {
-	repoRoot := t.TempDir()
+	repoRoot := newTestRepo(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
@@ -73,7 +77,7 @@ func TestLoadPRTemplateUsesUserTemplateWhenRepoTemplateMissing(t *testing.T) {
 }
 
 func TestLoadPRTemplateFallsBackWhenNoCustomTemplateExists(t *testing.T) {
-	repoRoot := t.TempDir()
+	repoRoot := newTestRepo(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))

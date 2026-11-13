@@ -53,6 +53,7 @@ type PRMeta struct {
 }
 
 type RestackOperation struct {
+	Version        int               `json:"version"`
 	Type           string            `json:"type"`
 	Mode           string            `json:"mode"`
 	OriginalBranch string            `json:"originalBranch"`
