@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -31,7 +32,14 @@ type commandRunOptions struct {
 	streamOutput bool
 	boxMode      commandBoxMode
 	env          []string // Overrides applied to the inherited environment.
+	dir          string
+	stdin        io.Reader
+	stdout       io.Writer
+	stderr       io.Writer
+	baseEnv      []string // nil inherits the process environment.
 }
+
+type commandRunner func(string, []string, commandRunOptions) (commandRunResult, error)
 
 func mergeEnvironment(base, overrides []string) []string {
 	merged := make([]string, 0, len(base)+len(overrides))
@@ -54,35 +62,49 @@ func mergeEnvironment(base, overrides []string) []string {
 }
 
 func runCommand(name string, args []string, opts commandRunOptions) (commandRunResult, error) {
-	if !shouldDecorateSubprocessOutput() && opts.streamOutput {
-		return runCommandPassthroughWithEnv(name, args, opts.env)
+	if opts.stdout == nil {
+		opts.stdout = os.Stdout
 	}
-
+	if opts.stderr == nil {
+		opts.stderr = os.Stderr
+	}
+	decorate := stdoutIsTTY(opts.stdout) || stdoutIsTTY(opts.stderr)
 	cmd := exec.Command(name, args...)
-	if opts.env != nil {
-		cmd.Env = mergeEnvironment(cmd.Environ(), opts.env)
+	cmd.Dir = opts.dir
+	cmd.Stdin = opts.stdin
+	base := cmd.Environ()
+	if opts.baseEnv != nil {
+		base = opts.baseEnv
+	}
+	if opts.baseEnv != nil || opts.env != nil {
+		cmd.Env = mergeEnvironment(base, opts.env)
+		// exec.Command searches the process PATH before cmd.Env is assigned.
+		// Explicit environments must also control which executable is run.
+		cmd.Path, cmd.Err = executableInEnvironment(name, opts.dir, cmd.Env)
+	}
+	if !decorate && opts.streamOutput {
+		return runCommandPassthrough(cmd, opts.stdout, opts.stderr)
 	}
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return commandRunResult{}, err
+		return commandRunResult{exitCode: -1}, err
 	}
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
-		return commandRunResult{}, err
+		return commandRunResult{exitCode: -1}, err
 	}
 
-	decorate := shouldDecorateSubprocessOutput()
 	theme := subprocessTheme{useColor: decorate}
 	showLiveBox := decorate && opts.boxMode == commandBoxAlways
 	if showLiveBox {
-		fmt.Fprintln(os.Stdout, theme.header("┌─ "+formatCommand(name, args)))
+		fmt.Fprintln(opts.stdout, theme.header("┌─ "+formatCommand(name, args)))
 	}
 
 	if err := cmd.Start(); err != nil {
 		if showLiveBox {
-			fmt.Fprintln(os.Stdout, theme.footer("└─ -1"))
+			fmt.Fprintln(opts.stdout, theme.footer("└─ -1"))
 		}
-		return commandRunResult{}, err
+		return commandRunResult{exitCode: -1}, err
 	}
 
 	var stdoutBuf bytes.Buffer
@@ -94,7 +116,7 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 	go func() {
 		defer wg.Done()
 		if opts.streamOutput && showLiveBox {
-			copyDecoratedOutput(stdoutPipe, &stdoutBuf, os.Stdout, theme, theme.stdoutLine, writeMu)
+			copyDecoratedOutput(stdoutPipe, &stdoutBuf, opts.stdout, theme, theme.stdoutLine, writeMu)
 			return
 		}
 		_, _ = io.Copy(&stdoutBuf, stdoutPipe)
@@ -116,18 +138,18 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 			if waitErr != nil {
 				stderrStyle = theme.stderrLine
 			}
-			printCapturedOutput(stderrBuf.String(), os.Stderr, theme, stderrStyle)
+			printCapturedOutput(stderrBuf.String(), opts.stderr, theme, stderrStyle)
 		}
-		fmt.Fprintln(os.Stdout, theme.footer(fmt.Sprintf("└─ %d", exitCode)))
+		fmt.Fprintln(opts.stdout, theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 	} else if decorate && opts.boxMode == commandBoxOnFailure && waitErr != nil {
 		hasCapturedOutput := strings.TrimSpace(stdoutBuf.String()) != "" || strings.TrimSpace(stderrBuf.String()) != ""
 		if hasCapturedOutput {
-			fmt.Fprintln(os.Stdout, theme.header("┌─ "+formatCommand(name, args)))
+			fmt.Fprintln(opts.stdout, theme.header("┌─ "+formatCommand(name, args)))
 			if opts.streamOutput {
-				printCapturedOutput(stdoutBuf.String(), os.Stdout, theme, theme.stdoutLine)
-				printCapturedOutput(stderrBuf.String(), os.Stderr, theme, theme.stderrLine)
+				printCapturedOutput(stdoutBuf.String(), opts.stdout, theme, theme.stdoutLine)
+				printCapturedOutput(stderrBuf.String(), opts.stderr, theme, theme.stderrLine)
 			}
-			fmt.Fprintln(os.Stdout, theme.footer(fmt.Sprintf("└─ %d", exitCode)))
+			fmt.Fprintln(opts.stdout, theme.footer(fmt.Sprintf("└─ %d", exitCode)))
 		}
 	}
 
@@ -138,6 +160,37 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 	return result, nil
 }
 
+func executableInEnvironment(name, dir string, env []string) (string, error) {
+	if strings.ContainsAny(name, `/\`) {
+		return name, nil
+	}
+	path := ""
+	for _, entry := range env {
+		key, value, _ := strings.Cut(entry, "=")
+		if key == "PATH" || (runtime.GOOS == "windows" && strings.EqualFold(key, "PATH")) {
+			path = value
+		}
+	}
+	for _, entry := range filepath.SplitList(path) {
+		candidate := entry
+		if !filepath.IsAbs(candidate) {
+			candidate = filepath.Join(dir, candidate)
+		}
+		absolute, err := filepath.Abs(candidate)
+		if err != nil {
+			return "", err
+		}
+		if found, err := exec.LookPath(filepath.Join(absolute, name)); err == nil {
+			// Preserve Go's refusal to resolve executables via relative PATHs.
+			if !filepath.IsAbs(entry) {
+				return "", &exec.Error{Name: name, Err: exec.ErrDot}
+			}
+			return found, nil
+		}
+	}
+	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
+}
+
 func printCapturedOutput(captured string, dest io.Writer, theme subprocessTheme, styleFn func(string) string) {
 	if captured == "" {
 		return
@@ -145,19 +198,11 @@ func printCapturedOutput(captured string, dest io.Writer, theme subprocessTheme,
 	writeDecoratedSegments(strings.NewReader(captured), nil, dest, theme, styleFn, nil)
 }
 
-func runCommandPassthrough(name string, args []string) (commandRunResult, error) {
-	return runCommandPassthroughWithEnv(name, args, nil)
-}
-
-func runCommandPassthroughWithEnv(name string, args []string, env []string) (commandRunResult, error) {
-	cmd := exec.Command(name, args...)
-	if env != nil {
-		cmd.Env = mergeEnvironment(cmd.Environ(), env)
-	}
+func runCommandPassthrough(cmd *exec.Cmd, stdout, stderr io.Writer) (commandRunResult, error) {
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
-	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+	cmd.Stdout = io.MultiWriter(stdout, &stdoutBuf)
+	cmd.Stderr = io.MultiWriter(stderr, &stderrBuf)
 	err := cmd.Run()
 	result := commandRunResult{stdout: stdoutBuf.String(), stderr: stderrBuf.String(), exitCode: exitCodeForError(err)}
 	if err != nil {
@@ -208,10 +253,6 @@ func flushDecoratedSegment(segment string, dest io.Writer, theme subprocessTheme
 		defer mu.Unlock()
 	}
 	_, _ = io.WriteString(dest, theme.formatLine(segment, styleFn)+"\n")
-}
-
-func shouldDecorateSubprocessOutput() bool {
-	return stdoutIsTTY(os.Stdout) || stdoutIsTTY(os.Stderr)
 }
 
 func exitCodeForError(err error) int {

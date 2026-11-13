@@ -8,13 +8,13 @@ import (
 	"strings"
 )
 
-func ensureSupportedCloneLayout() error {
-	originURL, err := gitOutputTrimmed("config", "--get", "remote.origin.url")
+func (r *repository) ensureSupportedCloneLayout() error {
+	originURL, err := r.gitOutputTrimmed("config", "--get", "remote.origin.url")
 	if err != nil || originURL == "" {
 		return errors.New("missing required remote 'origin'; this tool expects a full clone with origin configured")
 	}
 
-	fetchSpecs, err := gitOutput("config", "--get-all", "remote.origin.fetch")
+	fetchSpecs, err := r.gitOutputTrimmed("config", "--get-all", "remote.origin.fetch")
 	if err != nil {
 		return errors.New("single-branch clones are not supported; fetch all branches or reclone without --single-branch")
 	}
@@ -22,7 +22,7 @@ func ensureSupportedCloneLayout() error {
 	for _, line := range strings.Split(strings.TrimSpace(fetchSpecs), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.Contains(line, "refs/heads/*:refs/remotes/origin/*") {
-			if _, err := gitOutput("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err != nil {
+			if _, err := r.gitOutputTrimmed("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err != nil {
 				return errors.New("missing refs/remotes/origin/HEAD; run 'git remote set-head origin --auto' after fetching all branches")
 			}
 			return nil
