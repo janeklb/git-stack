@@ -33,13 +33,13 @@ func TestForwardSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 	mustGit(t, repo, "push", "origin", ":feat-one")
 	mustGit(t, repo, "switch", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -66,7 +66,7 @@ func TestForwardSingleChildRunsCleanupRestackAndSubmit(t *testing.T) {
 		t.Fatalf("expected forward to switch to single child feat-two, got %s", cur)
 	}
 
-	stateAfter, err := loadState(repo)
+	stateAfter, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after forward: %v", err)
 	}
@@ -108,13 +108,13 @@ func TestForwardHandlesMergedBranchAlreadyDeletedLocally(t *testing.T) {
 	mustGit(t, repo, "push", "origin", ":feat-one")
 	mustGit(t, repo, "branch", "-D", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -141,7 +141,7 @@ func TestForwardHandlesMergedBranchAlreadyDeletedLocally(t *testing.T) {
 		t.Fatalf("expected forward from trunk to stay on main, got %s", cur)
 	}
 
-	stateAfter, err := loadState(repo)
+	stateAfter, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after forward: %v", err)
 	}
@@ -189,14 +189,14 @@ func TestForwardMarksAllPromotedRootPRsReadyForReview(t *testing.T) {
 	mustGit(t, repo, "push", "origin", ":feat-one")
 	mustGit(t, repo, "switch", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
 	state.Branches["feat-three"].PR = &PRMeta{Number: 3, URL: "https://example.invalid/pr/3", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -234,7 +234,7 @@ func TestForwardMarksAllPromotedRootPRsReadyForReview(t *testing.T) {
 		t.Fatalf("expected feat-three base updated to main, log:\n%s", logText)
 	}
 
-	stateAfter, err := loadState(repo)
+	stateAfter, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after forward: %v", err)
 	}
@@ -272,13 +272,13 @@ func TestForwardFromOpenChildCleansMergedAncestorAndRestoresCurrentBranch(t *tes
 	mustGit(t, repo, "push", "origin", ":feat-one")
 	mustGit(t, repo, "switch", "feat-two")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -304,7 +304,7 @@ func TestForwardFromOpenChildCleansMergedAncestorAndRestoresCurrentBranch(t *tes
 		t.Fatalf("expected forward to restore feat-two, got %s", cur)
 	}
 
-	stateAfter, err := loadState(repo)
+	stateAfter, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after forward: %v", err)
 	}
@@ -338,13 +338,13 @@ func TestForwardNoopsWhenCurrentStackHasNoMergedBranches(t *testing.T) {
 	mustGit(t, repo, "commit", "-m", "feat two")
 	mustGit(t, repo, "push", "-u", "origin", "feat-two")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -367,7 +367,7 @@ func TestForwardNoopsWhenCurrentStackHasNoMergedBranches(t *testing.T) {
 		t.Fatalf("expected forward no-op to keep feat-two checked out, got %s", cur)
 	}
 
-	stateAfter, err := loadState(repo)
+	stateAfter, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after forward: %v", err)
 	}
@@ -394,12 +394,12 @@ func TestForwardAbortsWhenRemoteBranchStillExists(t *testing.T) {
 	mustGit(t, repo, "push", "origin", "main")
 	mustGit(t, repo, "switch", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -420,7 +420,7 @@ func TestForwardAbortsWhenRemoteBranchStillExists(t *testing.T) {
 	if !branchExistsInRepo(repo, "feat-one") {
 		t.Fatalf("expected feat-one branch to remain after abort")
 	}
-	stateAfter, err := loadState(repo)
+	stateAfter, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after abort: %v", err)
 	}
@@ -467,14 +467,14 @@ func TestForwardDoesNotCleanupUnrelatedMergedTrackedBranches(t *testing.T) {
 	mustGit(t, repo, "push", "origin", ":feat-one")
 	mustGit(t, repo, "switch", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["old-merged"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 3, URL: "https://example.invalid/pr/3", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -492,7 +492,7 @@ func TestForwardDoesNotCleanupUnrelatedMergedTrackedBranches(t *testing.T) {
 	if !branchExistsInRepo(repo, "old-merged") {
 		t.Fatalf("expected unrelated merged branch to remain after forward")
 	}
-	stateAfter, err := loadState(repo)
+	stateAfter, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after forward: %v", err)
 	}
@@ -529,13 +529,13 @@ func TestForwardUsesFetchedRemoteTrunkWhenLocalTrunkIsStale(t *testing.T) {
 	mustGit(t, repo, "reset", "--hard", "HEAD~1")
 	mustGit(t, repo, "switch", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -580,12 +580,12 @@ func TestForwardFastForwardsLocalTrunkForMergedLastSlice(t *testing.T) {
 	mustGit(t, repo, "reset", "--hard", "HEAD~1")
 	mustGit(t, repo, "switch", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -642,13 +642,13 @@ func TestForwardAbortsBeforeCleanupWhenLocalTrunkDiverged(t *testing.T) {
 	mustGit(t, repo, "push", "origin", ":feat-one")
 	mustGit(t, repo, "switch", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -668,7 +668,7 @@ func TestForwardAbortsBeforeCleanupWhenLocalTrunkDiverged(t *testing.T) {
 	if !branchExistsInRepo(repo, "feat-one") {
 		t.Fatalf("expected feat-one to remain after abort")
 	}
-	stateAfter, err := loadState(repo)
+	stateAfter, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after abort: %v", err)
 	}
@@ -713,14 +713,14 @@ func TestForwardRestacksOnlyAffectedStack(t *testing.T) {
 	mustGit(t, repo, "push", "origin", ":feat-one")
 	mustGit(t, repo, "switch", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
 	state.Branches["other-root"].PR = &PRMeta{Number: 3, URL: "https://example.invalid/pr/3", Base: "main"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 

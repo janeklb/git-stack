@@ -12,9 +12,9 @@ import (
 
 var errStateNotInitialized = errors.New("stack state not initialized; run git-stack init")
 
-// Storage can now resolve these layouts, but CLI mutation must wait for the
-// recovery and branch-ownership safeguards in #149.
-func (r *repository) requireLegacyCommandLayout() error {
+// Layout discovery does not imply command support. Linked/separate layouts
+// remain unsupported until their branch-ownership safeguards are implemented.
+func (r *repository) requireSupportedCommandLayout() error {
 	if r.worktreeGitDir != filepath.Join(r.worktreeRoot, ".git") {
 		return errors.New("commands in linked worktrees or separate Git directories are not supported yet")
 	}
@@ -28,7 +28,7 @@ const (
 	templateScopeUser templateScope = "user"
 )
 
-func ensurePersistedState(repoRoot string, state *State, persisted bool, out io.Writer) (bool, error) {
+func (a *App) ensurePersistedState(state *State, persisted bool, out io.Writer) (bool, error) {
 	if persisted {
 		return false, nil
 	}
@@ -37,7 +37,7 @@ func ensurePersistedState(repoRoot string, state *State, persisted bool, out io.
 			return false, err
 		}
 	}
-	if err := saveState(repoRoot, state); err != nil {
+	if err := a.repo.metadataStore().saveState(state); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -53,51 +53,27 @@ func requirePersistedTrackedState(state *State, persisted bool, command string) 
 	return nil
 }
 
-func loadStateFromRepo() (string, *State, error) {
-	repoRoot, err := repoRoot()
-	if err != nil {
-		return "", nil, err
-	}
-	state, err := loadState(repoRoot)
-	if err != nil {
-		return "", nil, err
-	}
-	return repoRoot, state, nil
-}
-
-func loadStateFromRepoOrInfer() (string, *State, bool, error) {
-	repoRoot, err := repoRoot()
-	if err != nil {
-		return "", nil, false, err
-	}
-	state, err := loadState(repoRoot)
+func (a *App) loadStateFromRepoOrInfer() (*State, bool, error) {
+	state, err := a.repo.metadataStore().loadState()
 	if err == nil {
-		return repoRoot, state, true, nil
+		return state, true, nil
 	}
 	if !errors.Is(err, errStateNotInitialized) {
-		return "", nil, false, err
+		return nil, false, err
 	}
-	state, err = inferStateDefaults(repoRoot)
+	state, err = a.inferStateDefaults()
 	if err != nil {
-		return "", nil, false, err
+		return nil, false, err
 	}
-	return repoRoot, state, false, nil
+	return state, false, nil
 }
 
-func repoRoot() (string, error) {
-	repoRoot, err := gitOutputTrimmed("rev-parse", "--show-toplevel")
-	if err != nil {
-		return "", errors.New("not a git repository")
-	}
-	return repoRoot, nil
-}
-
-func inferStateDefaults(repoRoot string) (*State, error) {
-	trunk, err := detectTrunk()
+func (a *App) inferStateDefaults() (*State, error) {
+	trunk, err := a.repo.detectTrunk()
 	if err != nil {
 		return nil, err
 	}
-	branches, err := listLocalBranches()
+	branches, err := a.repo.ListLocalBranches()
 	if err != nil {
 		return nil, err
 	}
@@ -128,12 +104,12 @@ func inferStateDefaults(repoRoot string) (*State, error) {
 	return state, nil
 }
 
-func inferStateGraph(repoRoot string) (*State, error) {
-	state, err := inferStateDefaults(repoRoot)
+func (a *App) inferStateGraph() (*State, error) {
+	state, err := a.inferStateDefaults()
 	if err != nil {
 		return nil, err
 	}
-	branches, err := listLocalBranches()
+	branches, err := a.repo.ListLocalBranches()
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +117,7 @@ func inferStateGraph(repoRoot string) (*State, error) {
 		if branch == state.Trunk {
 			continue
 		}
-		parent, err := inferParent(branch, branches, state.Trunk)
+		parent, err := a.repo.inferParent(branch, branches, state.Trunk)
 		if err != nil {
 			return nil, err
 		}
@@ -177,17 +153,13 @@ func normalizeTemplateScope(scope string) (templateScope, error) {
 	}
 }
 
-func prTemplatePath(repoRoot string, scope templateScope) (string, error) {
+func (a *App) prTemplatePath(scope templateScope) (string, error) {
 	switch scope {
 	case templateScopeRepo:
-		if repoRoot == "" {
+		if a.repo == nil {
 			return "", errors.New("repo root is required for repo template scope")
 		}
-		store, err := openMetadataStore(repoRoot)
-		if err != nil {
-			return "", err
-		}
-		return store.templatePath, nil
+		return a.repo.metadataStore().templatePath, nil
 	case templateScopeUser:
 		return userPRTemplatePath()
 	default:
@@ -195,11 +167,8 @@ func prTemplatePath(repoRoot string, scope templateScope) (string, error) {
 	}
 }
 
-func loadPRTemplate(repoRoot string) (string, bool, error) {
-	store, err := openMetadataStore(repoRoot)
-	if err != nil {
-		return "", false, err
-	}
+func (a *App) loadPRTemplate() (string, bool, error) {
+	store := a.repo.metadataStore()
 	if text, found, err := store.loadTemplate(); err != nil || found {
 		return text, found, err
 	}
@@ -215,46 +184,6 @@ func loadPRTemplate(repoRoot string) (string, bool, error) {
 		return "", false, err
 	}
 	return "", false, nil
-}
-
-func loadState(repoRoot string) (*State, error) {
-	store, err := openMetadataStore(repoRoot)
-	if err != nil {
-		return nil, err
-	}
-	return store.loadState()
-}
-
-func saveState(repoRoot string, state *State) error {
-	store, err := openMetadataStore(repoRoot)
-	if err != nil {
-		return err
-	}
-	return store.saveState(state)
-}
-
-func loadOperation(repoRoot string) (*RestackOperation, error) {
-	store, err := openMetadataStore(repoRoot)
-	if err != nil {
-		return nil, err
-	}
-	return store.loadOperation()
-}
-
-func saveOperation(repoRoot string, op *RestackOperation) error {
-	store, err := openMetadataStore(repoRoot)
-	if err != nil {
-		return err
-	}
-	return store.saveOperation(op)
-}
-
-func removeOperation(repoRoot string) error {
-	store, err := openMetadataStore(repoRoot)
-	if err != nil {
-		return err
-	}
-	return store.removeOperation()
 }
 
 func parseLeadingIndex(branch string) int {

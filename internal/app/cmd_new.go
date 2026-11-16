@@ -24,13 +24,13 @@ func adoptExistingBranch(state *State, branch, parent string) error {
 }
 
 func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool) error {
-	if err := ensureCleanWorktree(); err != nil {
+	if err := a.repo.ensureCleanWorktree(); err != nil {
 		return err
 	}
-	if !hasHeadCommit() {
+	if !a.repo.hasHeadCommit() {
 		return errors.New("repository has no commits yet; create an initial commit first (for example: git commit --allow-empty -m \"initial commit\")")
 	}
-	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
+	state, persisted, err := a.loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
@@ -46,16 +46,16 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool
 	parentBranch := strings.TrimSpace(parent)
 	parentProvided := parentBranch != ""
 	if parentBranch == "" {
-		parentBranch, err = currentBranch()
+		parentBranch, err = a.repo.CurrentBranch()
 		if err != nil {
 			return err
 		}
 	}
 
-	if !branchExists(parentBranch) {
+	if !a.repo.branchExists(parentBranch) {
 		return fmt.Errorf("parent branch does not exist: %s", parentBranch)
 	}
-	cur, err := currentBranch()
+	cur, err := a.repo.CurrentBranch()
 	if err != nil {
 		return err
 	}
@@ -68,11 +68,11 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool
 			branchName = strings.TrimSpace(name)
 		}
 		if !parentProvided {
-			branches, err := listLocalBranches()
+			branches, err := a.repo.ListLocalBranches()
 			if err != nil {
 				return err
 			}
-			parentBranch, err = inferParent(branchName, branches, state.Trunk)
+			parentBranch, err = a.repo.inferParent(branchName, branches, state.Trunk)
 			if err != nil {
 				return err
 			}
@@ -86,7 +86,7 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool
 		if !persisted {
 			a.printlnf("initialized stack state (trunk=%s, mode=%s)", state.Trunk, state.RestackMode)
 		}
-		if err := saveState(repoRoot, state); err != nil {
+		if err := a.repo.metadataStore().saveState(state); err != nil {
 			return err
 		}
 		a.printlnf("adopted %s (parent=%s)", branchName, parentBranch)
@@ -104,16 +104,16 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool
 	usePrefixIndex := state.Naming.PrefixIndex || prefixIndex
 	branchName := applyTemplate(chosenTemplate, slug, state.Naming.NextIndex, usePrefixIndex)
 
-	if branchExists(branchName) {
+	if a.repo.branchExists(branchName) {
 		return fmt.Errorf("branch already exists: %s", branchName)
 	}
 
 	if cur != parentBranch {
-		if err := gitRunQuiet("switch", parentBranch); err != nil {
+		if err := a.repo.gitRunQuiet("switch", parentBranch); err != nil {
 			return err
 		}
 	}
-	if err := gitRunQuiet("switch", "-c", branchName); err != nil {
+	if err := a.repo.gitRunQuiet("switch", "-c", branchName); err != nil {
 		return err
 	}
 
@@ -122,7 +122,7 @@ func (a *App) cmdNew(name, parent, template string, prefixIndex bool, adopt bool
 	if !persisted {
 		a.printlnf("initialized stack state (trunk=%s, mode=%s)", state.Trunk, state.RestackMode)
 	}
-	if err := saveState(repoRoot, state); err != nil {
+	if err := a.repo.metadataStore().saveState(state); err != nil {
 		return err
 	}
 	a.printlnf("created %s (parent=%s)", branchName, parentBranch)

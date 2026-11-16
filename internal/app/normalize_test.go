@@ -37,7 +37,7 @@ func TestLoadStateNormalizesWhitespace(t *testing.T) {
 		t.Fatalf("write state: %v", err)
 	}
 
-	loaded, err := loadState(repo)
+	loaded, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("loadState: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestSaveStateCanonicalizesWhitespace(t *testing.T) {
 		},
 	}
 
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("saveState: %v", err)
 	}
 
@@ -128,7 +128,7 @@ func TestLoadOperationNormalizesWhitespace(t *testing.T) {
 		t.Fatalf("write operation: %v", err)
 	}
 
-	loaded, err := loadOperation(repo)
+	loaded, err := testStore(t, repo).loadOperation()
 	if err != nil {
 		t.Fatalf("loadOperation: %v", err)
 	}

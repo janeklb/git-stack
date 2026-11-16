@@ -49,7 +49,7 @@ func TestRepeatedReparentPreservesDescendantSlices(t *testing.T) {
 	repo := newTestRepo(t)
 	readState := func() *State {
 		t.Helper()
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestRestackConflictAndAbortRetainOriginalChildBase(t *testing.T) {
 	}
 	assertPending := func() {
 		t.Helper()
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatal(err)
 		}

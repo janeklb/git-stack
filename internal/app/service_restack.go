@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-func runRestackQueue(repoRoot string, state *State, mode string, queue []string, rebaseBases map[string]string, out io.Writer) error {
+func (a *App) runRestackQueue(state *State, mode string, queue []string, rebaseBases map[string]string, out io.Writer) error {
 	chosenMode := mode
 	if chosenMode != "rebase" && chosenMode != "merge" {
 		return errors.New("restack mode must be rebase or merge")
@@ -16,13 +16,13 @@ func runRestackQueue(repoRoot string, state *State, mode string, queue []string,
 		fmt.Fprintln(out, "nothing to restack")
 		return nil
 	}
-	original, err := currentBranch()
+	original, err := a.repo.CurrentBranch()
 	if err != nil {
 		return err
 	}
 	originalHeads := map[string]string{}
 	for _, branch := range queue {
-		head, headErr := resolveBranchRef(branch)
+		head, headErr := a.repo.resolveBranchRef(branch)
 		if headErr != nil {
 			return headErr
 		}
@@ -37,20 +37,20 @@ func runRestackQueue(repoRoot string, state *State, mode string, queue []string,
 		OriginalHeads:  originalHeads,
 		RebaseBases:    mergedRebaseBases(state, queue, rebaseBases),
 	}
-	if err := saveOperation(repoRoot, op); err != nil {
+	if err := a.repo.metadataStore().saveOperation(op); err != nil {
 		return err
 	}
-	return runRestack(repoRoot, state, op, false, out)
+	return a.runRestack(state, op, false, out)
 }
 
-func restackGitOperationInProgress(mode string) (bool, error) {
+func (a *App) restackGitOperationInProgress(mode string) (bool, error) {
 	if mode == "merge" {
-		return mergeInProgress()
+		return a.repo.mergeInProgress()
 	}
-	return rebaseInProgress()
+	return a.repo.rebaseInProgress()
 }
 
-func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinue bool, out io.Writer) error {
+func (a *App) runRestack(state *State, op *RestackOperation, fromContinue bool, out io.Writer) error {
 	if fromContinue {
 		continueEnv := []string{"GIT_EDITOR=true"}
 		contArgs := []string{op.Mode, "--continue"}
@@ -58,10 +58,10 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 			continueEnv = append(continueEnv, "GIT_MERGE_AUTOEDIT=no")
 			contArgs = []string{"merge", "--continue"}
 		}
-		if err := gitRunWithEnv(continueEnv, contArgs...); err != nil {
+		if err := a.repo.gitRunWithEnv(continueEnv, contArgs...); err != nil {
 			return fmt.Errorf("failed to continue %s: %w", op.Mode, err)
 		}
-		active, err := restackGitOperationInProgress(op.Mode)
+		active, err := a.restackGitOperationInProgress(op.Mode)
 		if err != nil {
 			return err
 		}
@@ -69,12 +69,12 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 		if !active && op.Index < len(op.Queue) {
 			completedBranch = op.Queue[op.Index]
 		}
-		completed, err := recordRestackContinueProgress(repoRoot, op, !active)
+		completed, err := a.recordRestackContinueProgress(op, !active)
 		if err != nil {
 			return err
 		}
 		if completed && clearPendingRebaseBase(state, completedBranch) {
-			if err := saveState(repoRoot, state); err != nil {
+			if err := a.repo.metadataStore().saveState(state); err != nil {
 				return err
 			}
 		}
@@ -89,7 +89,7 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 		meta := state.Branches[branch]
 		if meta == nil {
 			op.Index++
-			_ = saveOperation(repoRoot, op)
+			_ = a.repo.metadataStore().saveOperation(op)
 			continue
 		}
 		parent := meta.Parent
@@ -97,7 +97,7 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 			parent = state.Trunk
 		}
 
-		if err := gitRunQuiet("switch", branch); err != nil {
+		if err := a.repo.gitRunQuiet("switch", branch); err != nil {
 			return err
 		}
 
@@ -109,73 +109,73 @@ func runRestack(repoRoot string, state *State, op *RestackOperation, fromContinu
 			oldBase = op.OriginalHeads[parent]
 		}
 
-		if err := restackBranch(op.Mode, parent, oldBase); err != nil {
-			if saveErr := saveOperation(repoRoot, op); saveErr != nil {
+		if err := a.restackBranch(op.Mode, parent, oldBase); err != nil {
+			if saveErr := a.repo.metadataStore().saveOperation(op); saveErr != nil {
 				return saveErr
 			}
 			return fmt.Errorf("%s %s onto %s stopped for conflicts; resolve then run git-stack restack --continue or --abort", op.Mode, branch, parent)
 		}
 		if clearPendingRebaseBase(state, branch) {
-			if err := saveState(repoRoot, state); err != nil {
+			if err := a.repo.metadataStore().saveState(state); err != nil {
 				return err
 			}
 		}
 
 		op.Index++
-		if err := saveOperation(repoRoot, op); err != nil {
+		if err := a.repo.metadataStore().saveOperation(op); err != nil {
 			return err
 		}
 	}
 
-	if err := gitRunQuiet("switch", op.OriginalBranch); err != nil {
+	if err := a.repo.gitRunQuiet("switch", op.OriginalBranch); err != nil {
 		return err
 	}
-	if err := removeOperation(repoRoot); err != nil {
+	if err := a.repo.metadataStore().removeOperation(); err != nil {
 		return err
 	}
 	fmt.Fprintln(out, "restack completed")
 	return nil
 }
 
-func recordRestackContinueProgress(repoRoot string, op *RestackOperation, completed bool) (bool, error) {
+func (a *App) recordRestackContinueProgress(op *RestackOperation, completed bool) (bool, error) {
 	if completed {
 		op.Index++
 	}
-	if err := saveOperation(repoRoot, op); err != nil {
+	if err := a.repo.metadataStore().saveOperation(op); err != nil {
 		return false, err
 	}
 	return completed, nil
 }
 
-func continueRestack(repoRoot string, state *State, out io.Writer) error {
-	op, err := loadOperation(repoRoot)
+func (a *App) continueRestack(state *State, out io.Writer) error {
+	op, err := a.repo.metadataStore().loadOperation()
 	if err != nil {
 		return err
 	}
 	if op == nil {
 		return errors.New("no restack operation in progress")
 	}
-	active, err := restackGitOperationInProgress(op.Mode)
+	active, err := a.restackGitOperationInProgress(op.Mode)
 	if err != nil {
 		return err
 	}
 	if !active {
 		if op.Index < len(op.Queue) {
-			current, curErr := currentBranch()
+			current, curErr := a.repo.CurrentBranch()
 			if curErr == nil && current == op.Queue[op.Index] {
 				op.Index++
-				if err := saveOperation(repoRoot, op); err != nil {
+				if err := a.repo.metadataStore().saveOperation(op); err != nil {
 					return err
 				}
 			}
 		}
-		return runRestack(repoRoot, state, op, false, out)
+		return a.runRestack(state, op, false, out)
 	}
-	return runRestack(repoRoot, state, op, true, out)
+	return a.runRestack(state, op, true, out)
 }
 
-func abortRestack(repoRoot string, out io.Writer) error {
-	op, err := loadOperation(repoRoot)
+func (a *App) abortRestack(out io.Writer) error {
+	op, err := a.repo.metadataStore().loadOperation()
 	if err != nil {
 		return err
 	}
@@ -183,28 +183,28 @@ func abortRestack(repoRoot string, out io.Writer) error {
 		return errors.New("no restack operation in progress")
 	}
 	if op.Mode == "merge" {
-		_ = gitRun("merge", "--abort")
+		_ = a.repo.Run("merge", "--abort")
 	} else {
-		_ = gitRun("rebase", "--abort")
+		_ = a.repo.Run("rebase", "--abort")
 	}
 	if op.OriginalBranch != "" {
-		_ = gitRunQuiet("switch", op.OriginalBranch)
+		_ = a.repo.gitRunQuiet("switch", op.OriginalBranch)
 	}
-	if err := removeOperation(repoRoot); err != nil {
+	if err := a.repo.metadataStore().removeOperation(); err != nil {
 		return err
 	}
 	fmt.Fprintln(out, "restack aborted")
 	return nil
 }
 
-func restackBranch(mode, parent, oldBase string) error {
+func (a *App) restackBranch(mode, parent, oldBase string) error {
 	if mode == "merge" {
-		return gitRun("merge", "--no-edit", "--no-ff", parent)
+		return a.repo.Run("merge", "--no-edit", "--no-ff", parent)
 	}
 	if oldBase != "" {
-		return gitRun("rebase", "--onto", parent, oldBase)
+		return a.repo.Run("rebase", "--onto", parent, oldBase)
 	}
-	return gitRun("rebase", parent)
+	return a.repo.Run("rebase", parent)
 }
 
 func mergedRebaseBases(state *State, queue []string, explicit map[string]string) map[string]string {

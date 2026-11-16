@@ -137,7 +137,7 @@ func TestRestackRecoversFromManualRebaseContinue(t *testing.T) {
 		t.Fatalf("expected restack completion message, got:\n%s", out)
 	}
 
-	op, err := loadOperation(repo)
+	op, err := testStore(t, repo).loadOperation()
 	if err != nil {
 		t.Fatalf("load operation after recovery: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestRestackContinueCompletesActiveRebaseInPlace(t *testing.T) {
 		t.Fatalf("expected restack completion message, got:\n%s", out)
 	}
 
-	op, err := loadOperation(repo)
+	op, err := testStore(t, repo).loadOperation()
 	if err != nil {
 		t.Fatalf("load operation after continue: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestRestackContinueCompletesActiveMergeInPlace(t *testing.T) {
 		t.Fatalf("expected restack completion message, got:\n%s", out)
 	}
 
-	op, err := loadOperation(repo)
+	op, err := testStore(t, repo).loadOperation()
 	if err != nil {
 		t.Fatalf("load operation after continue: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestRestackUsesExplicitOldBaseToDropMergedParentCommits(t *testing.T) {
 		mustWriteFile(t, filepath.Join(repo, "one-followup.txt"), "followup\n")
 		mustGit(t, repo, "add", "one-followup.txt")
 		mustGit(t, repo, "commit", "-m", "feat one followup")
-		oldParentHead, err := gitOutput("rev-parse", "feat-one")
+		oldParentHead, err := testRepository(t, repo).gitOutput("rev-parse", "feat-one")
 		if err != nil {
 			t.Fatalf("resolve feat-one head: %v", err)
 		}
@@ -306,7 +306,7 @@ func TestRestackUsesExplicitOldBaseToDropMergedParentCommits(t *testing.T) {
 		mustGit(t, repo, "switch", "main")
 		mustGit(t, repo, "merge", "--no-ff", "feat-one", "-m", "merge feat one")
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
@@ -315,11 +315,11 @@ func TestRestackUsesExplicitOldBaseToDropMergedParentCommits(t *testing.T) {
 		}
 
 		mustGit(t, repo, "switch", "feat-two")
-		if err := runRestackQueue(repo, state, "rebase", []string{"feat-two"}, map[string]string{"feat-two": strings.TrimSpace(oldParentHead)}, io.Discard); err != nil {
+		if err := testApp(t, repo).runRestackQueue(state, "rebase", []string{"feat-two"}, map[string]string{"feat-two": strings.TrimSpace(oldParentHead)}, io.Discard); err != nil {
 			t.Fatalf("runRestackQueue returned error: %v", err)
 		}
 
-		remaining, err := gitOutput("log", "--format=%s", "main..feat-two")
+		remaining, err := testRepository(t, repo).gitOutput("log", "--format=%s", "main..feat-two")
 		if err != nil {
 			t.Fatalf("inspect feat-two commits after restack: %v", err)
 		}

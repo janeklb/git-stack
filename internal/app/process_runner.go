@@ -37,6 +37,7 @@ type commandRunOptions struct {
 	stdout       io.Writer
 	stderr       io.Writer
 	baseEnv      []string // nil inherits the process environment.
+	interactive  bool     // Attach editor streams directly, without capture/decoration.
 }
 
 type commandRunner func(string, []string, commandRunOptions) (commandRunResult, error)
@@ -81,6 +82,11 @@ func runCommand(name string, args []string, opts commandRunOptions) (commandRunR
 		// exec.Command searches the process PATH before cmd.Env is assigned.
 		// Explicit environments must also control which executable is run.
 		cmd.Path, cmd.Err = executableInEnvironment(name, opts.dir, cmd.Env)
+	}
+	if opts.interactive {
+		cmd.Stdout, cmd.Stderr = opts.stdout, opts.stderr
+		err := cmd.Run()
+		return commandRunResult{exitCode: exitCodeForError(err)}, err
 	}
 	if !decorate && opts.streamOutput {
 		return runCommandPassthrough(cmd, opts.stdout, opts.stderr)

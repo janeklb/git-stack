@@ -6,20 +6,19 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 )
 
-func ghFindByHead(branch string) (*GhPR, error) {
-	return ghFindSingleByHead(branch, "open")
+func (r *repository) FindByHead(branch string) (*GhPR, error) {
+	return r.ghFindSingleByHead(branch, "open")
 }
 
-func ghFindMergedByHead(branch string) (*GhPR, error) {
-	return ghFindSingleByHead(branch, "merged")
+func (r *repository) FindMergedByHead(branch string) (*GhPR, error) {
+	return r.ghFindSingleByHead(branch, "merged")
 }
 
-func ghFindSingleByHead(branch string, state string) (*GhPR, error) {
+func (r *repository) ghFindSingleByHead(branch string, state string) (*GhPR, error) {
 	var prs []GhPR
-	if err := ghJSON(&prs, "pr", "list", "--head", branch, "--state", state, "--json", "number,url,body,baseRefName,headRefOid,title,isDraft,state,mergeCommit", "--limit", "2"); err != nil {
+	if err := r.ghJSON(&prs, "pr", "list", "--head", branch, "--state", state, "--json", "number,url,body,baseRefName,headRefOid,title,isDraft,state,mergeCommit", "--limit", "2"); err != nil {
 		return nil, err
 	}
 	if len(prs) == 0 {
@@ -31,15 +30,15 @@ func ghFindSingleByHead(branch string, state string) (*GhPR, error) {
 	return &prs[0], nil
 }
 
-func ghView(number int) (*GhPR, error) {
+func (r *repository) View(number int) (*GhPR, error) {
 	var pr GhPR
-	if err := ghJSON(&pr, "pr", "view", strconv.Itoa(number), "--json", "number,url,body,baseRefName,headRefOid,title,isDraft,state,mergeCommit"); err != nil {
+	if err := r.ghJSON(&pr, "pr", "view", strconv.Itoa(number), "--json", "number,url,body,baseRefName,headRefOid,title,isDraft,state,mergeCommit"); err != nil {
 		return nil, err
 	}
 	return &pr, nil
 }
 
-func ghCreate(branch, parent, title, body string, draft bool) (int, string, error) {
+func (r *repository) ghCreate(branch, parent, title, body string, draft bool) (int, string, error) {
 	bodyFile, cleanup, err := writeTempBody(body)
 	if err != nil {
 		return 0, "", err
@@ -50,10 +49,10 @@ func ghCreate(branch, parent, title, body string, draft bool) (int, string, erro
 	if draft {
 		args = append(args, "--draft")
 	}
-	if err := ghRun(args...); err != nil {
+	if err := r.ghRun(args...); err != nil {
 		return 0, "", err
 	}
-	pr, err := ghFindByHead(branch)
+	pr, err := r.FindByHead(branch)
 	if err != nil {
 		return 0, "", err
 	}
@@ -63,16 +62,16 @@ func ghCreate(branch, parent, title, body string, draft bool) (int, string, erro
 	return pr.Number, pr.URL, nil
 }
 
-func ghEdit(number int, base, body string) error {
+func (r *repository) ghEdit(number int, base, body string) error {
 	bodyFile, cleanup, err := writeTempBody(body)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-	return ghRun("pr", "edit", strconv.Itoa(number), "--base", base, "--body-file", bodyFile)
+	return r.ghRun("pr", "edit", strconv.Itoa(number), "--base", base, "--body-file", bodyFile)
 }
 
-func ghSyncDraftState(number int, wantDraft bool, current *GhPR) error {
+func (r *repository) ghSyncDraftState(number int, wantDraft bool, current *GhPR) error {
 	if current != nil && current.IsDraft == wantDraft {
 		return nil
 	}
@@ -80,7 +79,7 @@ func ghSyncDraftState(number int, wantDraft bool, current *GhPR) error {
 	if wantDraft {
 		args = append(args, "--undo")
 	}
-	return ghRun(args...)
+	return r.ghRun(args...)
 }
 
 func writeTempBody(body string) (string, func(), error) {
@@ -101,8 +100,8 @@ func writeTempBody(body string) (string, func(), error) {
 	return f.Name(), cleanup, nil
 }
 
-func ghJSON(out any, args ...string) error {
-	raw, err := ghOutput(args...)
+func (r *repository) ghJSON(out any, args ...string) error {
+	raw, err := r.ghOutput(args...)
 	if err != nil {
 		return err
 	}
@@ -113,21 +112,12 @@ func ghJSON(out any, args ...string) error {
 	return nil
 }
 
-func ghRun(args ...string) error {
-	if _, err := runCommand("gh", args, commandRunOptions{streamOutput: true, boxMode: commandBoxOnFailure}); err != nil {
-		return errors.New("gh " + strings.Join(args, " ") + ": " + err.Error())
-	}
-	return nil
+func (r *repository) ghRun(args ...string) error {
+	_, err := r.run("gh", args, commandRunOptions{streamOutput: true, boxMode: commandBoxOnFailure})
+	return err
 }
 
-func ghOutput(args ...string) (string, error) {
-	result, err := runCommand("gh", args, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
-	if err != nil {
-		msg := strings.TrimSpace(result.stderr)
-		if msg != "" {
-			return "", errors.New(msg)
-		}
-		return "", err
-	}
-	return result.stdout, nil
+func (r *repository) ghOutput(args ...string) (string, error) {
+	result, err := r.run("gh", args, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
+	return result.stdout, err
 }

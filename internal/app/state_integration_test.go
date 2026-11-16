@@ -47,12 +47,12 @@ func TestStateOmitsHistoricalPRStatusForSyncedPRBranch(t *testing.T) {
 	mustGit(t, repo, "commit", "-m", "feat one")
 	mustGit(t, repo, "push", "-u", "origin", "feat-one")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main", Updated: true}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 
@@ -84,13 +84,13 @@ func TestStateShowsNeedsRestackAndNeedsSubmitForOutOfSyncPRBranch(t *testing.T) 
 	mustGit(t, repo, "push", "-u", "origin", "feat-one")
 	mustGit(t, repo, "push", "-u", "origin", "feat-two")
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state: %v", err)
 	}
 	state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
 	state.Branches["feat-two"].PR = &PRMeta{Number: 2, URL: "https://example.invalid/pr/2", Base: "feat-one"}
-	if err := saveState(repo, state); err != nil {
+	if err := testStore(t, repo).saveState(state); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
 

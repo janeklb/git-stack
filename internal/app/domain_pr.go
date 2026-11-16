@@ -19,15 +19,15 @@ type StackPRLine struct {
 	State  string
 }
 
-func branchSummary(parent, branch string) (string, []string, error) {
-	latestTitle, err := gitOutputTrimmed("log", "-1", "--format=%s", branch)
+func (r *repository) branchSummary(parent, branch string) (string, []string, error) {
+	latestTitle, err := r.gitOutputTrimmed("log", "-1", "--format=%s", branch)
 	if err != nil {
 		return "", nil, err
 	}
 	if latestTitle == "" {
 		latestTitle = branch
 	}
-	logs, err := gitOutput("log", "--reverse", "--format=%s", fmt.Sprintf("%s..%s", parent, branch))
+	logs, err := r.gitOutput("log", "--reverse", "--format=%s", fmt.Sprintf("%s..%s", parent, branch))
 	if err != nil {
 		return latestTitle, nil, nil
 	}

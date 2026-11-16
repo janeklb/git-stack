@@ -12,10 +12,7 @@ func TestLoadPRTemplatePrefersRepoTemplateOverUserTemplate(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
-	store, err := openMetadataStore(repoRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := testStore(t, repoRoot)
 	repoPath := store.templatePath
 	if err := os.MkdirAll(filepath.Dir(repoPath), 0o755); err != nil {
 		t.Fatalf("mkdir repo template dir: %v", err)
@@ -35,7 +32,7 @@ func TestLoadPRTemplatePrefersRepoTemplateOverUserTemplate(t *testing.T) {
 		t.Fatalf("write user template: %v", err)
 	}
 
-	template, ok, err := loadPRTemplate(repoRoot)
+	template, ok, err := testApp(t, repoRoot).loadPRTemplate()
 	if err != nil {
 		t.Fatalf("loadPRTemplate returned error: %v", err)
 	}
@@ -64,7 +61,7 @@ func TestLoadPRTemplateUsesUserTemplateWhenRepoTemplateMissing(t *testing.T) {
 		t.Fatalf("write user template: %v", err)
 	}
 
-	template, ok, err := loadPRTemplate(repoRoot)
+	template, ok, err := testApp(t, repoRoot).loadPRTemplate()
 	if err != nil {
 		t.Fatalf("loadPRTemplate returned error: %v", err)
 	}
@@ -82,7 +79,7 @@ func TestLoadPRTemplateFallsBackWhenNoCustomTemplateExists(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
-	template, ok, err := loadPRTemplate(repoRoot)
+	template, ok, err := testApp(t, repoRoot).loadPRTemplate()
 	if err != nil {
 		t.Fatalf("loadPRTemplate returned error: %v", err)
 	}

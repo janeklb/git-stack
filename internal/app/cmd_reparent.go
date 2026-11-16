@@ -9,7 +9,7 @@ import (
 
 func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error {
 	if strings.TrimSpace(target) == "" {
-		current, err := currentBranch()
+		current, err := a.repo.CurrentBranch()
 		if err != nil {
 			return err
 		}
@@ -18,13 +18,13 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 	if strings.TrimSpace(newParent) == "" {
 		return errors.New("--onto is required")
 	}
-	if err := ensureCleanWorktree(); err != nil {
+	if err := a.repo.ensureCleanWorktree(); err != nil {
 		return err
 	}
 
 	target = strings.TrimSpace(target)
 	newParent = strings.TrimSpace(newParent)
-	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
+	state, persisted, err := a.loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
@@ -35,7 +35,7 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 	if !ok {
 		return fmt.Errorf("branch not tracked in stack: %s", target)
 	}
-	if !branchExists(newParent) {
+	if !a.repo.branchExists(newParent) {
 		return fmt.Errorf("new parent does not exist: %s", newParent)
 	}
 	oldParent := meta.Parent
@@ -49,15 +49,15 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 	if err := validateReparentParent(state, target, newParent); err != nil {
 		return err
 	}
-	oldHead, err := resolveBranchRef(target)
+	oldHead, err := a.repo.resolveBranchRef(target)
 	if err != nil {
 		return err
 	}
 
-	if err := gitRunQuiet("switch", target); err != nil {
+	if err := a.repo.gitRunQuiet("switch", target); err != nil {
 		return err
 	}
-	if err := gitRun("rebase", "--onto", newParent, oldParent); err != nil {
+	if err := a.repo.Run("rebase", "--onto", newParent, oldParent); err != nil {
 		return fmt.Errorf("rebase during reparent failed: %w", err)
 	}
 
@@ -66,16 +66,16 @@ func (a *App) cmdReparent(target, newParent string, preserveLineage bool) error 
 		meta.LineageParent = newParent
 	}
 	recordChildRestackBases(state, target, oldHead)
-	if err := saveState(repoRoot, state); err != nil {
+	if err := a.repo.metadataStore().saveState(state); err != nil {
 		return err
 	}
 
 	if meta.PR != nil {
-		if err := ghRun("pr", "edit", strconv.Itoa(meta.PR.Number), "--base", newParent); err != nil {
+		if err := a.repo.ghRun("pr", "edit", strconv.Itoa(meta.PR.Number), "--base", newParent); err != nil {
 			return fmt.Errorf("updated branch parent but failed to update PR base: %w", err)
 		}
 		meta.PR.Base = newParent
-		if err := saveState(repoRoot, state); err != nil {
+		if err := a.repo.metadataStore().saveState(state); err != nil {
 			return err
 		}
 	}
