@@ -7,7 +7,7 @@ func TestRecordRestackContinueProgressLeavesIndexWhenOperationStillActive(t *tes
 
 	repo := newTestRepo(t)
 	op := &RestackOperation{Type: "restack", Mode: "rebase", OriginalBranch: "feat-one", Queue: []string{"feat-one", "feat-two"}, OriginalHeads: map[string]string{"feat-one": "a", "feat-two": "b"}, Index: 0}
-	completed, err := recordRestackContinueProgress(repo, op, false)
+	completed, err := testApp(t, repo).recordRestackContinueProgress(op, false)
 	if err != nil {
 		t.Fatalf("recordRestackContinueProgress returned error: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestRecordRestackContinueProgressAdvancesIndexWhenBranchCompletes(t *testin
 
 	repo := newTestRepo(t)
 	op := &RestackOperation{Type: "restack", Mode: "rebase", OriginalBranch: "feat-one", Queue: []string{"feat-one", "feat-two"}, OriginalHeads: map[string]string{"feat-one": "a", "feat-two": "b"}, Index: 0}
-	completed, err := recordRestackContinueProgress(repo, op, true)
+	completed, err := testApp(t, repo).recordRestackContinueProgress(op, true)
 	if err != nil {
 		t.Fatalf("recordRestackContinueProgress returned error: %v", err)
 	}

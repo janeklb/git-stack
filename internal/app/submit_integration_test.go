@@ -43,12 +43,12 @@ func TestSubmitSkipsMergedTrackedPR(t *testing.T) {
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
@@ -91,12 +91,12 @@ func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *tes
 		mustGit(t, repo, "push", "origin", "main")
 		mustGit(t, repo, "push", "origin", ":feat-one")
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
@@ -118,10 +118,10 @@ func TestSubmitAutoDeletesMergedBranchWhenSquashIntegratedAndRemoteIsGone(t *tes
 		if !strings.Contains(out, "feat-one -> deleted local merged branch") {
 			t.Fatalf("expected local deletion message, got:\n%s", out)
 		}
-		if branchExists("feat-one") {
+		if testRepository(t, repo).branchExists("feat-one") {
 			t.Fatalf("expected local branch feat-one to be deleted")
 		}
-		stateAfter, err := loadState(repo)
+		stateAfter, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state after submit: %v", err)
 		}
@@ -154,12 +154,12 @@ func TestSubmitUsesNextOnCleanToSwitchBeforeDeletingMergedCurrentBranch(t *testi
 		mustGit(t, repo, "push", "origin", ":feat-one")
 		mustGit(t, repo, "switch", "feat-one")
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
@@ -181,7 +181,7 @@ func TestSubmitUsesNextOnCleanToSwitchBeforeDeletingMergedCurrentBranch(t *testi
 		if !strings.Contains(out, "feat-one -> deleted local merged branch") {
 			t.Fatalf("expected local deletion message, got:\n%s", out)
 		}
-		current, err := currentBranch()
+		current, err := testRepository(t, repo).CurrentBranch()
 		if err != nil {
 			t.Fatalf("current branch after submit: %v", err)
 		}
@@ -213,12 +213,12 @@ func TestSubmitFailsWhenNextOnCleanTargetDoesNotExist(t *testing.T) {
 		mustGit(t, repo, "push", "origin", ":feat-one")
 		mustGit(t, repo, "switch", "feat-one")
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
@@ -237,10 +237,10 @@ func TestSubmitFailsWhenNextOnCleanTargetDoesNotExist(t *testing.T) {
 		if !strings.Contains(out, "submit --next-on-clean branch does not exist locally: missing-branch") {
 			t.Fatalf("expected missing-target error, got:\n%s", out)
 		}
-		if current, err := currentBranch(); err != nil || current != "feat-one" {
+		if current, err := testRepository(t, repo).CurrentBranch(); err != nil || current != "feat-one" {
 			t.Fatalf("expected to remain on feat-one after failed submit, current=%q err=%v", current, err)
 		}
-		if !branchExists("feat-one") {
+		if !testRepository(t, repo).branchExists("feat-one") {
 			t.Fatal("expected feat-one to remain after failed submit")
 		}
 	})
@@ -264,12 +264,12 @@ func TestSubmitKeepsBranchWithUnmergedChanges(t *testing.T) {
 		mustGit(t, repo, "switch", "main")
 		mustGit(t, repo, "push", "origin", ":feat-one")
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
@@ -288,10 +288,10 @@ func TestSubmitKeepsBranchWithUnmergedChanges(t *testing.T) {
 		if !strings.Contains(out, "unmerged local changes detected; keeping local branch") {
 			t.Fatalf("expected unmerged-changes keep message, got:\n%s", out)
 		}
-		if !branchExists("feat-one") {
+		if !testRepository(t, repo).branchExists("feat-one") {
 			t.Fatalf("expected local branch feat-one to be preserved")
 		}
-		stateAfter, err := loadState(repo)
+		stateAfter, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state after submit: %v", err)
 		}
@@ -322,12 +322,12 @@ func TestSubmitForcePushesWithLeaseAfterHistoryRewrite(t *testing.T) {
 		mustGit(t, repo, "add", "feature.txt")
 		mustGit(t, repo, "commit", "-m", "feat one rewritten")
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
@@ -347,11 +347,11 @@ func TestSubmitForcePushesWithLeaseAfterHistoryRewrite(t *testing.T) {
 			t.Fatalf("expected single force-with-lease push without retry noise, got:\n%s", out)
 		}
 
-		localHead, err := gitOutput("rev-parse", "feat-one")
+		localHead, err := testRepository(t, repo).gitOutput("rev-parse", "feat-one")
 		if err != nil {
 			t.Fatalf("local rev-parse feat-one: %v", err)
 		}
-		remoteHead, err := gitOutput("ls-remote", "--heads", "origin", "feat-one")
+		remoteHead, err := testRepository(t, repo).gitOutput("ls-remote", "--heads", "origin", "feat-one")
 		if err != nil {
 			t.Fatalf("ls-remote feat-one: %v", err)
 		}
@@ -398,7 +398,7 @@ func TestSubmitFailsBeforePushWhenDescendantNeedsRestack(t *testing.T) {
 			t.Fatalf("expected restack guidance, got:\n%s", out)
 		}
 
-		remoteHead, err := gitOutput("ls-remote", "--heads", "origin", "feat-one")
+		remoteHead, err := testRepository(t, repo).gitOutput("ls-remote", "--heads", "origin", "feat-one")
 		if err != nil {
 			t.Fatalf("ls-remote feat-one: %v", err)
 		}

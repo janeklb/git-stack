@@ -135,7 +135,7 @@ func TestReparentPreservesDirectChildSliceAfterRestack(t *testing.T) {
 
 	mustRunCLIInRepo(t, repo, []string{"reparent", "feat-two", "--onto", "main"})
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after reparent: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestReparentPreservesDirectChildSliceAfterRestack(t *testing.T) {
 		t.Fatalf("expected only feat-three commit above feat-two after restack, got:\n%s", remaining)
 	}
 
-	state, err = loadState(repo)
+	state, err = testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after restack: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestReparentClearsPendingChildBaseAfterRestackContinue(t *testing.T) {
 
 	mustRunCLIInRepo(t, repo, []string{"reparent", "feat-two", "--onto", "main"})
 
-	state, err := loadState(repo)
+	state, err := testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after reparent: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestReparentClearsPendingChildBaseAfterRestackContinue(t *testing.T) {
 		t.Fatalf("expected restack completion message, got:\n%s", out)
 	}
 
-	state, err = loadState(repo)
+	state, err = testStore(t, repo).loadState()
 	if err != nil {
 		t.Fatalf("load state after continue: %v", err)
 	}

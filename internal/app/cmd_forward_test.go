@@ -106,7 +106,7 @@ func TestBuildForwardCandidateRequiresRemoteDeletion(t *testing.T) {
 		},
 	}
 
-	_, err := buildForwardCandidateWithDeps(state, "feat-a", deps)
+	_, err := (&App{}).buildForwardCandidateWithDeps(state, "feat-a", deps)
 	if err == nil {
 		t.Fatalf("expected forward candidate build to fail when remote branch still exists")
 	}
@@ -154,7 +154,7 @@ func TestBuildForwardCandidateDeletedLocalBranchWithoutMergeCommitShowsRepair(t 
 		},
 	}
 
-	_, err := buildForwardCandidateWithDeps(state, "feat-a", deps)
+	_, err := (&App{}).buildForwardCandidateWithDeps(state, "feat-a", deps)
 	if err == nil {
 		t.Fatal("expected deleted local branch without merge commit to fail")
 	}
@@ -230,7 +230,7 @@ func TestDetectForwardCandidateUsesFetchedOriginState(t *testing.T) {
 		err      error
 	)
 	withRepoCwd(t, repo, func() {
-		_, eligible, err = detectForwardCandidateWithDeps(state, "feat-a", deps)
+		_, eligible, err = testApp(t, repo).detectForwardCandidateWithDeps(state, "feat-a", deps)
 	})
 	if err != nil {
 		t.Fatalf("expected cached origin state to work, got error: %v", err)
@@ -298,9 +298,7 @@ func TestBuildForwardCandidatesKeepsDeterministicOrderingWithParallelPRLookup(t 
 		candidates []forwardCleanupCandidate
 		err        error
 	)
-	withRepoCwd(t, repo, func() {
-		candidates, err = buildForwardCandidatesWithDeps(state, "main", deps)
-	})
+	candidates, err = testApp(t, repo).buildForwardCandidatesWithDeps(state, "main", deps)
 	if err != nil {
 		t.Fatalf("buildForwardCandidatesWithDeps returned error: %v", err)
 	}
@@ -352,9 +350,7 @@ func TestBuildForwardCandidatesParallelPRLookupImprovesWallClock(t *testing.T) {
 		candidates []forwardCleanupCandidate
 		err        error
 	)
-	withRepoCwd(t, repo, func() {
-		candidates, err = buildForwardCandidatesWithDeps(state, "main", deps)
-	})
+	candidates, err = testApp(t, repo).buildForwardCandidatesWithDeps(state, "main", deps)
 	if err != nil {
 		t.Fatalf("buildForwardCandidatesWithDeps returned error: %v", err)
 	}

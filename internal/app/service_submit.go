@@ -10,21 +10,21 @@ type submitDeps struct {
 	git                  submitGitClient
 	gh                   submitGHClient
 	ensureCleanWorktree  func() error
-	loadState            func() (string, *State, bool, error)
+	loadState            func() (*State, bool, error)
 	submitQueue          func(*State, bool, []string) ([]string, error)
 	validateQueue        func(*State, []string) error
-	ensurePR             func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error)
+	ensurePR             func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error)
 	syncCurrentStackBody func(*State, bool, string) error
-	saveState            func(string, *State) error
+	saveState            func(*State) error
 	cleanMergedBranch    func(*State, string, string) (bool, error)
 }
 
-func ensurePR(repoRoot, trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
-	latestTitle, summary, err := branchSummary(parent, branch)
+func (a *App) ensurePR(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+	latestTitle, summary, err := a.repo.branchSummary(parent, branch)
 	if err != nil {
 		return nil, err
 	}
-	template, hasCustomTemplate, err := loadPRTemplate(repoRoot)
+	template, hasCustomTemplate, err := a.loadPRTemplate()
 	if err != nil {
 		return nil, err
 	}
@@ -36,46 +36,46 @@ func ensurePR(repoRoot, trunk, branch, parent string, existing *PRMeta, existing
 
 	if existing != nil && existing.Number > 0 {
 		if existingPR == nil {
-			pr, err := ghView(existing.Number)
+			pr, err := a.repo.View(existing.Number)
 			if err == nil {
 				existingPR = pr
 			}
 		}
 		if existingPR != nil && strings.EqualFold(existingPR.State, "OPEN") {
-			if err := ghEdit(existing.Number, parent, existingPR.Body); err != nil {
+			if err := a.repo.ghEdit(existing.Number, parent, existingPR.Body); err != nil {
 				return nil, err
 			}
-			if err := ghSyncDraftState(existing.Number, wantDraft, existingPR); err != nil {
+			if err := a.repo.ghSyncDraftState(existing.Number, wantDraft, existingPR); err != nil {
 				return nil, err
 			}
 			return &PRMeta{Number: existing.Number, URL: existingPR.URL, Base: parent, Updated: true}, nil
 		}
 	}
 
-	if open, err := ghFindByHead(branch); err == nil && open != nil {
-		if err := ghEdit(open.Number, parent, open.Body); err != nil {
+	if open, err := a.repo.FindByHead(branch); err == nil && open != nil {
+		if err := a.repo.ghEdit(open.Number, parent, open.Body); err != nil {
 			return nil, err
 		}
-		if err := ghSyncDraftState(open.Number, wantDraft, open); err != nil {
+		if err := a.repo.ghSyncDraftState(open.Number, wantDraft, open); err != nil {
 			return nil, err
 		}
 		return &PRMeta{Number: open.Number, URL: open.URL, Base: parent, Updated: true}, nil
 	}
 
-	number, url, err := ghCreate(branch, parent, latestTitle, defaultBody, wantDraft)
+	number, url, err := a.repo.ghCreate(branch, parent, latestTitle, defaultBody, wantDraft)
 	if err != nil {
 		return nil, err
 	}
 	return &PRMeta{Number: number, URL: url, Base: parent, Updated: false}, nil
 }
 
-func syncCurrentStackBodies(state *State, all bool, target string) error {
-	selected, err := stackSelection(state, all, target)
+func (a *App) syncCurrentStackBodies(state *State, all bool, target string) error {
+	selected, err := a.stackSelection(state, all, target)
 	if err != nil {
 		return err
 	}
 	ordered := orderedSelectedLineageBranches(state, selected)
-	snapshots := fetchStackBodySyncSnapshots(state, ordered)
+	snapshots := a.fetchStackBodySyncSnapshots(state, ordered)
 
 	lines := []StackPRLine{}
 	updates := []stackBodyUpdate{}
@@ -92,7 +92,7 @@ func syncCurrentStackBodies(state *State, all bool, target string) error {
 		return nil
 	}
 
-	return applyStackBodyUpdates(lines, updates)
+	return a.applyStackBodyUpdates(lines, updates)
 }
 
 type stackBodyUpdate struct {
@@ -111,7 +111,7 @@ type stackBodySyncSnapshot struct {
 	hasUpdate bool
 }
 
-func fetchStackBodySyncSnapshots(state *State, ordered []string) []stackBodySyncSnapshot {
+func (a *App) fetchStackBodySyncSnapshots(state *State, ordered []string) []stackBodySyncSnapshot {
 	results := make([]stackBodySyncSnapshot, len(ordered))
 
 	var fetchWG sync.WaitGroup
@@ -123,7 +123,7 @@ func fetchStackBodySyncSnapshots(state *State, ordered []string) []stackBodySync
 			if prMeta == nil || prMeta.Number <= 0 {
 				return
 			}
-			pr, err := ghView(prMeta.Number)
+			pr, err := a.repo.View(prMeta.Number)
 			if err != nil {
 				return
 			}
@@ -158,7 +158,7 @@ func fetchStackBodySyncSnapshots(state *State, ordered []string) []stackBodySync
 	return results
 }
 
-func applyStackBodyUpdates(lines []StackPRLine, updates []stackBodyUpdate) error {
+func (a *App) applyStackBodyUpdates(lines []StackPRLine, updates []stackBodyUpdate) error {
 	var editWG sync.WaitGroup
 	errCh := make(chan error, len(updates))
 
@@ -168,11 +168,11 @@ func applyStackBodyUpdates(lines []StackPRLine, updates []stackBodyUpdate) error
 			defer editWG.Done()
 			managed := managedStackBlock(update.branch, lines)
 			body := upsertManagedBlock(update.body, managed)
-			if err := ghEdit(update.number, update.base, body); err != nil {
+			if err := a.repo.ghEdit(update.number, update.base, body); err != nil {
 				errCh <- err
 				return
 			}
-			if err := ghSyncDraftState(update.number, update.draft, &GhPR{IsDraft: update.isDraft}); err != nil {
+			if err := a.repo.ghSyncDraftState(update.number, update.draft, &GhPR{IsDraft: update.isDraft}); err != nil {
 				errCh <- err
 			}
 		}(update)
@@ -186,7 +186,7 @@ func applyStackBodyUpdates(lines []StackPRLine, updates []stackBodyUpdate) error
 	return nil
 }
 
-func stackSelection(state *State, all bool, target string) (map[string]bool, error) {
+func (a *App) stackSelection(state *State, all bool, target string) (map[string]bool, error) {
 	selected := map[string]bool{}
 	if all {
 		for branch := range state.Branches {
@@ -195,7 +195,7 @@ func stackSelection(state *State, all bool, target string) (map[string]bool, err
 		return selected, nil
 	}
 	if target == "" {
-		current, err := currentBranch()
+		current, err := a.repo.CurrentBranch()
 		if err != nil {
 			return nil, err
 		}

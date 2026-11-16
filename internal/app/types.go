@@ -16,6 +16,10 @@ type App struct {
 	in     io.Reader
 	stdout io.Writer
 	stderr io.Writer
+	dir    string
+	env    []string
+	runner commandRunner
+	repo   *repository
 }
 
 type State struct {

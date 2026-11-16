@@ -2,27 +2,26 @@ package app
 
 import (
 	"fmt"
-	"io"
-	"os/exec"
 	"runtime"
 	"strings"
 )
 
-func editFileInGitEditor(path string, stdin io.Reader, stdout, stderr io.Writer) error {
-	editor, err := gitOutputTrimmed("var", "GIT_EDITOR")
+func editFileInGitEditor(path string, runner commandRunner, opts commandRunOptions) error {
+	query := opts
+	query.stdin = nil
+	query.boxMode = commandBoxOnFailure
+	result, err := runner("git", []string{"var", "GIT_EDITOR"}, query)
 	if err != nil {
 		return fmt.Errorf("determine git editor: %w", err)
 	}
+	editor := strings.TrimSpace(result.stdout)
 	if editor == "" {
 		return fmt.Errorf("determine git editor: resolved editor is empty")
 	}
 
 	name, args := editorCommand(editor, path)
-	cmd := exec.Command(name, args...)
-	cmd.Stdin = stdin
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
+	opts.interactive = true
+	if _, err := runner(name, args, opts); err != nil {
 		return fmt.Errorf("open editor: %w", err)
 	}
 	return nil

@@ -9,6 +9,7 @@ import (
 const canonicalBinName = "git-stack"
 
 func (a *App) Run(args []string, invocation string) int {
+	a.repo = nil
 	root := a.newRootCmd(invocation)
 	root.SetIn(a.in)
 	root.SetOut(a.stdout)
@@ -58,14 +59,14 @@ Mutating commands require a clean worktree. Commands such as new, state, restack
 					return nil
 				}
 			}
-			repo, err := discoverRepository(".", repositoryOptions{in: a.in, stdout: a.stdout, stderr: a.stderr})
+			repo, err := a.discoverRepository()
 			if err != nil {
 				return err
 			}
 			if err := repo.ensureSupportedCloneLayout(); err != nil {
 				return err
 			}
-			return repo.requireLegacyCommandLayout()
+			return repo.requireSupportedCommandLayout()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a.writeCompactRootHelp(cmd.OutOrStdout(), cmd)
@@ -161,7 +162,7 @@ With --adopt, stack does not create a branch. It tracks the current existing bra
 	newCmd.Flags().StringVar(&newTemplate, "template", "", "override the configured naming template for this branch; supports {slug} and {n}")
 	newCmd.Flags().BoolVar(&newPrefixIndex, "prefix-index", false, "prefix the generated branch name with the next zero-padded index when the template does not include {n}")
 	newCmd.Flags().BoolVar(&newAdopt, "adopt", false, "track the current existing branch instead of creating a new branch")
-	_ = newCmd.RegisterFlagCompletionFunc("parent", completeBranchRefs(true))
+	_ = newCmd.RegisterFlagCompletionFunc("parent", a.completeBranchRefs(true))
 	root.AddCommand(newCmd)
 
 	var stateAll bool
@@ -231,8 +232,8 @@ For each eligible tracked branch, stack force-pushes the local branch to origin 
 	}
 	submitCmd.Flags().BoolVar(&submitAll, "all", false, "submit every tracked branch instead of only the current stack or the named branch's stack")
 	submitCmd.Flags().StringVar(&submitNextOnClean, "next-on-clean", "", "when submit deletes the current merged branch, switch to this existing local branch instead of prompting")
-	submitCmd.ValidArgsFunction = completeSingleBranchArg(false)
-	_ = submitCmd.RegisterFlagCompletionFunc("next-on-clean", completeBranchRefs(false))
+	submitCmd.ValidArgsFunction = a.completeSingleBranchArg(false)
+	_ = submitCmd.RegisterFlagCompletionFunc("next-on-clean", a.completeBranchRefs(false))
 	root.AddCommand(submitCmd)
 
 	var reparentOnto string
@@ -257,8 +258,8 @@ Implementation-wise this is a rebase: git-stack switches to the target branch an
 	}
 	reparentCmd.Flags().StringVar(&reparentOnto, "onto", "", "new parent branch for the target; required")
 	reparentCmd.Flags().BoolVar(&reparentPreserveLineage, "preserve-lineage", false, "keep the existing lineage parent instead of rewriting lineage to the new parent")
-	reparentCmd.ValidArgsFunction = completeSingleBranchArg(false)
-	_ = reparentCmd.RegisterFlagCompletionFunc("onto", completeBranchRefs(true))
+	reparentCmd.ValidArgsFunction = a.completeSingleBranchArg(false)
+	_ = reparentCmd.RegisterFlagCompletionFunc("onto", a.completeBranchRefs(true))
 	_ = reparentCmd.MarkFlagRequired("onto")
 	root.AddCommand(reparentCmd)
 
@@ -295,7 +296,7 @@ For eligible merged branches, stack cleans them from local state, reparents surv
 		},
 	}
 	forwardCmd.Flags().StringVar(&forwardNext, "next", "", "when the current branch is deleted during forward, switch to this existing surviving branch instead of prompting")
-	_ = forwardCmd.RegisterFlagCompletionFunc("next", completeBranchRefs(false))
+	_ = forwardCmd.RegisterFlagCompletionFunc("next", a.completeBranchRefs(false))
 	root.AddCommand(forwardCmd)
 
 	var cleanYes bool

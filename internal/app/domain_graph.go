@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-func submitQueue(state *State, all bool, args []string) ([]string, error) {
+func (a *App) submitQueue(state *State, all bool, args []string) ([]string, error) {
 	if all {
 		return topoOrder(state)
 	}
@@ -13,7 +13,7 @@ func submitQueue(state *State, all bool, args []string) ([]string, error) {
 	if len(args) > 0 {
 		target = args[0]
 	} else {
-		cur, err := currentBranch()
+		cur, err := a.repo.CurrentBranch()
 		if err != nil {
 			return nil, err
 		}
@@ -139,23 +139,23 @@ func traverseChildren(children map[string][]string, root string) ([]string, map[
 	return order, visited
 }
 
-func detectDrift(branch, parent string) (bool, string) {
-	if !branchExists(parent) {
+func (r *repository) detectDrift(branch, parent string) (bool, string) {
+	if !r.branchExists(parent) {
 		return true, "parent-missing"
 	}
-	err := gitRunQuiet("merge-base", "--is-ancestor", parent, branch)
+	err := r.gitRunQuiet("merge-base", "--is-ancestor", parent, branch)
 	if err != nil {
 		return true, "parent-not-ancestor"
 	}
 	return false, ""
 }
 
-func inferParent(branch string, allBranches []string, trunk string) (string, error) {
+func (r *repository) inferParent(branch string, allBranches []string, trunk string) (string, error) {
 	type candidate struct {
 		name string
 		ts   int64
 	}
-	branchHead, err := resolveBranchRef(branch)
+	branchHead, err := r.resolveBranchRef(branch)
 	if err != nil {
 		return "", err
 	}
@@ -165,7 +165,7 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 		if b == branch {
 			continue
 		}
-		candidateHead, err := resolveBranchRef(b)
+		candidateHead, err := r.resolveBranchRef(b)
 		if err != nil {
 			return "", err
 		}
@@ -173,25 +173,25 @@ func inferParent(branch string, allBranches []string, trunk string) (string, err
 			continue
 		}
 		// Skip branches already merged into trunk - they shouldn't be inferred as stack parents
-		if err := gitRunQuiet("merge-base", "--is-ancestor", b, trunk); err == nil {
+		if err := r.gitRunQuiet("merge-base", "--is-ancestor", b, trunk); err == nil {
 			continue
 		}
-		if err := gitRunQuiet("merge-base", "--is-ancestor", b, branch); err == nil {
-			ts, err := branchTimestamp(b)
+		if err := r.gitRunQuiet("merge-base", "--is-ancestor", b, branch); err == nil {
+			ts, err := r.branchTimestamp(b)
 			if err != nil {
 				return "", err
 			}
 			candidates = append(candidates, candidate{name: b, ts: ts})
 		}
 	}
-	if branchExists(trunk) {
-		trunkHead, err := resolveBranchRef(trunk)
+	if r.branchExists(trunk) {
+		trunkHead, err := r.resolveBranchRef(trunk)
 		if err != nil {
 			return "", err
 		}
 		if trunkHead != branchHead {
-			if err := gitRunQuiet("merge-base", "--is-ancestor", trunk, branch); err == nil {
-				ts, err := branchTimestamp(trunk)
+			if err := r.gitRunQuiet("merge-base", "--is-ancestor", trunk, branch); err == nil {
+				ts, err := r.branchTimestamp(trunk)
 				if err != nil {
 					return "", err
 				}

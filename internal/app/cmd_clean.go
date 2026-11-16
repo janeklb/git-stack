@@ -92,10 +92,10 @@ func cleanDiscoveryBranches(state *State, branches []string, scope pruneLocalSco
 	return selected
 }
 
-func defaultPruneLocalPlanDeps() pruneLocalPlanDeps {
+func (a *App) defaultPruneLocalPlanDeps() pruneLocalPlanDeps {
 	return pruneLocalPlanDeps{
-		git: defaultGitClient{},
-		gh:  defaultGHClient{},
+		git: a.repo,
+		gh:  a.repo,
 	}
 }
 
@@ -154,12 +154,12 @@ func cleanMergeEligible(git pruneGitClient, branch, base string, pr *GhPR) (bool
 }
 
 func (a *App) cmdClean(yes bool, all bool, untracked bool) error {
-	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
+	state, persisted, err := a.loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
 	if untracked {
-		if _, err := ensurePersistedState(repoRoot, state, persisted, a.stdout); err != nil {
+		if _, err := a.ensurePersistedState(state, persisted, a.stdout); err != nil {
 			return err
 		}
 	} else {
@@ -167,19 +167,19 @@ func (a *App) cmdClean(yes bool, all bool, untracked bool) error {
 			return err
 		}
 	}
-	return a.runCleanCommand(repoRoot, state, yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, includeUntracked: untracked})
+	return a.runCleanCommand(state, yes, pruneLocalScope{trackedFromCurrent: true, allTracked: all, includeUntracked: untracked})
 }
 
-func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pruneLocalScope) error {
-	if err := ensureCleanWorktree(); err != nil {
+func (a *App) runCleanCommand(state *State, yes bool, scope pruneLocalScope) error {
+	if err := a.repo.ensureCleanWorktree(); err != nil {
 		return err
 	}
-	if err := gitRun("fetch", "--prune", "origin"); err != nil {
+	if err := a.repo.Run("fetch", "--prune", "origin"); err != nil {
 		return fmt.Errorf("clean fetch failed: %w", err)
 	}
 	if scope.trackedBranches == nil {
 		if scope.trackedFromCurrent {
-			current, err := currentBranch()
+			current, err := a.repo.CurrentBranch()
 			if err != nil {
 				return err
 			}
@@ -192,7 +192,7 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 	if _, err := topoOrderSelected(state, scope.trackedBranches); err != nil {
 		return err
 	}
-	plan, err := buildPruneLocalPlan(state, scope)
+	plan, err := a.buildPruneLocalPlan(state, scope)
 	if err != nil {
 		return err
 	}
@@ -210,28 +210,28 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 		return nil
 	}
 
-	current, _ := currentBranch()
+	current, _ := a.repo.CurrentBranch()
 	for _, candidate := range plan.Delete {
 		if candidate.HasLocal && current == candidate.Branch {
 			target := state.Trunk
 			if target == "" {
 				target = "main"
 			}
-			if err := gitRunQuiet("switch", target); err != nil {
+			if err := a.repo.gitRunQuiet("switch", target); err != nil {
 				a.printlnf("%s -> failed to switch to %s before deletion: %v", candidate.Branch, target, err)
 				continue
 			}
 			current = target
 		}
 		if candidate.HasLocal {
-			if err := deleteLocalBranch(candidate.Branch); err != nil {
+			if err := a.repo.DeleteLocalBranch(candidate.Branch); err != nil {
 				a.printlnf("%s -> failed to delete local branch: %v", candidate.Branch, err)
 				continue
 			}
 		}
 
 		if _, tracked := state.Branches[candidate.Branch]; tracked {
-			if err := pruneTrackedBranchFromState(repoRoot, state, candidate, a.stdout); err != nil {
+			if err := a.pruneTrackedBranchFromState(state, candidate, a.stdout); err != nil {
 				return err
 			}
 		}
@@ -253,18 +253,18 @@ func (a *App) runCleanCommand(repoRoot string, state *State, yes bool, scope pru
 	return nil
 }
 
-func pruneTrackedBranchFromState(repoRoot string, state *State, candidate pruneLocalCandidate, out io.Writer) error {
+func (a *App) pruneTrackedBranchFromState(state *State, candidate pruneLocalCandidate, out io.Writer) error {
 	if err := cleanMergedBranchState(out, state, candidate.Branch, candidate.Base); err != nil {
 		return err
 	}
-	if err := saveState(repoRoot, state); err != nil {
+	if err := a.repo.metadataStore().saveState(state); err != nil {
 		return fmt.Errorf("%s -> deleted locally but failed to update stack state: %w", candidate.Branch, err)
 	}
 	return nil
 }
 
-func buildPruneLocalPlan(state *State, scope pruneLocalScope) (*pruneLocalPlan, error) {
-	return buildPruneLocalPlanWithDeps(state, defaultPruneLocalPlanDeps(), scope)
+func (a *App) buildPruneLocalPlan(state *State, scope pruneLocalScope) (*pruneLocalPlan, error) {
+	return buildPruneLocalPlanWithDeps(state, a.defaultPruneLocalPlanDeps(), scope)
 }
 
 func buildPruneLocalPlanWithDeps(state *State, deps pruneLocalPlanDeps, scope pruneLocalScope) (*pruneLocalPlan, error) {

@@ -32,8 +32,8 @@ func (r *repository) ensureSupportedCloneLayout() error {
 	return errors.New("single-branch clones are not supported; fetch all branches or reclone without --single-branch")
 }
 
-func ensureCleanWorktree() error {
-	out, err := gitOutput("status", "--porcelain")
+func (r *repository) ensureCleanWorktree() error {
+	out, err := r.gitOutput("status", "--porcelain")
 	if err != nil {
 		return err
 	}
@@ -43,28 +43,28 @@ func ensureCleanWorktree() error {
 	return nil
 }
 
-func branchExists(name string) bool {
+func (r *repository) branchExists(name string) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	err := gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+name)
+	err := r.gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+name)
 	if err == nil {
 		return true
 	}
-	err = gitRunQuiet("show-ref", "--verify", "--quiet", "refs/remotes/origin/"+name)
+	err = r.gitRunQuiet("show-ref", "--verify", "--quiet", "refs/remotes/origin/"+name)
 	return err == nil
 }
 
-func localBranchExists(name string) bool {
+func (r *repository) LocalBranchExists(name string) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	err := gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+name)
+	err := r.gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+name)
 	return err == nil
 }
 
-func detectTrunk() (string, error) {
-	out, err := gitOutputTrimmed("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+func (r *repository) detectTrunk() (string, error) {
+	out, err := r.gitOutputTrimmed("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 	if err != nil {
 		return "", errors.New("failed to detect trunk from refs/remotes/origin/HEAD")
 	}
@@ -75,8 +75,8 @@ func detectTrunk() (string, error) {
 	return out, nil
 }
 
-func currentBranch() (string, error) {
-	branch, err := gitOutputTrimmed("rev-parse", "--abbrev-ref", "HEAD")
+func (r *repository) CurrentBranch() (string, error) {
+	branch, err := r.gitOutputTrimmed("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", err
 	}
@@ -86,13 +86,13 @@ func currentBranch() (string, error) {
 	return branch, nil
 }
 
-func hasHeadCommit() bool {
-	_, err := gitOutput("rev-parse", "--verify", "--quiet", "HEAD")
+func (r *repository) hasHeadCommit() bool {
+	_, err := r.gitOutput("rev-parse", "--verify", "--quiet", "HEAD")
 	return err == nil
 }
 
-func listLocalBranches() ([]string, error) {
-	out, err := gitOutput("for-each-ref", "--format=%(refname:short)", "refs/heads")
+func (r *repository) ListLocalBranches() ([]string, error) {
+	out, err := r.gitOutput("for-each-ref", "--format=%(refname:short)", "refs/heads")
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +107,8 @@ func listLocalBranches() ([]string, error) {
 	return branches, nil
 }
 
-func listOriginBranches() ([]string, error) {
-	out, err := gitOutput("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin")
+func (r *repository) ListOriginBranches() ([]string, error) {
+	out, err := r.gitOutput("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin")
 	if err != nil {
 		return nil, err
 	}
@@ -127,8 +127,8 @@ func listOriginBranches() ([]string, error) {
 	return branches, nil
 }
 
-func branchTimestamp(branch string) (int64, error) {
-	out, err := gitOutputTrimmed("show", "-s", "--format=%ct", branch)
+func (r *repository) branchTimestamp(branch string) (int64, error) {
+	out, err := r.gitOutputTrimmed("show", "-s", "--format=%ct", branch)
 	if err != nil {
 		return 0, err
 	}
@@ -139,36 +139,33 @@ func branchTimestamp(branch string) (int64, error) {
 	return v, nil
 }
 
-func pushBranch(branch string) error {
+func (r *repository) PushBranch(branch string) error {
 	refspec := fmt.Sprintf("%s:%s", branch, branch)
-	result, err := runCommand("git", []string{"push", "--force-with-lease", "-u", "origin", refspec}, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways})
-	if err != nil {
-		return commandRunError(result, err)
-	}
-	return nil
+	_, err := r.runGit([]string{"push", "--force-with-lease", "-u", "origin", refspec}, commandRunOptions{streamOutput: true, boxMode: commandBoxAlways})
+	return err
 }
 
-func remoteBranchExists(branch string) (bool, error) {
+func (r *repository) RemoteBranchExists(branch string) (bool, error) {
 	if strings.TrimSpace(branch) == "" {
 		return false, nil
 	}
-	out, err := gitOutputTrimmed("ls-remote", "--heads", "origin", branch)
+	out, err := r.gitOutputTrimmed("ls-remote", "--heads", "origin", branch)
 	if err != nil {
 		return false, err
 	}
 	return out != "", nil
 }
 
-func deleteLocalBranch(branch string) error {
-	return gitRunQuiet("branch", "-D", branch)
+func (r *repository) DeleteLocalBranch(branch string) error {
+	return r.gitRunQuiet("branch", "-D", branch)
 }
 
-func branchFullyIntegrated(branch, base string) (bool, error) {
-	baseRef, err := resolveComparisonBase(base)
+func (r *repository) BranchFullyIntegrated(branch, base string) (bool, error) {
+	baseRef, err := r.resolveComparisonBase(base)
 	if err != nil {
 		return false, err
 	}
-	out, err := gitOutput("cherry", baseRef, branch)
+	out, err := r.gitOutput("cherry", baseRef, branch)
 	if err != nil {
 		return false, err
 	}
@@ -184,28 +181,28 @@ func branchFullyIntegrated(branch, base string) (bool, error) {
 	return true, nil
 }
 
-func baseContainsCommit(base, commit string) (bool, error) {
-	baseRef, err := resolveComparisonBase(base)
+func (r *repository) BaseContainsCommit(base, commit string) (bool, error) {
+	baseRef, err := r.resolveComparisonBase(base)
 	if err != nil {
 		return false, err
 	}
-	return commitIsAncestor(strings.TrimSpace(commit), baseRef)
+	return r.commitIsAncestor(strings.TrimSpace(commit), baseRef)
 }
 
-func branchAtOrBehindCommit(branch, commit string) (bool, error) {
-	branchRef, err := resolveBranchRef(branch)
+func (r *repository) BranchAtOrBehindCommit(branch, commit string) (bool, error) {
+	branchRef, err := r.resolveBranchRef(branch)
 	if err != nil {
 		return false, err
 	}
-	return commitIsAncestor(branchRef, strings.TrimSpace(commit))
+	return r.commitIsAncestor(branchRef, strings.TrimSpace(commit))
 }
 
-func ensurePRHeadCommit(number int, commit string) error {
+func (r *repository) EnsurePRHeadCommit(number int, commit string) error {
 	commit = strings.TrimSpace(commit)
 	if commit == "" {
 		return errors.New("empty PR head commit")
 	}
-	if _, err := gitOutput("rev-parse", "--verify", "--quiet", commit+"^{commit}"); err == nil {
+	if _, err := r.gitOutput("rev-parse", "--verify", "--quiet", commit+"^{commit}"); err == nil {
 		return nil
 	}
 	if number <= 0 {
@@ -214,69 +211,69 @@ func ensurePRHeadCommit(number int, commit string) error {
 	// Deleted branch heads are not fetched by the normal origin refspec. GitHub
 	// retains the PR head ref even after a squash merge and branch deletion.
 	ref := fmt.Sprintf("refs/pull/%d/head", number)
-	if err := gitRunQuiet("fetch", "--no-tags", "--no-write-fetch-head", "origin", ref); err != nil {
+	if err := r.gitRunQuiet("fetch", "--no-tags", "--no-write-fetch-head", "origin", ref); err != nil {
 		return err
 	}
 	// Check the exact head reported by GitHub, not just whatever the ref fetched.
-	_, err := gitOutput("rev-parse", "--verify", "--quiet", commit+"^{commit}")
+	_, err := r.gitOutput("rev-parse", "--verify", "--quiet", commit+"^{commit}")
 	return err
 }
 
-func branchHasCommitsSince(base, branch string) (bool, error) {
-	baseRef, err := resolveBranchRef(base)
+func (r *repository) BranchHasCommitsSince(base, branch string) (bool, error) {
+	baseRef, err := r.resolveBranchRef(base)
 	if err != nil {
 		return false, err
 	}
-	branchRef, err := resolveBranchRef(branch)
+	branchRef, err := r.resolveBranchRef(branch)
 	if err != nil {
 		return false, err
 	}
 	if baseRef == branchRef {
 		return false, nil
 	}
-	out, err := gitOutputTrimmed("rev-list", "--count", baseRef+".."+branchRef)
+	out, err := r.gitOutputTrimmed("rev-list", "--count", baseRef+".."+branchRef)
 	if err != nil {
 		return false, err
 	}
 	return out != "0", nil
 }
 
-func branchMatchesRemote(branch string) (bool, error) {
+func (r *repository) branchMatchesRemote(branch string) (bool, error) {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
 		return false, errors.New("empty branch")
 	}
 	remoteRef := "refs/remotes/origin/" + branch
-	if gitRunQuiet("show-ref", "--verify", "--quiet", remoteRef) != nil {
+	if r.gitRunQuiet("show-ref", "--verify", "--quiet", remoteRef) != nil {
 		return false, nil
 	}
-	localOID, err := resolveBranchRef(branch)
+	localOID, err := r.resolveBranchRef(branch)
 	if err != nil {
 		return false, err
 	}
-	remoteOID, err := resolveBranchRef(remoteRef)
+	remoteOID, err := r.resolveBranchRef(remoteRef)
 	if err != nil {
 		return false, err
 	}
 	return localOID == remoteOID, nil
 }
 
-func resolveBranchRef(branch string) (string, error) {
+func (r *repository) resolveBranchRef(branch string) (string, error) {
 	if strings.TrimSpace(branch) == "" {
 		return "", errors.New("empty branch")
 	}
-	out, err := gitOutputTrimmed("rev-parse", strings.TrimSpace(branch))
+	out, err := r.gitOutputTrimmed("rev-parse", strings.TrimSpace(branch))
 	if err != nil {
 		return "", err
 	}
 	return out, nil
 }
 
-func commitIsAncestor(ancestor, descendant string) (bool, error) {
+func (r *repository) commitIsAncestor(ancestor, descendant string) (bool, error) {
 	if strings.TrimSpace(ancestor) == "" || strings.TrimSpace(descendant) == "" {
 		return false, errors.New("empty commit for ancestry check")
 	}
-	result, err := runCommand("git", []string{"merge-base", "--is-ancestor", strings.TrimSpace(ancestor), strings.TrimSpace(descendant)}, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
+	result, err := r.runGit([]string{"merge-base", "--is-ancestor", strings.TrimSpace(ancestor), strings.TrimSpace(descendant)}, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
 	if err != nil {
 		if result.exitCode == 1 {
 			return false, nil
@@ -286,26 +283,26 @@ func commitIsAncestor(ancestor, descendant string) (bool, error) {
 	return true, nil
 }
 
-func resolveComparisonBase(base string) (string, error) {
+func (r *repository) resolveComparisonBase(base string) (string, error) {
 	if strings.TrimSpace(base) == "" {
 		return "", errors.New("empty comparison base")
 	}
 	remoteRef := "refs/remotes/origin/" + base
-	if gitRunQuiet("show-ref", "--verify", "--quiet", remoteRef) == nil {
+	if r.gitRunQuiet("show-ref", "--verify", "--quiet", remoteRef) == nil {
 		return "origin/" + base, nil
 	}
-	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+base) == nil {
+	if r.gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+base) == nil {
 		return base, nil
 	}
 	return "", fmt.Errorf("comparison base not found: %s", base)
 }
 
-func rebaseInProgress() (bool, error) {
-	apply, err := gitPath("rebase-apply")
+func (r *repository) rebaseInProgress() (bool, error) {
+	apply, err := r.gitPath("rebase-apply")
 	if err != nil {
 		return false, err
 	}
-	merge, err := gitPath("rebase-merge")
+	merge, err := r.gitPath("rebase-merge")
 	if err != nil {
 		return false, err
 	}
@@ -315,8 +312,8 @@ func rebaseInProgress() (bool, error) {
 	return false, nil
 }
 
-func mergeInProgress() (bool, error) {
-	mergeHead, err := gitPath("MERGE_HEAD")
+func (r *repository) mergeInProgress() (bool, error) {
+	mergeHead, err := r.gitPath("MERGE_HEAD")
 	if err != nil {
 		return false, err
 	}
@@ -331,63 +328,34 @@ func pathExists(path string) bool {
 	return err == nil
 }
 
-func gitPath(name string) (string, error) {
-	return gitOutputTrimmed("rev-parse", "--git-path", name)
+func (r *repository) gitPath(name string) (string, error) {
+	return r.gitOutputTrimmed("rev-parse", "--path-format=absolute", "--git-path", name)
 }
 
-func gitRun(args ...string) error {
-	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: gitRunBoxMode(args)}); err != nil {
-		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-	}
-	return nil
+func (r *repository) Run(args ...string) error {
+	_, err := r.runGit(args, commandRunOptions{streamOutput: true, boxMode: gitRunBoxMode(args)})
+	return err
 }
 
-func gitRunWithEnv(env []string, args ...string) error {
-	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: gitRunBoxMode(args), env: env}); err != nil {
-		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-	}
-	return nil
+func (r *repository) gitRunWithEnv(env []string, args ...string) error {
+	_, err := r.runGit(args, commandRunOptions{streamOutput: true, boxMode: gitRunBoxMode(args), env: env})
+	return err
 }
 
-func gitRunQuiet(args ...string) error {
-	if _, err := runCommand("git", args, commandRunOptions{streamOutput: true, boxMode: commandBoxOnFailure}); err != nil {
-		return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-	}
-	return nil
+func (r *repository) gitRunQuiet(args ...string) error {
+	_, err := r.runGit(args, commandRunOptions{streamOutput: true, boxMode: commandBoxOnFailure})
+	return err
 }
 
-func gitOutput(args ...string) (string, error) {
-	result, err := runCommand("git", args, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
-	if err != nil {
-		msg := strings.TrimSpace(result.stderr)
-		if msg != "" {
-			return "", errors.New(msg)
-		}
-		return "", err
-	}
-	return result.stdout, nil
-}
-
-func gitOutputTrimmed(args ...string) (string, error) {
-	out, err := gitOutput(args...)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(out), nil
+func (r *repository) gitOutput(args ...string) (string, error) {
+	result, err := r.runGit(args, commandRunOptions{streamOutput: false, boxMode: commandBoxOnFailure})
+	return result.stdout, err
 }
 
 func combineCommandOutput(result commandRunResult) string {
 	parts := []string{strings.TrimSpace(result.stdout), strings.TrimSpace(result.stderr)}
 	combined := strings.TrimSpace(strings.Join(parts, "\n"))
 	return combined
-}
-
-func commandRunError(result commandRunResult, fallback error) error {
-	msg := combineCommandOutput(result)
-	if msg == "" {
-		return fallback
-	}
-	return errors.New(msg)
 }
 
 func gitRunBoxMode(args []string) commandBoxMode {

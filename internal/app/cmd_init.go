@@ -6,19 +6,16 @@ import (
 )
 
 func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
-	if err := ensureCleanWorktree(); err != nil {
+	if err := a.repo.ensureCleanWorktree(); err != nil {
 		return err
 	}
 	if mode != "rebase" && mode != "merge" {
 		return errors.New("--mode must be rebase or merge")
 	}
-	repoRoot, err := repoRoot()
-	if err != nil {
-		return err
-	}
+	var err error
 	detectedTrunk := strings.TrimSpace(trunk)
 	if detectedTrunk == "" {
-		detectedTrunk, err = detectTrunk()
+		detectedTrunk, err = a.repo.detectTrunk()
 		if err != nil {
 			return err
 		}
@@ -27,12 +24,12 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 	branches := map[string]*BranchRef{}
 	archived := map[string]*ArchivedRef{}
 	nextIndex := 1
-	if inferred, inferErr := inferStateDefaults(repoRoot); inferErr == nil {
+	if inferred, inferErr := a.inferStateDefaults(); inferErr == nil {
 		if inferred.Naming.NextIndex > nextIndex {
 			nextIndex = inferred.Naming.NextIndex
 		}
 	}
-	if existing, loadErr := loadState(repoRoot); loadErr == nil {
+	if existing, loadErr := a.repo.metadataStore().loadState(); loadErr == nil {
 		branches = existing.Branches
 		archived = existing.Archived
 		if existing.Naming.NextIndex > nextIndex {
@@ -52,7 +49,7 @@ func (a *App) cmdInit(trunk, mode, template string, prefixIndex bool) error {
 		Branches: branches,
 		Archived: archived,
 	}
-	if err := saveState(repoRoot, state); err != nil {
+	if err := a.repo.metadataStore().saveState(state); err != nil {
 		return err
 	}
 	a.println("note: git-stack init is a repair/reconfiguration command; normal mutating workflows should auto-bootstrap state when possible")

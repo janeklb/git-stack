@@ -31,34 +31,34 @@ type forwardDeps struct {
 const forwardRepairFlow = "git-stack clean --all --yes && git-stack restack"
 const forwardLookupConcurrency = 4
 
-func defaultForwardDeps() forwardDeps {
+func (a *App) defaultForwardDeps() forwardDeps {
 	return forwardDeps{
-		git:                   defaultGitClient{},
-		gh:                    defaultGHClient{},
-		mergedCleanIntegrated: mergedCleanIntegrated,
+		git:                   a.repo,
+		gh:                    a.repo,
+		mergedCleanIntegrated: a.mergedCleanIntegrated,
 		mergedBranchChildren:  mergedBranchChildren,
 	}
 }
 
 func (a *App) cmdForward(next string) error {
-	if err := ensureCleanWorktree(); err != nil {
+	if err := a.repo.ensureCleanWorktree(); err != nil {
 		return err
 	}
-	if err := gitRun("fetch", "--prune", "origin"); err != nil {
+	if err := a.repo.Run("fetch", "--prune", "origin"); err != nil {
 		return fmt.Errorf("forward fetch failed: %w", err)
 	}
 
-	repoRoot, state, err := loadStateFromRepo()
+	state, err := a.repo.metadataStore().loadState()
 	if err != nil {
 		return err
 	}
-	current, err := currentBranch()
+	current, err := a.repo.CurrentBranch()
 	if err != nil {
 		return err
 	}
 	forwardScope := branchesInCurrentStack(state, current)
 
-	deps := defaultForwardDeps()
+	deps := a.defaultForwardDeps()
 	originBranches, err := deps.git.ListOriginBranches()
 	if err != nil {
 		return fmt.Errorf("forward failed to list fetched origin branches: %w", err)
@@ -68,13 +68,13 @@ func (a *App) cmdForward(next string) error {
 	if err != nil {
 		return err
 	}
-	candidates, err := buildForwardCandidatesWithDeps(state, current, deps)
+	candidates, err := a.buildForwardCandidatesWithDeps(state, current, deps)
 	if err != nil {
 		return err
 	}
 	if len(candidates) == 0 {
 		if repairedPRMeta {
-			if err := saveState(repoRoot, state); err != nil {
+			if err := a.repo.metadataStore().saveState(state); err != nil {
 				return err
 			}
 		}
@@ -97,7 +97,7 @@ func (a *App) cmdForward(next string) error {
 		}
 	}
 	if needsTrunkSync {
-		if err := syncLocalTrunkToFetchedRemote(state.Trunk); err != nil {
+		if err := a.syncLocalTrunkToFetchedRemote(state.Trunk); err != nil {
 			return err
 		}
 	}
@@ -134,16 +134,16 @@ func (a *App) cmdForward(next string) error {
 		rebaseBases = nil
 	}
 
-	if err := saveState(repoRoot, state); err != nil {
+	if err := a.repo.metadataStore().saveState(state); err != nil {
 		return err
 	}
 
-	if err := runRestackQueue(repoRoot, state, state.RestackMode, restackQueue, rebaseBases, a.stdout); err != nil {
+	if err := a.runRestackQueue(state, state.RestackMode, restackQueue, rebaseBases, a.stdout); err != nil {
 		return err
 	}
 	submitQueue := forwardSubmitQueue(state, restackRoots)
 	if len(submitQueue) > 0 {
-		if err := a.cmdSubmitWithDeps(false, "", "", forwardSubmitDeps(repoRoot, state, submitQueue, forwardScope)); err != nil {
+		if err := a.cmdSubmitWithDeps(false, "", "", a.forwardSubmitDeps(state, submitQueue, forwardScope)); err != nil {
 			return err
 		}
 	}
@@ -155,29 +155,29 @@ func (a *App) cmdForward(next string) error {
 	return nil
 }
 
-func forwardSubmitDeps(repoRoot string, state *State, queue []string, forwardScope map[string]bool) submitDeps {
+func (a *App) forwardSubmitDeps(state *State, queue []string, forwardScope map[string]bool) submitDeps {
 	return submitDeps{
-		git:                 defaultGitClient{},
-		gh:                  defaultGHClient{},
-		ensureCleanWorktree: ensureCleanWorktree,
-		loadState: func() (string, *State, bool, error) {
-			return repoRoot, state, true, nil
+		git:                 a.repo,
+		gh:                  a.repo,
+		ensureCleanWorktree: a.repo.ensureCleanWorktree,
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return queue, nil
 		},
-		ensurePR: ensurePR,
+		ensurePR: a.ensurePR,
 		syncCurrentStackBody: func(state *State, all bool, target string) error {
-			return syncForwardStackBodies(state, forwardScope)
+			return a.syncForwardStackBodies(state, forwardScope)
 		},
-		saveState:         saveState,
+		saveState:         a.repo.metadataStore().saveState,
 		cleanMergedBranch: func(*State, string, string) (bool, error) { return false, nil },
 	}
 }
 
 // Forward should look across the whole current stack component, not just the
 // checked-out branch, and clean merged slices from the top down.
-func buildForwardCandidatesWithDeps(state *State, current string, deps forwardDeps) ([]forwardCleanupCandidate, error) {
+func (a *App) buildForwardCandidatesWithDeps(state *State, current string, deps forwardDeps) ([]forwardCleanupCandidate, error) {
 	selected := branchesInCurrentStack(state, current)
 	order, err := topoOrderSelected(state, selected)
 	if err != nil {
@@ -190,7 +190,7 @@ func buildForwardCandidatesWithDeps(state *State, current string, deps forwardDe
 	deps.lookupPRs = lookupPRs
 	candidates := []forwardCleanupCandidate{}
 	for _, branch := range order {
-		candidate, eligible, err := detectForwardCandidateWithDeps(state, branch, deps)
+		candidate, eligible, err := a.detectForwardCandidateWithDeps(state, branch, deps)
 		if err != nil {
 			return nil, err
 		}
@@ -201,11 +201,11 @@ func buildForwardCandidatesWithDeps(state *State, current string, deps forwardDe
 	return candidates, nil
 }
 
-func buildForwardCandidateWithDeps(state *State, current string, deps forwardDeps) (forwardCleanupCandidate, error) {
+func (a *App) buildForwardCandidateWithDeps(state *State, current string, deps forwardDeps) (forwardCleanupCandidate, error) {
 	if _, _, err := repairTrackedPRMetadata(state, current, deps.gh); err != nil {
 		return forwardCleanupCandidate{}, fmt.Errorf("forward failed to repair PR metadata for %s: %w", current, err)
 	}
-	candidate, eligible, err := detectForwardCandidateWithDeps(state, current, deps)
+	candidate, eligible, err := a.detectForwardCandidateWithDeps(state, current, deps)
 	if err != nil {
 		return forwardCleanupCandidate{}, err
 	}
@@ -238,7 +238,7 @@ func repairForwardStackPRMetadata(state *State, scope map[string]bool, gh forwar
 	return repaired, nil
 }
 
-func detectForwardCandidateWithDeps(state *State, current string, deps forwardDeps) (forwardCleanupCandidate, bool, error) {
+func (a *App) detectForwardCandidateWithDeps(state *State, current string, deps forwardDeps) (forwardCleanupCandidate, bool, error) {
 	meta := state.Branches[current]
 	if meta == nil {
 		return forwardCleanupCandidate{}, false, nil
@@ -284,7 +284,7 @@ func detectForwardCandidateWithDeps(state *State, current string, deps forwardDe
 			return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w; repair with: %s", current, base, err, forwardRepairFlow)
 		}
 	} else {
-		integrated, err = mergedDeletedBranchIntegrated(base, pr)
+		integrated, err = a.mergedDeletedBranchIntegrated(base, pr)
 		if err != nil {
 			return forwardCleanupCandidate{}, false, fmt.Errorf("forward integration check failed for %s against %s: %w; repair with: %s", current, base, err, forwardRepairFlow)
 		}
@@ -293,7 +293,7 @@ func detectForwardCandidateWithDeps(state *State, current string, deps forwardDe
 		return forwardCleanupCandidate{}, false, fmt.Errorf("forward aborted: %s has local commits not fully integrated into %s; repair with: %s", current, base, forwardRepairFlow)
 	}
 
-	head, err := forwardCandidateHead(current, pr, hasLocal)
+	head, err := a.forwardCandidateHead(current, pr, hasLocal)
 	if err != nil {
 		return forwardCleanupCandidate{}, false, fmt.Errorf("forward failed to resolve merged branch head for %s: %w", current, err)
 	}
@@ -572,56 +572,56 @@ func forwardDescendantQueue(state *State, roots []string) []string {
 	return selected
 }
 
-func syncLocalTrunkToFetchedRemote(trunk string) error {
+func (a *App) syncLocalTrunkToFetchedRemote(trunk string) error {
 	trunk = strings.TrimSpace(trunk)
 	if trunk == "" {
 		return nil
 	}
 	remoteRef := "origin/" + trunk
-	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/remotes/origin/"+trunk) != nil {
+	if a.repo.gitRunQuiet("show-ref", "--verify", "--quiet", "refs/remotes/origin/"+trunk) != nil {
 		return nil
 	}
-	if gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+trunk) != nil {
+	if a.repo.gitRunQuiet("show-ref", "--verify", "--quiet", "refs/heads/"+trunk) != nil {
 		return nil
 	}
-	localCommit, err := resolveBranchRef(trunk)
+	localCommit, err := a.repo.resolveBranchRef(trunk)
 	if err != nil {
 		return err
 	}
-	remoteCommit, err := resolveBranchRef(remoteRef)
+	remoteCommit, err := a.repo.resolveBranchRef(remoteRef)
 	if err != nil {
 		return err
 	}
 	if localCommit == remoteCommit {
 		return nil
 	}
-	canFastForward, err := commitIsAncestor(localCommit, remoteCommit)
+	canFastForward, err := a.repo.commitIsAncestor(localCommit, remoteCommit)
 	if err != nil {
 		return err
 	}
 	if !canFastForward {
 		return fmt.Errorf("local trunk %s has diverged from fetched %s; update it before advancing", trunk, remoteRef)
 	}
-	current, err := currentBranch()
+	current, err := a.repo.CurrentBranch()
 	if err != nil {
 		return err
 	}
 	if current == trunk {
-		return gitRun("merge", "--ff-only", remoteRef)
+		return a.repo.Run("merge", "--ff-only", remoteRef)
 	}
-	if err := gitRunQuiet("switch", trunk); err != nil {
+	if err := a.repo.gitRunQuiet("switch", trunk); err != nil {
 		return err
 	}
-	if err := gitRun("merge", "--ff-only", remoteRef); err != nil {
-		_ = gitRunQuiet("switch", current)
+	if err := a.repo.Run("merge", "--ff-only", remoteRef); err != nil {
+		_ = a.repo.gitRunQuiet("switch", current)
 		return err
 	}
-	return gitRunQuiet("switch", current)
+	return a.repo.gitRunQuiet("switch", current)
 }
 
-func syncForwardStackBodies(state *State, selected map[string]bool) error {
+func (a *App) syncForwardStackBodies(state *State, selected map[string]bool) error {
 	ordered := orderedSelectedLineageBranches(state, selected)
-	snapshots := fetchStackBodySyncSnapshots(state, ordered)
+	snapshots := a.fetchStackBodySyncSnapshots(state, ordered)
 
 	lines := []StackPRLine{}
 	updates := []stackBodyUpdate{}
@@ -636,7 +636,7 @@ func syncForwardStackBodies(state *State, selected map[string]bool) error {
 	if len(lines) == 0 || len(updates) == 0 {
 		return nil
 	}
-	return applyStackBodyUpdates(lines, updates)
+	return a.applyStackBodyUpdates(lines, updates)
 }
 
 func cleanMergedBranchForForward(out io.Writer, state *State, candidate forwardCleanupCandidate, switchTarget string, git forwardGitClient) error {
@@ -669,8 +669,8 @@ func restoreForwardTarget(original, fallback string, merged map[string]bool, git
 	return git.Run("switch", target)
 }
 
-func mergedCleanIntegrated(branch, base string, pr *GhPR) (bool, error) {
-	integrated, err := branchFullyIntegrated(branch, base)
+func (a *App) mergedCleanIntegrated(branch, base string, pr *GhPR) (bool, error) {
+	integrated, err := a.repo.BranchFullyIntegrated(branch, base)
 	if err != nil {
 		return false, err
 	}
@@ -690,7 +690,7 @@ func mergedCleanIntegrated(branch, base string, pr *GhPR) (bool, error) {
 		return false, nil
 	}
 
-	localAtOrBehindHead, err := branchAtOrBehindCommit(branch, headCommit)
+	localAtOrBehindHead, err := a.repo.BranchAtOrBehindCommit(branch, headCommit)
 	if err != nil {
 		return false, err
 	}
@@ -701,23 +701,23 @@ func mergedCleanIntegrated(branch, base string, pr *GhPR) (bool, error) {
 		return false, nil
 	}
 
-	contains, err := baseContainsCommit(base, mergeCommit)
+	contains, err := a.repo.BaseContainsCommit(base, mergeCommit)
 	if err != nil {
 		return false, err
 	}
 	return contains, nil
 }
 
-func mergedDeletedBranchIntegrated(base string, pr *GhPR) (bool, error) {
+func (a *App) mergedDeletedBranchIntegrated(base string, pr *GhPR) (bool, error) {
 	if pr == nil || pr.MergeCommit == nil || pr.MergeCommit.OID == "" {
 		return false, fmt.Errorf("deleted local branch is missing PR merge commit; repair with: %s && git-stack submit", forwardRepairFlow)
 	}
-	return baseContainsCommit(base, pr.MergeCommit.OID)
+	return a.repo.BaseContainsCommit(base, pr.MergeCommit.OID)
 }
 
-func forwardCandidateHead(branch string, pr *GhPR, hasLocal bool) (string, error) {
+func (a *App) forwardCandidateHead(branch string, pr *GhPR, hasLocal bool) (string, error) {
 	if hasLocal {
-		return resolveBranchRef(branch)
+		return a.repo.resolveBranchRef(branch)
 	}
 	if pr == nil {
 		return "", nil

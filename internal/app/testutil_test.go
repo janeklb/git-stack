@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +25,27 @@ type testBranchReference struct {
 
 type testArchivedReference struct {
 	Parent string `json:"parent"`
+}
+
+func testRepository(t *testing.T, dir string) *repository {
+	t.Helper()
+	r, err := discoverRepository(dir, repositoryOptions{stdout: io.Discard, stderr: io.Discard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func testApp(t *testing.T, dir string) *App {
+	t.Helper()
+	a := NewWithIO(strings.NewReader(""), io.Discard, io.Discard)
+	a.repo = testRepository(t, dir)
+	return a
+}
+
+func testStore(t *testing.T, dir string) *metadataStore {
+	t.Helper()
+	return testRepository(t, dir).metadataStore()
 }
 
 func newTestRepo(t *testing.T) string {

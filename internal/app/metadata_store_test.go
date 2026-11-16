@@ -247,14 +247,8 @@ func TestMetadataLayoutSharesStateAndTemplatesButNotRecovery(t *testing.T) {
 	}
 	linked := filepath.Join(t.TempDir(), "linked with spaces")
 	mustGit(t, repo, "worktree", "add", "-b", "feature", linked)
-	mainStore, err := openMetadataStore(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	linkedStore, err := openMetadataStore(linked)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mainStore := testStore(t, repo)
+	linkedStore := testStore(t, linked)
 	if mainStore.statePath != linkedStore.statePath || mainStore.templatePath != linkedStore.templatePath || mainStore.operationPath == linkedStore.operationPath {
 		t.Fatalf("incorrect metadata ownership: main=%+v linked=%+v", mainStore, linkedStore)
 	}

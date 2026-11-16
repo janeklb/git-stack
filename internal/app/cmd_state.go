@@ -25,25 +25,25 @@ type stateStatusItem struct {
 }
 
 func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
-	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
+	state, persisted, err := a.loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
 	if !persisted {
 		// The shared loader returns inferred defaults only when state is missing.
 		// State display is the one caller that opts into the full inferred graph.
-		state, err = inferStateGraph(repoRoot)
+		state, err = a.inferStateGraph()
 		if err != nil {
 			return err
 		}
 		a.println("state: inferred local graph (no persisted stack state)")
 	}
-	current, err := currentBranch()
+	current, err := a.repo.CurrentBranch()
 	if err != nil {
 		return err
 	}
 	theme := stateTheme{useColor: !noColor && stdoutIsTTY(a.stdout), current: current}
-	localBranches, err := listLocalBranches()
+	localBranches, err := a.repo.ListLocalBranches()
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 				nextPrefix = prefix + "   "
 			}
 			line := prefix + connector + theme.branch(branch)
-			line += stateStatusBox(theme, stateBranchStatusItems(branch, meta, localBranchSet, showDrift))
+			line += stateStatusBox(theme, a.stateBranchStatusItems(branch, meta, localBranchSet, showDrift))
 			if meta.PR != nil {
 				line += fmt.Sprintf(" (PR #%d %s)", meta.PR.Number, theme.link(meta.PR.URL))
 			}
@@ -161,13 +161,13 @@ func (a *App) cmdState(all bool, showDrift bool, noColor bool) error {
 	for _, branch := range unrooted {
 		meta := state.Branches[branch]
 		items := []stateStatusItem{{text: "unrooted", kind: stateStatusAlert}}
-		items = append(items, stateBranchStatusItems(branch, meta, localBranchSet, showDrift)...)
+		items = append(items, a.stateBranchStatusItems(branch, meta, localBranchSet, showDrift)...)
 		line := theme.warning("? ") + theme.branch(branch) + stateStatusBox(theme, items)
 		a.println(line)
 		walk(branch, "")
 	}
 
-	op, _ := loadOperation(repoRoot)
+	op, _ := a.repo.metadataStore().loadOperation()
 	if op != nil {
 		a.printlnf("restack in progress: mode=%s index=%d/%d", op.Mode, op.Index, len(op.Queue))
 	}
@@ -178,7 +178,7 @@ func renderStateCycle(a *App, theme stateTheme, state *State, cycle []string, lo
 	for i, branch := range cycle {
 		meta := state.Branches[branch]
 		items := []stateStatusItem{{text: "cycle", kind: stateStatusAlert}}
-		items = append(items, stateBranchStatusItems(branch, meta, localBranches, showDrift)...)
+		items = append(items, a.stateBranchStatusItems(branch, meta, localBranches, showDrift)...)
 		prefix := ""
 		if i == 0 {
 			prefix = theme.warning("? ")
@@ -202,7 +202,7 @@ func branchStateLabel(pr *PRMeta) string {
 	return ""
 }
 
-func stateBranchStatusItems(branch string, meta *BranchRef, localBranches map[string]bool, showDrift bool) []stateStatusItem {
+func (a *App) stateBranchStatusItems(branch string, meta *BranchRef, localBranches map[string]bool, showDrift bool) []stateStatusItem {
 	pr := (*PRMeta)(nil)
 	if meta != nil {
 		pr = meta.PR
@@ -218,35 +218,35 @@ func stateBranchStatusItems(branch string, meta *BranchRef, localBranches map[st
 		items = append(items, stateStatusItem{text: "missing-parent=" + meta.Parent, kind: stateStatusAlert})
 	}
 	if meta != nil && localBranches[branch] {
-		if needsRestack, driftReason := stateBranchNeedsRestack(branch, meta, localBranches); needsRestack {
+		if needsRestack, driftReason := a.stateBranchNeedsRestack(branch, meta, localBranches); needsRestack {
 			items = append(items, stateStatusItem{text: "needs-restack", kind: stateStatusNormal})
 			if showDrift && driftReason == "parent-not-ancestor" {
 				items = append(items, stateStatusItem{text: "drifted-from-ancestor", kind: stateStatusAlert})
 			}
 		}
-		if stateBranchNeedsSubmit(branch, meta) {
+		if a.stateBranchNeedsSubmit(branch, meta) {
 			items = append(items, stateStatusItem{text: "needs-submit", kind: stateStatusNormal})
 		}
 	}
 	return items
 }
 
-func stateBranchNeedsRestack(branch string, meta *BranchRef, localBranches map[string]bool) (bool, string) {
+func (a *App) stateBranchNeedsRestack(branch string, meta *BranchRef, localBranches map[string]bool) (bool, string) {
 	if meta == nil || meta.Parent == "" || !localBranches[meta.Parent] {
 		return false, ""
 	}
-	drift, reason := detectDrift(branch, meta.Parent)
+	drift, reason := a.repo.detectDrift(branch, meta.Parent)
 	if !drift || reason != "parent-not-ancestor" {
 		return false, ""
 	}
 	return true, reason
 }
 
-func stateBranchNeedsSubmit(branch string, meta *BranchRef) bool {
+func (a *App) stateBranchNeedsSubmit(branch string, meta *BranchRef) bool {
 	if meta == nil || meta.PR == nil || meta.PR.Number <= 0 {
 		return false
 	}
-	matchesRemote, err := branchMatchesRemote(branch)
+	matchesRemote, err := a.repo.branchMatchesRemote(branch)
 	if err != nil {
 		return false
 	}

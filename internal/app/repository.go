@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// repository owns Git layout and execution, not stack or forge policy. Shared
-// metadata uses commonGitDir; recovery belongs under worktreeGitDir.
+// repository owns Git layout and subprocess execution context. Shared metadata
+// uses commonGitDir; recovery belongs under worktreeGitDir.
 type repository struct {
 	worktreeRoot   string
 	worktreeGitDir string
@@ -87,6 +87,11 @@ func discoverRepository(dir string, opts repositoryOptions) (*repository, error)
 }
 
 func (r *repository) runGit(args []string, opts commandRunOptions) (commandRunResult, error) {
+	return r.run("git", args, opts)
+}
+
+// Git and forge commands share the invocation's execution context and test seam.
+func (r *repository) run(name string, args []string, opts commandRunOptions) (commandRunResult, error) {
 	opts.dir = r.options.dir
 	opts.stdout, opts.stderr = r.options.stdout, r.options.stderr
 	// Discovery and other captured queries must not consume interactive input.
@@ -94,9 +99,9 @@ func (r *repository) runGit(args []string, opts commandRunOptions) (commandRunRe
 		opts.stdin = r.options.stdin
 	}
 	opts.baseEnv = r.options.baseEnv
-	result, err := r.runner("git", args, opts)
+	result, err := r.runner(name, args, opts)
 	if err != nil {
-		return result, &commandError{command: formatCommand("git", args), result: result, cause: err}
+		return result, &commandError{command: formatCommand(name, args), result: result, cause: err}
 	}
 	return result, nil
 }

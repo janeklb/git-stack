@@ -9,34 +9,34 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	if cont && abort {
 		return errors.New("--continue and --abort are mutually exclusive")
 	}
-	repoRoot, state, persisted, err := loadStateFromRepoOrInfer()
+	state, persisted, err := a.loadStateFromRepoOrInfer()
 	if err != nil {
 		return err
 	}
 
 	if abort {
-		return abortRestack(repoRoot, a.stdout)
+		return a.abortRestack(a.stdout)
 	}
 	if cont {
-		return continueRestack(repoRoot, state, a.stdout)
+		return a.continueRestack(state, a.stdout)
 	}
 
-	if err := ensureCleanWorktree(); err != nil {
+	if err := a.repo.ensureCleanWorktree(); err != nil {
 		return err
 	}
 	if err := requirePersistedTrackedState(state, persisted, "restack"); err != nil {
 		return err
 	}
-	op, _ := loadOperation(repoRoot)
+	op, _ := a.repo.metadataStore().loadOperation()
 	if op != nil {
-		active, err := restackGitOperationInProgress(op.Mode)
+		active, err := a.restackGitOperationInProgress(op.Mode)
 		if err != nil {
 			return err
 		}
 		if active {
 			return errors.New("a restack operation is already in progress; use git-stack restack --continue or --abort")
 		}
-		return runRestack(repoRoot, state, op, false, a.stdout)
+		return a.runRestack(state, op, false, a.stdout)
 	}
 
 	chosenMode := state.RestackMode
@@ -47,5 +47,5 @@ func (a *App) cmdRestack(mode string, cont, abort bool) error {
 	if err != nil {
 		return err
 	}
-	return runRestackQueue(repoRoot, state, chosenMode, queue, nil, a.stdout)
+	return a.runRestackQueue(state, chosenMode, queue, nil, a.stdout)
 }

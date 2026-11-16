@@ -78,7 +78,7 @@ exit 1
 			t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 			withRepoCwd(t, repo, func() {
-				if _, err := gitOutput("cat-file", "-e", prHead+"^{commit}"); err == nil {
+				if _, err := testRepository(t, repo).gitOutput("cat-file", "-e", prHead+"^{commit}"); err == nil {
 					t.Fatal("fixture must not have the PR head locally")
 				}
 				out, code := runCLIAndCapture(t, New(), []string{"clean", "--all", "--untracked", "--yes"})
@@ -86,7 +86,7 @@ exit 1
 					t.Fatalf("clean failed: exit=%d\n%s", code, out)
 				}
 				if tc.wantSkip != "" {
-					if !localBranchExists("feature") {
+					if !testRepository(t, repo).LocalBranchExists("feature") {
 						t.Fatalf("unsafe branch deletion:\n%s", out)
 					}
 					if got := strings.TrimSpace(mustGitOutput(t, repo, "rev-parse", "feature")); got != localHead {
@@ -97,7 +97,7 @@ exit 1
 					}
 					return
 				}
-				if localBranchExists("feature") || !strings.Contains(out, "feature -> deleted local branch") {
+				if testRepository(t, repo).LocalBranchExists("feature") || !strings.Contains(out, "feature -> deleted local branch") {
 					t.Fatalf("expected ancestor branch deleted after fetching PR history:\n%s", out)
 				}
 			})
@@ -119,7 +119,7 @@ func TestCleanDefaultsToCurrentStackScope(t *testing.T) {
 		mustWriteFile(t, filepath.Join(repo, "old-a.txt"), "old-a\n")
 		mustGit(t, repo, "add", "old-a.txt")
 		mustGit(t, repo, "commit", "-m", "old a")
-		headA, err := gitOutput("rev-parse", "old-a")
+		headA, err := testRepository(t, repo).gitOutput("rev-parse", "old-a")
 		if err != nil {
 			t.Fatalf("resolve old-a head: %v", err)
 		}
@@ -135,7 +135,7 @@ func TestCleanDefaultsToCurrentStackScope(t *testing.T) {
 		mustWriteFile(t, filepath.Join(repo, "old-b.txt"), "old-b\n")
 		mustGit(t, repo, "add", "old-b.txt")
 		mustGit(t, repo, "commit", "-m", "old b")
-		headB, err := gitOutput("rev-parse", "old-b")
+		headB, err := testRepository(t, repo).gitOutput("rev-parse", "old-b")
 		if err != nil {
 			t.Fatalf("resolve old-b head: %v", err)
 		}
@@ -143,12 +143,12 @@ func TestCleanDefaultsToCurrentStackScope(t *testing.T) {
 
 		mustGit(t, repo, "switch", "main")
 		mustGit(t, repo, "merge", "--no-ff", "old-a", "-m", "merge old-a")
-		mergeA, err := gitOutput("rev-parse", "HEAD")
+		mergeA, err := testRepository(t, repo).gitOutput("rev-parse", "HEAD")
 		if err != nil {
 			t.Fatalf("resolve old-a merge commit: %v", err)
 		}
 		mustGit(t, repo, "merge", "--no-ff", "old-b", "-m", "merge old-b")
-		mergeB, err := gitOutput("rev-parse", "HEAD")
+		mergeB, err := testRepository(t, repo).gitOutput("rev-parse", "HEAD")
 		if err != nil {
 			t.Fatalf("resolve old-b merge commit: %v", err)
 		}
@@ -175,14 +175,14 @@ func TestCleanDefaultsToCurrentStackScope(t *testing.T) {
 		if strings.Contains(out, "old-b -> deleted local branch") {
 			t.Fatalf("did not expect unrelated stack clean output, got:\n%s", out)
 		}
-		if branchExists("old-a") {
+		if testRepository(t, repo).branchExists("old-a") {
 			t.Fatalf("expected old-a to be removed")
 		}
-		if !branchExists("old-b") {
+		if !testRepository(t, repo).branchExists("old-b") {
 			t.Fatalf("expected old-b to remain outside current stack scope")
 		}
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
@@ -212,7 +212,7 @@ func TestCleanUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 		mustWriteFile(t, filepath.Join(repo, "tracked-a.txt"), "tracked-a\n")
 		mustGit(t, repo, "add", "tracked-a.txt")
 		mustGit(t, repo, "commit", "-m", "tracked a")
-		headA, err := gitOutput("rev-parse", "tracked-a")
+		headA, err := testRepository(t, repo).gitOutput("rev-parse", "tracked-a")
 		if err != nil {
 			t.Fatalf("resolve tracked-a head: %v", err)
 		}
@@ -228,7 +228,7 @@ func TestCleanUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 		mustWriteFile(t, filepath.Join(repo, "tracked-b.txt"), "tracked-b\n")
 		mustGit(t, repo, "add", "tracked-b.txt")
 		mustGit(t, repo, "commit", "-m", "tracked b")
-		headB, err := gitOutput("rev-parse", "tracked-b")
+		headB, err := testRepository(t, repo).gitOutput("rev-parse", "tracked-b")
 		if err != nil {
 			t.Fatalf("resolve tracked-b head: %v", err)
 		}
@@ -239,24 +239,24 @@ func TestCleanUntrackedIncludesGlobalUntrackedBranches(t *testing.T) {
 		mustWriteFile(t, filepath.Join(repo, "untracked-old.txt"), "untracked-old\n")
 		mustGit(t, repo, "add", "untracked-old.txt")
 		mustGit(t, repo, "commit", "-m", "untracked old")
-		headUntracked, err := gitOutput("rev-parse", "untracked-old")
+		headUntracked, err := testRepository(t, repo).gitOutput("rev-parse", "untracked-old")
 		if err != nil {
 			t.Fatalf("resolve untracked-old head: %v", err)
 		}
 
 		mustGit(t, repo, "switch", "main")
 		mustGit(t, repo, "merge", "--no-ff", "tracked-a", "-m", "merge tracked-a")
-		mergeA, err := gitOutput("rev-parse", "HEAD")
+		mergeA, err := testRepository(t, repo).gitOutput("rev-parse", "HEAD")
 		if err != nil {
 			t.Fatalf("resolve tracked-a merge commit: %v", err)
 		}
 		mustGit(t, repo, "merge", "--no-ff", "tracked-b", "-m", "merge tracked-b")
-		mergeB, err := gitOutput("rev-parse", "HEAD")
+		mergeB, err := testRepository(t, repo).gitOutput("rev-parse", "HEAD")
 		if err != nil {
 			t.Fatalf("resolve tracked-b merge commit: %v", err)
 		}
 		mustGit(t, repo, "merge", "--no-ff", "untracked-old", "-m", "merge untracked-old")
-		mergeUntracked, err := gitOutput("rev-parse", "HEAD")
+		mergeUntracked, err := testRepository(t, repo).gitOutput("rev-parse", "HEAD")
 		if err != nil {
 			t.Fatalf("resolve untracked-old merge commit: %v", err)
 		}
@@ -316,7 +316,7 @@ func TestCleanWithoutInitializedStateAllowsUntrackedMode(t *testing.T) {
 	if !strings.Contains(out, "clean: nothing to do") {
 		t.Fatalf("expected noop clean output, got:\n%s", out)
 	}
-	if _, err := loadState(repo); err != nil {
+	if _, err := testStore(t, repo).loadState(); err != nil {
 		t.Fatalf("expected state file to be persisted, got: %v", err)
 	}
 }
@@ -331,12 +331,12 @@ func TestCleanPrunesTrackedStateWhenBranchRefIsMissing(t *testing.T) {
 		mustPointRepoOriginAndTrack(t, repo, origin, "main")
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["ghost"] = &BranchRef{Parent: "main"}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state: %v", err)
 		}
 
@@ -348,7 +348,7 @@ func TestCleanPrunesTrackedStateWhenBranchRefIsMissing(t *testing.T) {
 			t.Fatalf("expected ghost branch prune output, got:\n%s", out)
 		}
 
-		stateAfter, err := loadState(repo)
+		stateAfter, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state after clean: %v", err)
 		}
@@ -368,12 +368,12 @@ func TestCleanPrunesMissingTrackedStateWithClosedPR(t *testing.T) {
 		mustPointRepoOriginAndTrack(t, repo, origin, "main")
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["ghost"] = &BranchRef{Parent: "main", PR: &PRMeta{Number: 42, Base: "main"}}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state: %v", err)
 		}
 
@@ -393,7 +393,7 @@ func TestCleanPrunesMissingTrackedStateWithClosedPR(t *testing.T) {
 			t.Fatalf("expected closed-PR stale prune output, got:\n%s", out)
 		}
 
-		stateAfter, err := loadState(repo)
+		stateAfter, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state after clean: %v", err)
 		}

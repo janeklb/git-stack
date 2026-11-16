@@ -40,7 +40,7 @@ func (s checkSeverity) String() string {
 func (a *App) cmdCheck() error {
 	report := checkReport{out: a.stdout}
 
-	repoRoot, state, err := loadStateFromRepo()
+	state, err := a.repo.metadataStore().loadState()
 	if err != nil {
 		if errors.Is(err, errStateNotInitialized) {
 			report.add(checkSeverityError, "state-not-initialized", "hint=run-stack-init")
@@ -51,7 +51,7 @@ func (a *App) cmdCheck() error {
 		return report.exitError()
 	}
 
-	if state.Trunk == "" || !branchExists(state.Trunk) {
+	if state.Trunk == "" || !a.repo.branchExists(state.Trunk) {
 		report.add(checkSeverityError, "trunk-missing", fmt.Sprintf("trunk=%s", state.Trunk))
 	}
 
@@ -61,7 +61,7 @@ func (a *App) cmdCheck() error {
 			report.add(checkSeverityError, "branch-metadata-missing", fmt.Sprintf("branch=%s", branch))
 			continue
 		}
-		if !branchExists(branch) {
+		if !a.repo.branchExists(branch) {
 			report.add(checkSeverityWarn, "stale-tracked-branch", fmt.Sprintf("branch=%s", branch))
 			continue
 		}
@@ -70,7 +70,7 @@ func (a *App) cmdCheck() error {
 			report.add(checkSeverityError, "missing-parent", fmt.Sprintf("branch=%s", branch))
 			continue
 		}
-		if !branchExists(parent) {
+		if !a.repo.branchExists(parent) {
 			report.add(checkSeverityError, "parent-missing", fmt.Sprintf("branch=%s", branch), fmt.Sprintf("parent=%s", parent))
 			continue
 		}
@@ -78,7 +78,7 @@ func (a *App) cmdCheck() error {
 			report.add(checkSeverityError, "cycle-detected", fmt.Sprintf("branch=%s", branch), fmt.Sprintf("parent=%s", parent))
 			continue
 		}
-		if err := gitRunQuiet("merge-base", "--is-ancestor", parent, branch); err != nil {
+		if err := a.repo.gitRunQuiet("merge-base", "--is-ancestor", parent, branch); err != nil {
 			report.add(checkSeverityError, "parent-not-ancestor", fmt.Sprintf("branch=%s", branch), fmt.Sprintf("parent=%s", parent))
 		}
 	}
@@ -95,7 +95,7 @@ func (a *App) cmdCheck() error {
 		report.add(checkSeverityWarn, "unrooted-branch", fmt.Sprintf("branch=%s", branch), fmt.Sprintf("parent=%s", parent))
 	}
 
-	op, opErr := loadOperation(repoRoot)
+	op, opErr := a.repo.metadataStore().loadOperation()
 	if opErr != nil {
 		if !errors.Is(opErr, os.ErrNotExist) {
 			report.add(checkSeverityWarn, "restack-operation-unreadable", fmt.Sprintf("detail=%q", opErr.Error()))
@@ -108,7 +108,7 @@ func (a *App) cmdCheck() error {
 		}
 	}
 
-	branches, branchErr := listLocalBranches()
+	branches, branchErr := a.repo.ListLocalBranches()
 	if branchErr != nil {
 		report.add(checkSeverityError, "local-branches-unreadable", fmt.Sprintf("detail=%q", branchErr.Error()))
 	} else {

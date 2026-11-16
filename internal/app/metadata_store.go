@@ -27,16 +27,6 @@ func (r *repository) metadataStore() *metadataStore {
 	}
 }
 
-// Temporary adapter for workflows that still carry a worktree-root string.
-// New storage/recovery callers use repository.metadataStore directly.
-func openMetadataStore(worktreeRoot string) (*metadataStore, error) {
-	r, err := discoverRepository(worktreeRoot, repositoryOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return r.metadataStore(), nil
-}
-
 func decodeMetadata(data []byte, target any, version int, legacyState bool) error {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(data, &fields); err != nil {

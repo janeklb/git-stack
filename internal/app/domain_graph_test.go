@@ -21,7 +21,7 @@ func TestSubmitQueueForTargetReturnsCurrentStackTreeOrder(t *testing.T) {
 		},
 	}
 
-	got, err := submitQueue(state, false, []string{"feat-three"})
+	got, err := (&App{}).submitQueue(state, false, []string{"feat-three"})
 	if err != nil {
 		t.Fatalf("submitQueue returned error: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestSubmitQueueAllReturnsTopologicalOrder(t *testing.T) {
 		},
 	}
 
-	got, err := submitQueue(state, true, nil)
+	got, err := (&App{}).submitQueue(state, true, nil)
 	if err != nil {
 		t.Fatalf("submitQueue returned error: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestSubmitQueueErrorsForUnknownTarget(t *testing.T) {
 		},
 	}
 
-	_, err := submitQueue(state, false, []string{"missing"})
+	_, err := (&App{}).submitQueue(state, false, []string{"missing"})
 	if err == nil {
 		t.Fatal("expected submitQueue to fail for unknown branch")
 	}
@@ -149,7 +149,7 @@ func TestSubmitQueueOrdersComponentsWithUntrackedParents(t *testing.T) {
 			"b-grandchild": {Parent: "a-child"},
 			"other":        {Parent: "main"},
 		}}
-		got, err := submitQueue(state, true, nil)
+		got, err := (&App{}).submitQueue(state, true, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,7 +170,7 @@ func TestSubmitQueueRefusesInvalidGraphs(t *testing.T) {
 		{"missing-metadata", map[string]*BranchRef{"a": nil}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := submitQueue(&State{Trunk: "main", Branches: tc.branches}, true, nil)
+			_, err := (&App{}).submitQueue(&State{Trunk: "main", Branches: tc.branches}, true, nil)
 			if err == nil {
 				t.Fatal("expected graph validation error")
 			}

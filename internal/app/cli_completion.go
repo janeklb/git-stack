@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func completeBranchRefs(includeRemote bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+func (a *App) completeBranchRefs(includeRemote bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		branches, err := listBranchCompletionCandidates(includeRemote)
+		branches, err := a.listBranchCompletionCandidates(includeRemote)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
@@ -24,8 +24,8 @@ func completeBranchRefs(includeRemote bool) func(*cobra.Command, []string, strin
 	}
 }
 
-func completeSingleBranchArg(includeRemote bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-	branchCompletion := completeBranchRefs(includeRemote)
+func (a *App) completeSingleBranchArg(includeRemote bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	branchCompletion := a.completeBranchRefs(includeRemote)
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -34,8 +34,12 @@ func completeSingleBranchArg(includeRemote bool) func(*cobra.Command, []string, 
 	}
 }
 
-func listBranchCompletionCandidates(includeRemote bool) ([]string, error) {
-	branches, err := listLocalBranches()
+func (a *App) listBranchCompletionCandidates(includeRemote bool) ([]string, error) {
+	repo, err := a.discoverRepository()
+	if err != nil {
+		return nil, err
+	}
+	branches, err := repo.ListLocalBranches()
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +50,7 @@ func listBranchCompletionCandidates(includeRemote bool) ([]string, error) {
 	}
 
 	if includeRemote {
-		remoteBranches, err := listOriginBranches()
+		remoteBranches, err := repo.ListOriginBranches()
 		if err != nil {
 			return nil, err
 		}

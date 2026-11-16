@@ -11,29 +11,28 @@ func (a *App) cmdTemplatePR(scopeArg string) error {
 		return err
 	}
 
-	repoRootPath := ""
 	if scope == templateScopeRepo {
-		repo, err := discoverRepository(".", repositoryOptions{in: a.in, stdout: a.stdout, stderr: a.stderr})
+		repo, err := a.discoverRepository()
 		if err != nil {
 			return err
 		}
-		if err := repo.requireLegacyCommandLayout(); err != nil {
+		if err := repo.requireSupportedCommandLayout(); err != nil {
 			return err
 		}
-		repoRootPath = repo.worktreeRoot
 	}
 
-	path, err := ensurePRTemplateFile(repoRootPath, scope)
+	path, err := a.ensurePRTemplateFile(scope)
 	if err != nil {
 		return err
 	}
 
 	a.printlnf("opening %s PR template: %s", scope, path)
-	return editFileInGitEditor(path, a.in, a.stdout, a.stderr)
+	runner, opts := a.editorExecution()
+	return editFileInGitEditor(path, runner, opts)
 }
 
-func ensurePRTemplateFile(repoRoot string, scope templateScope) (string, error) {
-	path, err := prTemplatePath(repoRoot, scope)
+func (a *App) ensurePRTemplateFile(scope templateScope) (string, error) {
+	path, err := a.prTemplatePath(scope)
 	if err != nil {
 		return "", err
 	}

@@ -9,19 +9,19 @@ import (
 )
 
 func (a *App) defaultSubmitDeps() submitDeps {
-	git := defaultGitClient{}
+	git := a.repo
 	return submitDeps{
-		git:                  git,
-		gh:                   defaultGHClient{},
-		ensureCleanWorktree:  ensureCleanWorktree,
-		loadState:            loadStateFromRepoOrInfer,
-		submitQueue:          submitQueue,
+		git:                 git,
+		gh:                  a.repo,
+		ensureCleanWorktree: a.repo.ensureCleanWorktree,
+		loadState:           a.loadStateFromRepoOrInfer,
+		submitQueue:         a.submitQueue,
 		validateQueue: func(state *State, queue []string) error {
-			return validateSubmitQueue(state, queue, git)
+			return a.validateSubmitQueue(state, queue, git)
 		},
-		ensurePR:             ensurePR,
-		syncCurrentStackBody: syncCurrentStackBodies,
-		saveState:            saveState,
+		ensurePR:             a.ensurePR,
+		syncCurrentStackBody: a.syncCurrentStackBodies,
+		saveState:            a.repo.metadataStore().saveState,
 		cleanMergedBranch: func(state *State, branch string, nextOnClean string) (bool, error) {
 			return a.cleanMergedBranch(state, branch, nextOnClean, git)
 		},
@@ -38,7 +38,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submi
 	if err := deps.ensureCleanWorktree(); err != nil {
 		return err
 	}
-	repoRoot, state, persisted, err := deps.loadState()
+	state, persisted, err := deps.loadState()
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submi
 		if err := deps.git.PushBranch(branch); err != nil {
 			return fmt.Errorf("push %s: %w", branch, err)
 		}
-		pr, err := deps.ensurePR(repoRoot, state.Trunk, branch, parent, meta.PR, existingPR)
+		pr, err := deps.ensurePR(state.Trunk, branch, parent, meta.PR, existingPR)
 		if err != nil {
 			return fmt.Errorf("submit %s: %w", branch, err)
 		}
@@ -120,15 +120,15 @@ func (a *App) cmdSubmitWithDeps(all bool, nextOnClean, branch string, deps submi
 	}
 
 	if persisted {
-		if err := deps.saveState(repoRoot, state); err != nil {
+		if err := deps.saveState(state); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateSubmitQueue(state *State, queue []string, git submitGitClient) error {
-	localBranches, err := listLocalBranches()
+func (a *App) validateSubmitQueue(state *State, queue []string, git submitGitClient) error {
+	localBranches, err := a.repo.ListLocalBranches()
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func validateSubmitQueue(state *State, queue []string, git submitGitClient) erro
 		if !localBranchSet[branch] || !localBranchSet[meta.Parent] {
 			continue
 		}
-		drift, reason := detectDrift(branch, meta.Parent)
+		drift, reason := a.repo.detectDrift(branch, meta.Parent)
 		if drift && reason == "parent-not-ancestor" {
 			integrated, err := git.BranchFullyIntegrated(branch, meta.Parent)
 			if err == nil && integrated {

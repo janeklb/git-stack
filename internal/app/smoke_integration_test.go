@@ -18,12 +18,12 @@ func TestIntegrationSmokeSubmitMergedSkipPath(t *testing.T) {
 		mustRunCLI(t, cli, []string{"init", "--trunk", "main"})
 		mustRunCLI(t, cli, []string{"new", "feat-one"})
 
-		state, err := loadState(repo)
+		state, err := testStore(t, repo).loadState()
 		if err != nil {
 			t.Fatalf("load state: %v", err)
 		}
 		state.Branches["feat-one"].PR = &PRMeta{Number: 1, URL: "https://example.invalid/pr/1", Base: "main"}
-		if err := saveState(repo, state); err != nil {
+		if err := testStore(t, repo).saveState(state); err != nil {
 			t.Fatalf("save state with PR metadata: %v", err)
 		}
 
@@ -56,7 +56,7 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 		mustWriteFile(t, filepath.Join(repo, "old.txt"), "old\n")
 		mustGit(t, repo, "add", "old.txt")
 		mustGit(t, repo, "commit", "-m", "old feature")
-		headOID, err := gitOutput("rev-parse", "old-feature")
+		headOID, err := testRepository(t, repo).gitOutput("rev-parse", "old-feature")
 		if err != nil {
 			t.Fatalf("resolve old-feature head: %v", err)
 		}
@@ -64,7 +64,7 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 
 		mustGit(t, repo, "switch", "main")
 		mustGit(t, repo, "merge", "--no-ff", "old-feature", "-m", "merge old feature")
-		mergeOID, err := gitOutput("rev-parse", "HEAD")
+		mergeOID, err := testRepository(t, repo).gitOutput("rev-parse", "HEAD")
 		if err != nil {
 			t.Fatalf("resolve merge commit: %v", err)
 		}
@@ -86,7 +86,7 @@ func TestIntegrationSmokePruneLocalDeletesMergedUntrackedBranch(t *testing.T) {
 		if !strings.Contains(out, "old-feature -> deleted local branch") {
 			t.Fatalf("expected local branch deletion output, got:\n%s", out)
 		}
-		if branchExists("old-feature") {
+		if testRepository(t, repo).branchExists("old-feature") {
 			t.Fatalf("expected old-feature to be removed")
 		}
 	})

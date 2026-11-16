@@ -95,13 +95,13 @@ func TestCmdSubmitFailsWhenNoTrackedBranchesExist(t *testing.T) {
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{}, nil
 		},
-		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for empty queue")
 			return nil, nil
 		},
@@ -109,7 +109,7 @@ func TestCmdSubmitFailsWhenNoTrackedBranchesExist(t *testing.T) {
 			t.Fatal("sync should not run when no tracked branches exist")
 			return nil
 		},
-		saveState: func(string, *State) error {
+		saveState: func(*State) error {
 			t.Fatal("save should not run when no tracked branches exist")
 			return nil
 		},
@@ -142,20 +142,20 @@ func TestCmdSubmitMergedPRSkipsPushAndCleansBranch(t *testing.T) {
 		git:                 git,
 		gh:                  fakeSubmitGHClient{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for merged PR")
 			return nil, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error {
 			return nil
 		},
-		saveState: func(string, *State) error {
+		saveState: func(*State) error {
 			saveCalled = true
 			return nil
 		},
@@ -190,17 +190,16 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	ensurePRBranch := ""
 	ensurePRBase := ""
 	ensurePRTrunk := ""
-	ensurePRRepoRoot := ""
 	syncedAll := false
 	syncedBranch := ""
-	savedRoot := ""
+	saveCalled := false
 
 	err := app.cmdSubmitWithDeps(false, "", "feat-one", submitDeps{
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(_ *State, all bool, args []string) ([]string, error) {
 			if all {
@@ -211,14 +210,13 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 			}
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(repoRoot, trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+		ensurePR: func(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 			if existing != nil {
 				t.Fatalf("expected nil existing PR, got %+v", existing)
 			}
 			if existingPR != nil {
 				t.Fatalf("expected nil existing GhPR snapshot, got %+v", existingPR)
 			}
-			ensurePRRepoRoot = repoRoot
 			ensurePRTrunk = trunk
 			ensurePRBranch = branch
 			ensurePRBase = parent
@@ -229,8 +227,8 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 			syncedBranch = branch
 			return nil
 		},
-		saveState: func(root string, _ *State) error {
-			savedRoot = root
+		saveState: func(_ *State) error {
+			saveCalled = true
 			return nil
 		},
 		cleanMergedBranch: func(*State, string, string) (bool, error) {
@@ -250,9 +248,6 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	if ensurePRTrunk != "main" {
 		t.Fatalf("expected trunk main, got %q", ensurePRTrunk)
 	}
-	if ensurePRRepoRoot != "/tmp/repo" {
-		t.Fatalf("expected repo root /tmp/repo, got %q", ensurePRRepoRoot)
-	}
 	if ensurePRBase != "main" {
 		t.Fatalf("expected trunk fallback parent main, got %q", ensurePRBase)
 	}
@@ -262,8 +257,8 @@ func TestCmdSubmitPushesEnsuresPRSyncsAndPersists(t *testing.T) {
 	if syncedBranch != "feat-one" {
 		t.Fatalf("expected sync branch feat-one, got %q", syncedBranch)
 	}
-	if savedRoot != "/tmp/repo" {
-		t.Fatalf("expected save root /tmp/repo, got %q", savedRoot)
+	if !saveCalled {
+		t.Fatal("expected state to be saved")
 	}
 	if state.Branches["feat-one"].PR == nil || state.Branches["feat-one"].PR.Number != 11 {
 		t.Fatalf("expected state PR metadata to be updated, got %+v", state.Branches["feat-one"].PR)
@@ -282,18 +277,18 @@ func TestCmdSubmitSkipsMissingLocalBranch(t *testing.T) {
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not run for missing local branch")
 			return nil, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
-		saveState:            func(string, *State) error { return nil },
+		saveState:            func(*State) error { return nil },
 		cleanMergedBranch:    func(*State, string, string) (bool, error) { return false, nil },
 	})
 	if err != nil {
@@ -319,18 +314,18 @@ func TestCmdSubmitSkipsBranchWithoutCommitsBeyondParent(t *testing.T) {
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not run when branch has no commits beyond parent")
 			return nil, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
-		saveState:            func(string, *State) error { return nil },
+		saveState:            func(*State) error { return nil },
 		cleanMergedBranch:    func(*State, string, string) (bool, error) { return false, nil },
 	})
 	if err != nil {
@@ -354,13 +349,13 @@ func TestCmdSubmitPrintsNoteWhenNextOnCleanUnused(t *testing.T) {
 		git:                 git,
 		gh:                  fakeSubmitGHClient{},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(_ string, trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
+		ensurePR: func(trunk, branch, parent string, existing *PRMeta, existingPR *GhPR) (*PRMeta, error) {
 			if trunk != "main" {
 				t.Fatalf("expected trunk main, got %q", trunk)
 			}
@@ -370,7 +365,7 @@ func TestCmdSubmitPrintsNoteWhenNextOnCleanUnused(t *testing.T) {
 			return &PRMeta{Number: 11, URL: "https://example.invalid/pr/11", Base: parent}, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
-		saveState:            func(string, *State) error { return nil },
+		saveState:            func(*State) error { return nil },
 		cleanMergedBranch:    func(*State, string, string) (bool, error) { return false, nil },
 	})
 	if err != nil {
@@ -392,18 +387,18 @@ func TestCmdSubmitTrimsNextOnCleanBeforeCleanCallback(t *testing.T) {
 		git:                 &fakeSubmitGitClient{},
 		gh:                  fakeSubmitGHClient{view: map[int]*GhPR{7: {Number: 7, URL: "https://new", State: "MERGED", BaseRefName: "main"}}},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not be called for merged PR")
 			return nil, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
-		saveState:            func(string, *State) error { return nil },
+		saveState:            func(*State) error { return nil },
 		cleanMergedBranch: func(_ *State, _ string, nextOnClean string) (bool, error) {
 			seen = nextOnClean
 			return true, nil
@@ -431,13 +426,13 @@ func TestCmdSubmitRepairsMissingOpenPRMetadataBeforeEnsuringPR(t *testing.T) {
 			"feat-one": {Number: 11, URL: "https://example.invalid/pr/11", State: "OPEN", BaseRefName: "main"},
 		}},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			ensureCalled = true
 			if state.Branches["feat-one"].PR == nil || state.Branches["feat-one"].PR.Number != 11 {
 				t.Fatalf("expected repaired PR metadata before ensurePR, got %+v", state.Branches["feat-one"].PR)
@@ -448,7 +443,7 @@ func TestCmdSubmitRepairsMissingOpenPRMetadataBeforeEnsuringPR(t *testing.T) {
 			return state.Branches["feat-one"].PR, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
-		saveState:            func(string, *State) error { return nil },
+		saveState:            func(*State) error { return nil },
 		cleanMergedBranch: func(*State, string, string) (bool, error) {
 			t.Fatal("clean should not be called for repaired open PR")
 			return false, nil
@@ -479,18 +474,18 @@ func TestCmdSubmitRepairsMissingMergedPRMetadataBeforePush(t *testing.T) {
 			"feat-one": {Number: 12, URL: "https://example.invalid/pr/12", State: "MERGED", BaseRefName: "main"},
 		}},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not run for repaired merged PR")
 			return nil, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
-		saveState:            func(string, *State) error { return nil },
+		saveState:            func(*State) error { return nil },
 		cleanMergedBranch: func(*State, string, string) (bool, error) {
 			cleaned = "feat-one"
 			return false, nil
@@ -523,18 +518,18 @@ func TestCmdSubmitFailsWhenRepairedMergedPRIsNotIntegrated(t *testing.T) {
 			"feat-one": {Number: 12, URL: "https://example.invalid/pr/12", State: "MERGED", BaseRefName: "main"},
 		}},
 		ensureCleanWorktree: func() error { return nil },
-		loadState: func() (string, *State, bool, error) {
-			return "/tmp/repo", state, true, nil
+		loadState: func() (*State, bool, error) {
+			return state, true, nil
 		},
 		submitQueue: func(*State, bool, []string) ([]string, error) {
 			return []string{"feat-one"}, nil
 		},
-		ensurePR: func(string, string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
+		ensurePR: func(string, string, string, *PRMeta, *GhPR) (*PRMeta, error) {
 			t.Fatal("ensurePR should not run for repaired merged PR")
 			return nil, nil
 		},
 		syncCurrentStackBody: func(*State, bool, string) error { return nil },
-		saveState:            func(string, *State) error { return nil },
+		saveState:            func(*State) error { return nil },
 		cleanMergedBranch: func(*State, string, string) (bool, error) {
 			t.Fatal("clean should not run when repaired merged PR is not integrated")
 			return false, nil
